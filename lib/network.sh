@@ -1,0 +1,183 @@
+#!/bin/bash
+
+# lib/network.sh
+# Network config functions
+
+network_set_dns() {
+    local provider=$1
+    local dns_servers=""
+
+    case $provider in
+        "quad9")
+            dns_servers="9.9.9.9 149.112.112.112"
+            info "Setting DNS to Quad9..."
+            ;;
+        "mullvad")
+            dns_servers="194.242.2.2 194.242.2.3"
+            info "Setting DNS to Mullvad..."
+            ;;
+        "cloudflare")
+            dns_servers="1.1.1.1 1.0.0.1"
+            info "Setting DNS to Cloudflare..."
+            ;;
+        *)
+            error "Unknown provider: $provider"
+            return 1
+            ;;
+    esac
+
+    services=$(networksetup -listallnetworkservices | grep -v '*')
+    
+    IFS=$'\n'
+    for service in $services; do
+        info "Configuring $service..."
+        # Requires sudo
+        execute_sudo "Set DNS for $service" networksetup -setdnsservers "$service" $dns_servers
+    done
+    unset IFS
+    
+    execute_sudo "Flush DNS cache" dscacheutil -flushcache
+    execute_sudo "Kill mDNSResponder" killall -HUP mDNSResponder
+    info "DNS updated and cache flushed."
+}
+
+network_update_hosts() {
+    info "Updating /etc/hosts with StevenBlack blocklist..."
+    
+    # 1. Backup / Create Base
+    if [ ! -f "/etc/hosts-base" ]; then
+        info "Creating /etc/hosts-base backup..."
+        execute_sudo "Backup hosts" cp /etc/hosts /etc/hosts-base
+    fi
+    
+    # 2. Restore Base
+    # We use 'cat >' pattern via sudo sh -c to handle permissions cleanly
+    execute_sudo "Restore base hosts" sh -c "cat /etc/hosts-base > /etc/hosts"
+    
+    # 3. Download and Append
+    info "Downloading blocklist to config/hosts..."
+    local BLOCKLIST_URL="https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+    local LOCAL_BLOCKLIST="config/hosts"
+    
+    # Ensure config dir exists (it should, but safety first)
+    if [ ! -d "config" ]; then mkdir -p config; fi
+    
+    # Try downloading
+    if curl -sS -o "$LOCAL_BLOCKLIST" "$BLOCKLIST_URL"; then
+        info "Blocklist downloaded successfully."
+    else
+        warn "Download failed."
+        if [ -f "$LOCAL_BLOCKLIST" ]; then
+            warn "Using cached blocklist from $LOCAL_BLOCKLIST"
+        else
+            error "No local blocklist available. Aborting hosts update."
+            return 1
+        fi
+    fi
+    
+    # Append local blocklist to /etc/hosts
+    info "Applying blocklist..."
+    # We use awk or simple cat logic. 'tee -a' is simplest with sudo.
+    execute_sudo "Append Blocklist" sh -c "cat '$LOCAL_BLOCKLIST' | tee -a /etc/hosts > /dev/null"
+    
+    # Flush cache
+    execute_sudo "Flush DNS cache" dscacheutil -flushcache
+    execute_sudo "Kill mDNSResponder" killall -HUP mDNSResponder
+    info "Hosts file updated successfully."
+}
+
+network_verify_dns() {
+    info "Verifying DNS Configuration..."
+    
+    # 0. Check Service Status
+    info "Checking Service Status (brew services)..."
+    # We use execute_sudo because they are likely root services
+    local services_out
+    if command -v brew &> /dev/null; then
+         # We capture output. execute_sudo usually executes "$@".
+         # We'll call brew directly with sudo for capture, assuming execute_sudo might be noisy or hard to capture if it echoes info.
+         # Actually, execute_sudo mocks just run the command. Real execute_sudo runs sudo.
+         # But we want to capture the output for grep.
+         # So we'll use 'sudo brew services list' directly or via a wrapper if we want to be consistent?
+         # Consistent approach:
+         services_out=$(sudo brew services list 2>/dev/null)
+         echo "$services_out"
+         
+         if echo "$services_out" | grep -q "dnscrypt-proxy.*started"; then
+             info "[PASS] dnscrypt-proxy is running."
+         else
+             warn "[FAIL] dnscrypt-proxy is NOT running or has errors."
+         fi
+         
+         if echo "$services_out" | grep -q "unbound.*started"; then
+             info "[PASS] unbound is running."
+         else
+             warn "[FAIL] unbound is NOT running or has errors."
+         fi
+
+         if echo "$services_out" | grep -q "privoxy.*started"; then
+             info "[PASS] privoxy is running."
+         else
+             warn "[FAIL] privoxy is NOT running or has errors."
+         fi
+    else
+         warn "Homebrew not found. Skipping service check."
+    fi
+
+    # 1. Check System Resolver
+    info "Checking System Resolver (scutil)..."
+    local scutil_out
+    if ! command -v scutil &> /dev/null; then
+        warn "scutil command not found. Skipping."
+    else
+        scutil_out=$(scutil --dns | head -n 10)
+        echo "$scutil_out"
+        if echo "$scutil_out" | grep -q "127.0.0.1"; then
+            info "[PASS] System resolver is using localhost (127.0.0.1)."
+        else
+            warn "[FAIL] System resolver does NOT appear to use 127.0.0.1."
+        fi
+    fi
+
+    # 2. Check NetworkSetup
+    info "Checking Wi-Fi DNS Settings..."
+    local ns_out
+    if ! command -v networksetup &> /dev/null; then
+         warn "networksetup command not found. Skipping."
+    else
+        ns_out=$(networksetup -getdnsservers Wi-Fi)
+        echo "$ns_out"
+        if echo "$ns_out" | grep -q "127.0.0.1"; then
+            info "[PASS] Wi-Fi is configured to use 127.0.0.1."
+        else
+            warn "[FAIL] Wi-Fi does NOT appear to use 127.0.0.1."
+        fi
+    fi
+
+    # 3. Test Valid DNSSEC
+    info "Testing Valid DNSSEC (icann.org)..."
+    if ! command -v dig &> /dev/null; then
+        warn "dig command not found. Skipping DNSSEC tests."
+        return
+    fi
+
+    local digging=$(dig +dnssec icann.org @127.0.0.1)
+    if echo "$digging" | grep -q "NOERROR" && echo "$digging" | grep -q "ad"; then
+        info "[PASS] Valid DNSSEC signature verified (NOERROR + ad flag)."
+    else
+        warn "[FAIL] DNSSEC validation failed for icann.org."
+        # Print status line for debugging
+        echo "$digging" | grep "status:"
+        echo "$digging" | grep "flags:"
+    fi
+
+    # 4. Test Invalid DNSSEC (Should Fail)
+    info "Testing Invalid DNSSEC (dnssec-failed.org)..."
+    local digging_fail=$(dig www.dnssec-failed.org @127.0.0.1)
+    if echo "$digging_fail" | grep -q "SERVFAIL"; then
+        info "[PASS] Invalid DNSSEC rejected (SERVFAIL)."
+    else
+        warn "[FAIL] Invalid DNSSEC was NOT rejected (Expected SERVFAIL)."
+        echo "$digging_fail" | grep "status:"
+    fi
+}

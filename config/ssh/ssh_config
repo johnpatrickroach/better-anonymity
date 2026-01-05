@@ -1,0 +1,36 @@
+# Hardened SSH Client Configuration
+# Based on https://github.com/drduh/config/blob/main/ssh_config
+
+Host *
+    # Visual Host Keys helps usually identify the server
+    VisualHostKey yes
+
+    # Hash Known Hosts to prevent enumeration if known_hosts is stolen
+    HashKnownHosts yes
+
+    # Verify Host Key DNS (SSHFP records)
+    VerifyHostKeyDNS ask
+
+    # Logging
+    LogLevel INFO
+
+    # Encryption and Ciphers (Hardened)
+    Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+    KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group-exchange-sha256
+    MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com
+    HostKeyAlgorithms ssh-ed25519-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com,ssh-ed25519,ssh-rsa,ecdsa-sha2-nistp521-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp256-cert-v01@openssh.com,ecdsa-sha2-nistp521,ecdsa-sha2-nistp384,ecdsa-sha2-nistp256
+
+    # Authentication
+    PasswordAuthentication no
+    ChallengeResponseAuthentication no
+    PubkeyAuthentication yes
+    IdentitiesOnly yes
+
+    # Protocol
+    Protocol 2
+
+    # Connection
+    ServerAliveInterval 300
+    ServerAliveCountMax 2
+    #Compress yes # Optional, but can leak info in some contexts (CRIME/BEAST style attacks rare for SSH but delayed is safer)
+    Compression no 

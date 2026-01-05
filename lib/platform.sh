@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# lib/platform.sh
+# Architecture and OS detection
+
+detect_arch() {
+    ARCH=$(uname -m)
+    if [ "$ARCH" == "arm64" ]; then
+        export PLATFORM_ARCH="arm64"
+        export BREW_PREFIX="/opt/homebrew"
+        info "Detected Apple Silicon (ARM64). Using Homebrew prefix: $BREW_PREFIX"
+    else
+        export PLATFORM_ARCH="x86_64"
+        export BREW_PREFIX="/usr/local"
+        info "Detected Intel (x86_64). Using Homebrew prefix: $BREW_PREFIX"
+    fi
+}
+
+check_macos() {
+    if [[ "$(uname)" != "Darwin" ]]; then
+        die "This script is designed for macOS only."
+    fi
+}
+
+detect_model() {
+    # sysctl hw.model returns strings like "MacBookPro18,3", "Macmini9,1", etc.
+    local model_id=$(sysctl -n hw.model)
+    export PLATFORM_MODEL="$model_id"
+    
+    if [[ "$model_id" == *"MacBook"* ]]; then
+        export PLATFORM_TYPE="Laptop"
+        info "Detected Model: $model_id (Laptop)"
+    elif [[ "$model_id" == *"Macmini"* ]] || [[ "$model_id" == *"iMac"* ]] || [[ "$model_id" == *"MacPro"* ]] || [[ "$model_id" == *"Mac1"* ]]; then
+        # 'Mac1,x' are usually desktop Studios/minis, but could be laptops too on newer generic identifiers.
+        # Fallback check for battery status could be more robust, but checking strings is standard for quick check.
+        export PLATFORM_TYPE="Desktop"
+        info "Detected Model: $model_id (Desktop)"
+    else
+        export PLATFORM_TYPE="Unknown"
+        warn "Could not determine platform type from model: $model_id"
+    fi
+}
+
+detect_os_version() {
+    # Get macOS version (e.g., 10.15.7, 13.0, 14.2.1)
+    local ver=$(sw_vers -productVersion)
+    export PLATFORM_OS_VER="$ver"
+    # Extract major version
+    export PLATFORM_OS_VER_MAJOR=$(echo "$ver" | cut -d. -f1)
+    info "Detected macOS Version: $ver (Major: $PLATFORM_OS_VER_MAJOR)"
+}
