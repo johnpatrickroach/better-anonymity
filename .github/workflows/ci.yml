@@ -31,6 +31,16 @@ jobs:
         cp Formula/better-anonymity.rb $(brew --repo local/test)/Formula/
         brew install --HEAD local/test/better-anonymity
         
+        echo "=== DEBUG: Installed Files ==="
+        ls -R $(brew --cellar better-anonymity)
+        echo "=== DEBUG: Path ==="
+        echo $PATH
+        echo "=== DEBUG: Homebrew Prefix ==="
+        ls -l $(brew --prefix)/bin/better*
+        
+        # Try running with explicit path if alias fails
+        $(brew --prefix)/bin/better-anonymity help || echo "Explicit path failed"
+        
         better-anonymity help
         b-a help
 
