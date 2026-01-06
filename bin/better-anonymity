@@ -41,6 +41,8 @@ usage() {
     echo "Commands:"
     echo "  menu              Interactive menu (default)"
     echo "  harden            Run macOS hardening checks"
+    echo "  update            Update better-anonymity (git pull)"
+    echo "  check-update      Check for updates without applying"
     echo "  dns [provider]    Set DNS (quad9, mullvad, cloudflare)"
     echo "  diagnose          Run system diagnosis and scoring"
     echo "  install           Install global CLI aliases (b-a, better-anon)"
@@ -258,6 +260,10 @@ case "$COMMAND" in
     update)
         load_module "lifecycle"
         lifecycle_update
+        ;;
+    check-update)
+        load_module "lifecycle"
+        lifecycle_check_update
         ;;
     uninstall)
         load_module "lifecycle"

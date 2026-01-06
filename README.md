@@ -108,6 +108,15 @@ You can use the interactive menu or individual commands. CLI aliases `better-ano
   b-a dns quad9
   ```
 
+### Updates
+
+Keep your installation current:
+
+```bash
+b-a check-update    # Check if updates are available
+b-a update          # Pull latest changes (git)
+```
+
 ### Uninstallation
 
 To remove the CLI aliases (`b-a`, `better-anon`) from your system:

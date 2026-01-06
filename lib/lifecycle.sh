@@ -141,6 +141,33 @@ lifecycle_install_cli() {
     fi
 }
 
+lifecycle_check_update() {
+    header "Checking for Updates..."
+    
+    # Check if we are in a git repo
+    if [ -d "$ROOT_DIR/.git" ]; then
+        cd "$ROOT_DIR" || return 1
+        info "Fetching latest info from git (dry-run)..."
+        
+        # Git fetch without applying
+        git fetch origin >/dev/null 2>&1
+        
+        # Check status
+        local behind_count
+        behind_count=$(git rev-list HEAD..origin/main --count 2>/dev/null)
+        
+        if [ "$behind_count" -gt 0 ]; then
+            warn "Updates available! ($behind_count commits behind)"
+            info "Run 'better-anonymity update' to apply."
+        else
+            success "You are up to date."
+        fi
+    else
+        warn "Not a git repository. Cannot check for updates automatically."
+        info "Please check https://github.com/phaedrus/better-anonymity for releases."
+    fi
+}
+
 lifecycle_uninstall() {
     header "Uninstalling Better Anonymity CLI..."
     
