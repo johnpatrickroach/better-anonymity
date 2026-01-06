@@ -50,9 +50,7 @@ check_macos
 usage() {
     if [ -f "$LIB_DIR/banner.txt" ]; then
         cat "$LIB_DIR/banner.txt"
-        echo ""
     fi
-    echo ""
     # Indent aggressively to bypass CI terminal truncation (consumes ~9 chars)
     echo "         Usage: better-anonymity [command] [options]"
     echo ""
