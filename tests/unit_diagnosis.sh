@@ -86,7 +86,9 @@ export MOCK_SSH_OFF="on"
 export MOCK_ANALYTICS="0"
 export MOCK_ADLIMIT="1"
 export MOCK_FF_TEL="1"
-export MOCK_USER_JS="on"
+export MOCK_USER_JS="on"     # find find
+export MOCK_FF_INSTALLED="on" # check_dir_exists /App/Firefox.app
+export MOCK_FF_PROFILE="on"   # check_dir_exists Profiles
 
 export MOCK_SIGNAL="on"
 export MOCK_KEEPASSXC="on"
@@ -160,6 +162,14 @@ networksetup() {
 # Mock airport
 check_airport_exists() {
     return 0 # Always pass in test
+}
+
+# Mock dir check
+check_dir_exists() {
+    local d="$1"
+    if [ "$d" == "/Applications/Firefox.app" ] && [ "$MOCK_FF_INSTALLED" == "on" ]; then return 0; fi
+    if [[ "$d" == *"Firefox/Profiles"* ]] && [ "$MOCK_FF_PROFILE" == "on" ]; then return 0; fi
+    return 1
 }
 
 OUTPUT=$(diagnosis_run)
