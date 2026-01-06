@@ -7,7 +7,10 @@ First, install the global CLI aliases for ease of use:
 ./bin/better-anonymity install
 ```
 
-You can now use `better-anonymity` or the shorter `b-a`.
+You can now use any of the following commands:
+*   `better-anonymity`
+*   `better-anon`
+*   `b-a`
 
 ## Interactive Mode
 Simply run the command without arguments to start the wizard:

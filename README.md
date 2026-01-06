@@ -58,17 +58,20 @@ If you don't use Homebrew or Pip, manually install the global aliases:
 ./bin/better-anonymity install
 ```
 
-This will create symlinks in `/usr/local/bin`, allowing you to run `better-anonymity` (or `b-a`) from anywhere.
+This will create symlinks in `/usr/local/bin`, allowing you to run the tool from anywhere using any of the following aliases:
+
+*   `better-anonymity`
+*   `better-anon`
+*   `b-a`
 
 ## Usage
 
 Interactive Menu:
 ```bash
 better-anonymity
-```
-
-or use the short alias:
-```bash
+# OR
+better-anon
+# OR
 b-a
 ```
 
