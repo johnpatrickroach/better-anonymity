@@ -27,8 +27,8 @@ jobs:
         # Workaround: GitHub Actions git environment is tricky for Homebrew (shallow clones, auth).
         # We will create a local tarball and install from that to simulate a "stable" release.
         
-        # 1. Create tarball
-        tar -czf better-anonymity.tar.gz --exclude .git .
+        # 1. Create tarball (exclude the tarball itself to avoid warnings)
+        tar -czf better-anonymity.tar.gz --exclude .git --exclude better-anonymity.tar.gz .
         SHA256=$(shasum -a 256 better-anonymity.tar.gz | awk '{print $1}')
         
         # 2. Overwrite Formula to point to the local tarball
@@ -37,6 +37,7 @@ jobs:
           desc "MacOS Security, Privacy & Anonymity Tools"
           homepage "https://github.com/phaedrus/better-anonymity"
           url "file://$(pwd)/better-anonymity.tar.gz"
+          version "1.0.0"
           sha256 "$SHA256"
           license "MIT"
         
