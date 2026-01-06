@@ -24,32 +24,42 @@ jobs:
 
     - name: Verify CLI Installation (Homebrew mode)
       run: |
-        # Debug: List current directory to verify files exist
-        ls -F
-
-        # Workaround: GitHub Actions checks out a detached HEAD.
-        # We need a local 'main' branch so Homebrew can clone it locally.
-        git checkout -b main 2>/dev/null || git checkout main || echo "Already on main"
+        # Workaround: GitHub Actions git environment is tricky for Homebrew (shallow clones, auth).
+        # We will create a local tarball and install from that to simulate a "stable" release.
         
-        # Workaround: Create a local tap to satisfy Homebrew in CI
+        # 1. Create tarball
+        tar -czf better-anonymity.tar.gz --exclude .git .
+        SHA256=$(shasum -a 256 better-anonymity.tar.gz | awk '{print $1}')
+        
+        # 2. Overwrite Formula to point to the local tarball
+        cat <<EOF > Formula/better-anonymity.rb
+        class BetterAnonymity < Formula
+          desc "MacOS Security, Privacy & Anonymity Tools"
+          homepage "https://github.com/phaedrus/better-anonymity"
+          url "file://$(pwd)/better-anonymity.tar.gz"
+          sha256 "$SHA256"
+          license "MIT"
+        
+          def install
+            libexec.install "bin", "lib", "README.md", "LICENSE"
+            bin.install_symlink libexec/"bin/better-anonymity"
+            bin.install_symlink libexec/"bin/better-anonymity" => "better-anon"
+            bin.install_symlink libexec/"bin/better-anonymity" => "b-a"
+          end
+        
+          test do
+            assert_match "Usage", shell_output("#{bin}/better-anonymity help")
+          end
+        end
+        EOF
+        
+        # 3. Create Tap and Install
         brew tap-new local/test --no-git
-        
-        # Patch formula to use local git repo (avoids HTTPS auth errors) using current HEAD
-        # Note: We replace the entire 'head' line to remove 'branch: "main"' which fails in shallow CI clones
-        sed -i '' "s|head .*|head \"file://$(pwd)\"|g" Formula/better-anonymity.rb
-        
         cp Formula/better-anonymity.rb $(brew --repo local/test)/Formula/
-        brew install --HEAD local/test/better-anonymity
+        brew install local/test/better-anonymity
         
         echo "=== DEBUG: Installed Files ==="
         ls -R $(brew --cellar better-anonymity)
-        echo "=== DEBUG: Path ==="
-        echo $PATH
-        echo "=== DEBUG: Homebrew Prefix ==="
-        ls -l $(brew --prefix)/bin/better*
-        
-        # Try running with explicit path if alias fails
-        $(brew --prefix)/bin/better-anonymity help || echo "Explicit path failed"
         
         better-anonymity help
         b-a help
