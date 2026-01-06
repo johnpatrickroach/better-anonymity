@@ -32,9 +32,11 @@ detect_model() {
         info "Detected Model: $model_id (Laptop)"
     elif [[ "$model_id" == *"Macmini"* ]] || [[ "$model_id" == *"iMac"* ]] || [[ "$model_id" == *"MacPro"* ]] || [[ "$model_id" == *"Mac1"* ]]; then
         # 'Mac1,x' are usually desktop Studios/minis, but could be laptops too on newer generic identifiers.
-        # Fallback check for battery status could be more robust, but checking strings is standard for quick check.
         export PLATFORM_TYPE="Desktop"
         info "Detected Model: $model_id (Desktop)"
+    elif [[ "$model_id" == *"Virtual"* ]] || [[ "$model_id" == *"VMware"* ]] || [[ "$model_id" == *"Parallels"* ]]; then
+        export PLATFORM_TYPE="Virtual"
+        info "Detected Model: $model_id (Virtual Machine)"
     else
         export PLATFORM_TYPE="Unknown"
         warn "Could not determine platform type from model: $model_id"
