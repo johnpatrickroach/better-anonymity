@@ -57,7 +57,7 @@ usage() {
     # printf "\n"
     # Debug: explicit newlines before usage
     echo ""
-    echo "Usage: better-anonymity [command] [options]"
+    echo "DEBUG_MARKER: Usage: better-anonymity [command] [options]"
     echo ""
     echo "Commands:"
     echo "  menu              Interactive menu (default)"
