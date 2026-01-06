@@ -50,12 +50,10 @@ check_macos
 usage() {
     if [ -f "$LIB_DIR/banner.txt" ]; then
         cat "$LIB_DIR/banner.txt"
+        echo ""
     fi
     echo ""
-    # Diagnostic: Print dots to see if they get eaten
-    sleep 0.1
-    echo ".................... (Diagnostic dots)"
-    echo "Usage: better-anonymity [command] [options]"
+    echo "    Usage: better-anonymity [command] [options]"
     echo ""
     echo "Commands:"
     echo "  menu              Interactive menu (default)"
