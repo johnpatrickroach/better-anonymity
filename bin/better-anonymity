@@ -47,6 +47,7 @@ detect_model
 check_macos
 # Optional: check_internet
 
+usage() {
     printf "  _          _   _                                                       _ _        \n"
     printf " | |__   ___| |_| |_ ___ _ __     __ _ _ __   ___  _ __  _   _ _ __ ___ (_) |_ _   _\n"
     printf " | '_ \ / _ \ __| __/ _ \ '__|___/ _\` | '_ \ / _ \| '_ \| | | | '_ \` _ \| | __| | | |\n"
