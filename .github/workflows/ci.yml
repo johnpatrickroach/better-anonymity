@@ -54,9 +54,10 @@ jobs:
         end
         EOF
         
-        # 3. Create Tap and Install
-        brew tap-new local/test --no-git
-        cp Formula/better-anonymity.rb $(brew --repo local/test)/Formula/
+        # 3. Create Tap and Install (Manually create dir to avoid 'brew tap-new' dev warning)
+        TAP_DIR="$(brew --repo)/Library/Taps/local/homebrew-test"
+        mkdir -p "$TAP_DIR/Formula"
+        cp Formula/better-anonymity.rb "$TAP_DIR/Formula/"
         brew install local/test/better-anonymity
         
 
