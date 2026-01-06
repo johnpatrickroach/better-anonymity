@@ -49,12 +49,8 @@ install_tor() {
 
 install_gpg() {
     require_brew
-    info "Installing GPG..."
-    if is_brew_installed "gnupg"; then
-        info "GnuPG is already installed."
-    else
-        brew install gnupg pinentry-mac
-    fi
+    install_brew_package "gnupg"
+    install_brew_package "pinentry-mac"
 
     local GPG_HOME="$HOME/.gnupg"
     mkdir -p "$GPG_HOME"
@@ -70,6 +66,128 @@ install_gpg() {
 
     echo "pinentry-program $BREW_PREFIX/bin/pinentry-mac" > "$GPG_HOME/gpg-agent.conf"
     killall gpg-agent 2>/dev/null || true
+}
+
+install_dnscrypt() {
+    require_brew
+    install_brew_package "dnscrypt-proxy"
+
+    local CONF_SRC="$(pwd)/config/dnscrypt-proxy/dnscrypt-proxy.toml"
+    local CONF_DEST="$BREW_PREFIX/etc/dnscrypt-proxy.toml"
+
+    if [ ! -f "$CONF_SRC" ]; then
+        die "Configuration file not found: $CONF_SRC"
+    fi
+
+    info "Applying configuration to $CONF_DEST..."
+    if [ -f "$CONF_DEST" ]; then
+        cp "$CONF_DEST" "${CONF_DEST}.bak"
+    fi
+    
+    cp "$CONF_SRC" "$CONF_DEST"
+    
+    info "Restarting DNSCrypt-Proxy (requires sudo)..."
+    execute_sudo "Restart dnscrypt-proxy" brew services restart dnscrypt-proxy
+    
+    info "DNSCrypt-Proxy started on port 5355."
+    info "Verify with: sudo lsof +c 15 -Pni UDP:5355"
+}
+
+# ... (pingbar remains custom) ...
+
+install_unbound() {
+    require_brew
+    install_brew_package "unbound"
+
+    create_unbound_user
+
+    info "Setting up DNSSEC root key (requires sudo)..."
+    execute_sudo "Fetch Root Key" unbound-anchor -a "$BREW_PREFIX/etc/unbound/root.key" || true 
+
+    info "Generating Control Certificates..."
+    execute_sudo "Setup Control" unbound-control-setup -d "$BREW_PREFIX/etc/unbound"
+
+    info "Copying configuration..."
+    local CONF_SRC="$(pwd)/config/unbound/unbound.conf"
+    local CONF_DEST="$BREW_PREFIX/etc/unbound/unbound.conf"
+
+    if [ ! -f "$CONF_SRC" ]; then
+        die "Configuration file not found: $CONF_SRC"
+    fi
+     
+    execute_sudo "Copy Config" cp "$CONF_SRC" "$CONF_DEST"
+
+    info "Verifying configuration..."
+    if ! execute_sudo "Check Config" unbound-checkconf "$CONF_DEST"; then
+        die "Unbound configuration check failed!"
+    fi
+
+    info "Setting permissions..."
+    execute_sudo "Chown Unbound" chown -R _unbound:staff "$BREW_PREFIX/etc/unbound"
+    execute_sudo "Chmod Unbound" chmod 640 "$BREW_PREFIX/etc/unbound"/*
+
+    info "Directing Unbound (Brew) to start on boot..."
+    execute_sudo "Start Service" brew services start unbound
+
+    info "Switching system DNS to 127.0.0.1..."
+    execute_sudo "Set DNS" networksetup -setdnsservers Wi-Fi 127.0.0.1
+
+    info "Unbound installed and configured."
+    info "Test DNSSEC with: dig org. SOA +dnssec @127.0.0.1 | grep -E 'NOERROR|ad'"
+}
+
+# ... (firefox/harden/tor_browser remain custom) ...
+
+setup_gpg() {
+    info "Setting up GPG..."
+    # Reuse install_gpg logic or checks, but setup_gpg mainly configures.
+    # It seems to duplicate install_gpg's install step. Let's optimize.
+    require_brew
+    install_brew_package "gnupg"
+    # Pinentry might be needed too? existing code didn't check it here explicitly but relied on command -v gpg.
+
+    # ... (rest of configuration logic is specific here) ...
+    # Wait, existing setup_gpg duplicates install_gpg completely but with slightly different paths?
+    # install_gpg vs setup_gpg seems redundant.
+    # install_gpg installs AND configures. setup_gpg installs AND configures.
+    # Let's keep existing logic but use helpers.
+    
+    # Existing logic:
+    # if ! command -v gpg >/dev/null; then brew install... else installed...
+    # This is exactly what check_installed does.
+    
+    # Note: setup_gpg in the file (lines 505-550) is very similar to install_gpg (lines 54-77).
+    # I should probably consolidate them or just refactor setup_gpg to use the helper.
+    # Since they are separate functions in the file, I will refactor setup_gpg to use install_brew_package too.
+    
+    local gpg_dir="$HOME/.gnupg"
+    if [ ! -d "$gpg_dir" ]; then
+        info "Creating $gpg_dir..."
+        mkdir -p "$gpg_dir"
+        chmod 700 "$gpg_dir"
+    fi
+
+    local config_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config/gpg/gpg.conf"
+    local config_dest="$gpg_dir/gpg.conf"
+    
+    # Use smart config copy!
+    check_config_and_backup "$config_src" "$config_dest"
+    chmod 600 "$config_dest"
+    info "GPG configured successfully."
+    
+    info "Please refer to docs/GPG.md for usage and YubiKey setup."
+}
+
+install_signal() {
+    require_brew
+    install_cask_package "signal" "Signal.app"
+    info "Refer to docs/MESSENGERS.md for usage instructions."
+}
+
+install_keepassxc() {
+    require_brew
+    install_cask_package "keepassxc" "KeePassXC.app"
+    info "Refer to docs/PASSWORDS.md for usage instructions."
 }
 
 install_dnscrypt() {
