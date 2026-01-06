@@ -482,7 +482,7 @@ cd - > /dev/null || exit 1
 # Test 12: DNS Verification
 # -------------------------
 # Mocks
-sudo() { "$@"; } # Mock sudo to just run command
+sudo() { if [[ "$1" == "-v" ]]; then return 0; fi; "$@"; } # Mock sudo
 scutil() { echo "  nameserver[0] : 127.0.0.1"; }
 networksetup() { echo "127.0.0.1"; }
 brew() {

@@ -74,41 +74,114 @@ start_suite "System Diagnosis"
 
 # Test 1: Full Pass (Score 100/100/100)
 # -------------------------------------
-MOCK_FW="on"
-MOCK_FW_STEALTH="on"
-MOCK_FV="on"
-MOCK_SIP="on"
-MOCK_GK="on"
-MOCK_SSH_OFF="on" # Remote Login Off = Good
+# Test 1: Full Pass (Score 100/100/100)
+# -------------------------------------
+export MOCK_FW="on"
+export MOCK_FW_STEALTH="on"
+export MOCK_FV="on"
+export MOCK_SIP="on"
+export MOCK_GK="on"
+export MOCK_SSH_OFF="on"
 
-MOCK_ANALYTICS="0" # Disabled = Good
-MOCK_ADLIMIT="1" # Enabled = Good
-MOCK_FF_TEL="1" # Disabled = Good
-# Brew Analytics mock is command based, hard to mock in function overrides without 'function brew()'.
-# Let's override brew if present in lib? Diagnosis uses `command -v brew` then `brew analytics`.
+export MOCK_ANALYTICS="0"
+export MOCK_ADLIMIT="1"
+export MOCK_FF_TEL="1"
+export MOCK_USER_JS="on"
+
+export MOCK_SIGNAL="on"
+export MOCK_KEEPASSXC="on"
+
+# Brew function
 brew() { echo "Analytics are disabled."; }
 
-MOCK_TOR="on"
-MOCK_I2P="on"
-MOCK_DNS_OUT="9.9.9.9" 
-# Airport check relies on file existence. We can't mock file check easily in bash without overriding [ ]?
-# diagnosis.sh: if [ -x "...airport" ]
-# We can't mock that easily. It might fail on generic env.
-# But we can check if the score is somewhat high.
+export MOCK_TOR="on"
+export MOCK_TOR_BROWSER="on"
+export MOCK_I2P="on"
+export MOCK_PRIVOXY="on"
+export MOCK_GPG="on"
+export MOCK_OPENSSL="on"
+
+export MOCK_DNS_OUT="127.0.0.1"
+export MOCK_SERVICE_RUNNING="on"
+
+# Mock pgrep
+pgrep() {
+    if [ "$MOCK_SERVICE_RUNNING" == "on" ]; then return 0; else return 1; fi
+}
+
+
+# Mock find (for user.js)
+find() {
+    if [ "$MOCK_USER_JS" == "on" ]; then echo "/path/to/user.js"; else echo ""; fi
+}
+
+# Mock command -v for gpg/openssl
+command() {
+    if [ "$1" == "-v" ]; then
+        local tool="$2"
+        if [ "$tool" == "brew" ] && [ "${MOCK_BREW:-on}" == "on" ]; then return 0; fi
+        if [ "$tool" == "gpg" ] && [ "$MOCK_GPG" == "on" ]; then return 0; fi
+        if [ "$tool" == "openssl" ] && [ "$MOCK_OPENSSL" == "on" ]; then return 0; fi
+        # Default behavior:
+        type "$tool" >/dev/null 2>&1
+    else
+        # Pass through
+        builtin command "$@"
+    fi
+}
+
+is_brew_installed() {
+    local pkg=$1
+    if [ "$pkg" == "tor" ] && [ "$MOCK_TOR" == "on" ]; then return 0; fi
+    if [ "$pkg" == "i2p" ] && [ "$MOCK_I2P" == "on" ]; then return 0; fi
+    if [ "$pkg" == "privoxy" ] && [ "$MOCK_PRIVOXY" == "on" ]; then return 0; fi
+    return 1
+}
+
+is_cask_installed() {
+    local pkg=$1
+    if [ "$pkg" == "signal" ] && [ "$MOCK_SIGNAL" == "on" ]; then return 0; fi
+    if [ "$pkg" == "keepassxc" ] && [ "$MOCK_KEEPASSXC" == "on" ]; then return 0; fi
+    return 1
+}
+
+is_app_installed() {
+    local app=$1
+    if [ "$app" == "Signal.app" ] && [ "$MOCK_SIGNAL" == "on" ]; then return 0; fi
+    if [ "$app" == "KeePassXC.app" ] && [ "$MOCK_KEEPASSXC" == "on" ]; then return 0; fi
+    if [ "$app" == "Tor Browser.app" ] && [ "$MOCK_TOR_BROWSER" == "on" ]; then return 0; fi
+    return 1
+}
+
+networksetup() {
+    echo "$MOCK_DNS_OUT"
+}
+
+# Mock airport
+check_airport_exists() {
+    return 0 # Always pass in test
+}
 
 OUTPUT=$(diagnosis_run)
 if echo "$OUTPUT" | grep -q "Security: .*100/100"; then
     pass "Security Score 100 detected"
 else
-    fail "Security Score failed for perfect run"
-    echo "$OUTPUT" | grep "Security:"
+    fail "Security Score failed for perfect run. Output:"
+    echo "$OUTPUT"
 fi
 
-if echo "$OUTPUT" | grep -q "Anonymity: .*75/100" || echo "$OUTPUT" | grep -q "Anonymity: .*100/100"; then
-    pass "Anonymity Score High (Account for airport check variability)"
+if echo "$OUTPUT" | grep -q "Privacy.*: .*100/100"; then
+    pass "Privacy Score 100 detected"
 else
-    fail "Anonymity Score failed"
-    echo "$OUTPUT" | grep "Anonymity:"
+    fail "Privacy Score failed for perfect run. Output:"
+    echo "$OUTPUT"
+fi
+
+if echo "$OUTPUT" | grep -q "Anonymity: .*100/100"; then
+    pass "Anonymity Score 100 detected"
+else
+    fail "Anonymity Score failed for perfect run. Output:"
+    echo "$OUTPUT"
 fi
 
 # Test 2: Poor Security (Score < 50)

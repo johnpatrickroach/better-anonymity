@@ -6,6 +6,10 @@
 # Score Weights (Total 100 per category)
 # These are arbitrary but prioritize critical items.
 
+check_airport_exists() {
+    [ -x "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport" ]
+}
+
 diagnosis_run() {
     header "System Diagnosis & Scoring"
     info "Analyzing system configuration..."
@@ -208,7 +212,9 @@ diagnosis_run() {
 
     # MAC Spoofing Capable & Active (20 pts)
     # Check if airport util exists
-    if [ -x "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport" ]; then
+    # MAC Spoofing Capable & Active (20 pts)
+    # Check if airport util exists
+    if check_airport_exists; then
          ((anon_passed+=10))
          
          # Audit Spoofing (Basic check: Does Config MAC == Hardware MAC?)
