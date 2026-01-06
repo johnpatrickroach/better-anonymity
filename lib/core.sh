@@ -53,13 +53,13 @@ header() {
 # User Interaction
 ask_confirmation() {
     local prompt="$1"
-    warn "$prompt (y/n)"
+    # Default to No if just Enter, strictly require Y/y
+    warn "$prompt [y/N]"
     read -r response
-    if [[ "$response" != "y" ]]; then
-        return 1
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+        return 0
     fi
-    return 0
-    return 0
+    return 1
 }
 
 # Ensure the script is run as root (auto-elevate)

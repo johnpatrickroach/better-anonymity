@@ -92,6 +92,7 @@ You can use the interactive menu or individual commands. CLI aliases `better-ano
 - **Diagnosis**:
   ```bash
   b-a diagnose
+  b-a --version
   ```
 
 - **Hardening**:

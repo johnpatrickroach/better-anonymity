@@ -48,8 +48,23 @@ usage() {
     echo "  install [tool]    Install tool (tor, privoxy, gpg)"
     echo "  generate-password Generate a secure passphrase"
     echo "  help              Show this help"
+    echo "  --version         Show version information"
     echo ""
 }
+
+get_version() {
+    if [ -f "$ROOT_DIR/VERSION" ]; then
+        cat "$ROOT_DIR/VERSION"
+    else
+        echo "Unknown"
+    fi
+}
+
+# Handle global flags
+if [[ "$1" == "--version" ]] || [[ "$1" == "-v" ]]; then
+    echo "better-anonymity $(get_version)"
+    exit 0
+fi
 
 # Main Command Dispatch
 COMMAND="$1"
