@@ -53,7 +53,8 @@ usage() {
         echo ""
     fi
     echo ""
-    echo "    Usage: better-anonymity [command] [options]"
+    # Indent aggressively to bypass CI terminal truncation (consumes ~9 chars)
+    echo "            Usage: better-anonymity [command] [options]"
     echo ""
     echo "Commands:"
     echo "  menu              Interactive menu (default)"
