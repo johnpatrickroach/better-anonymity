@@ -21,37 +21,21 @@ if [ ! -d "$LIB_DIR" ]; then
     exit 1
 fi
 
-# Source Libraries
+# Source Core Libraries (Essential)
 source "$LIB_DIR/core.sh"
 source "$LIB_DIR/platform.sh"
-source "$LIB_DIR/checks.sh"
-source "$LIB_DIR/macos_hardening.sh"
-source "$LIB_DIR/network.sh"
-source "$LIB_DIR/installers.sh"
-source "$LIB_DIR/password_utils.sh"
-source "$LIB_DIR/cleanup.sh"
-source "$LIB_DIR/vault.sh"
-source "$LIB_DIR/backup.sh"
-source "$LIB_DIR/diagnosis.sh"
-source "$LIB_DIR/wifi.sh"
-source "$LIB_DIR/wifi.sh"
-source "$LIB_DIR/ssh.sh"
-source "$LIB_DIR/tor_manager.sh"
-source "$LIB_DIR/i2p_manager.sh"
-source "$LIB_DIR/lifecycle.sh"
 
 # Initialize capabilities
 detect_arch
 detect_os_version
 detect_model
 check_macos
-# Optional: check_internet
 
 usage() {
     if [ -f "$LIB_DIR/banner.txt" ]; then
         cat "$LIB_DIR/banner.txt"
     fi
-    # Indent aggressively to bypass CI terminal truncation (consumes ~9 chars)
+     # Indent aggressively to bypass CI terminal truncation (consumes ~9 chars)
     echo "         Usage: better-anonymity [command] [options]"
     echo ""
     echo "Commands:"
@@ -66,197 +50,18 @@ usage() {
     echo ""
 }
 
-interactive_menu() {
-    clear
-    header "MacOS Security & Privacy Setup"
-    echo "1. Run OS Hardening"
-    echo "2. Configure DNS"
-    echo "3. Install Privoxy"
-    echo "4. Install Tor Service & Browser"
-    echo "5. Install I2P (Invisible Internet Project)"
-    echo "6. Install GPG"
-    echo "7. Install DNSCrypt"
-    echo "8. Install PingBar"
-    echo "9. Install Unbound"
-    echo "10. Generate Strong Password"
-    echo "11. Update Hosts Blocklist"
-    echo "12. Verify DNS Config"
-    echo "13. Verify Security Config"
-    echo "14. Install Firefox"
-    echo "15. Harden Firefox (Arkenfox)"
-    echo "16. Install Tor Browser (App)"
-    echo "17. Setup GPG"
-    echo "18. Install Signal"
-    echo "19. Cleanup Metadata & Artifacts"
-    echo "20. Password Vault"
-    echo "21. Secure Backup Tools"
-    echo "22. Wi-Fi Security Tools"
-    echo "23. SSH Hardening"
-    echo "24. Misc Hardening (Manual)"
-    echo "25. Install KeePassXC"
-    echo "q. Quit"
-    echo
-    echo -n "Select an option: "
-    read -r choice
-
-    case $choice in
-        1)
-            if ask_confirmation "Run all hardening steps?"; then
-                hardening_run_all
-            fi
-            ;;
-        2)
-            echo "1) Quad9 2) Mullvad 3) Cloudflare"
-            read -r dns_choice
-            case $dns_choice in
-                1) network_set_dns "quad9" ;;
-                2) network_set_dns "mullvad" ;;
-                3) network_set_dns "cloudflare" ;;
-                *) error "Invalid choice" ;;
-            esac
-            ;;
-        3) install_privoxy ;;
-        4) 
-             echo "1) Install Tor Browser (App)"
-             echo "2) Install Tor Service (CLI)"
-             read -p "Select: " tchoice
-             case $tchoice in
-                1) install_tor_browser ;;
-                2) tor_install ;;
-             esac
-             ;;
-        5) 
-             echo "1) Install I2P"
-             echo "2) Start I2P"
-             echo "3) Stop I2P"
-             echo "4) Console"
-             read -p "Select: " ichoice
-             case $ichoice in
-                1) i2p_install ;;
-                2) i2p_start ;;
-                3) i2p_stop ;;
-                4) i2p_console ;;
-             esac
-             ;;
-        6) install_gpg ;;
-        7) install_dnscrypt ;;
-        8) install_pingbar ;;
-        9) install_unbound ;;
-        10)
-             pwd=$(generate_password 6)
-             info "Generated Password: $pwd"
-             check_strength "$pwd"
-             ;;
-        11)
-             network_update_hosts
-             ;;
-        12)
-             network_verify_dns
-             ;;
-        13)
-             hardening_verify
-             ;;
-        14)
-             install_firefox
-             ;;
-        15)
-             harden_firefox
-             ;;
-        16)
-             install_tor_browser
-             ;;
-        17)
-             setup_gpg
-             ;;
-        18)
-             install_signal
-             ;;
-        19)
-             cleanup_metadata
-             ;;
-        20)
-             vault_list 
-             echo "Vault Commands:"
-             echo "  w [name] - Write/Create"
-             echo "  r [name] - Read"
-             echo "  l        - List"
-             read -p "Action (w/r/l): " vaction
-             case $vaction in
-                w) vault_write ;;
-                r) vault_read ;;
-                l) vault_list ;;
-             esac
-             ;;
-        21)
-             echo "Backup Commands:"
-             echo "  encrypt [dir]  - Encrypt Directory"
-             echo "  decrypt [file] - Decrypt Archive"
-             echo "  volume         - Create Encrypted DMG"
-             echo "  audit          - Audit Time Machine"
-             read -p "Action: " baction
-             case $baction in
-                encrypt) backup_encrypt_dir ;;
-                decrypt) backup_decrypt_dir ;;
-                volume) backup_create_volume ;;
-                audit) backup_audit_timemachine ;;
-             esac
-             ;;
-        22)
-             echo "Wi-Fi Tools:"
-             echo "  1) Audit Connection"
-             echo "  2) Spoof MAC Address"
-             read -p "Select: " wchoice
-             case $wchoice in
-                1) wifi_audit ;;
-                2) wifi_spoof_mac ;;
-             esac
-             ;;
-        23)
-             echo "SSH Tools:"
-             echo "  1) Audit SSHD Status"
-             echo "  2) Harden SSHD (Server) Config"
-             echo "  3) Harden SSH Client Config"
-             echo "  4) Hash known_hosts"
-             read -p "Select: " schoice
-             case $schoice in
-                1) ssh_check_sshd_status ;;
-                2) ssh_harden_sshd ;;
-                3) ssh_harden_client ;;
-                4) ssh_hash_hosts ;;
-             esac
-             ;;
-        24)
-             echo "Running Miscellaneous Hardening Steps..."
-             hardening_harden_finder
-             hardening_disable_bonjour
-             hardening_secure_sudoers
-             hardening_set_umask
-             hardening_disable_analytics
-             hardening_remove_guest
-             hardening_privacy_tweaks
-             hardening_reset_tcc
-             ;;
-        25)
-             install_keepassxc
-             ;;
-        q) exit 0 ;;
-        *) error "Invalid option" ;;
-    esac
-    
-    echo
-    read -p "Press Enter to return..."
-    interactive_menu
-}
-
 # Main Command Dispatch
 COMMAND="$1"
 shift
 
 case "$COMMAND" in
     menu|"" )
+        load_module "menus"
         interactive_menu
         ;;
     harden)
+        load_module "checks"
+        load_module "macos_hardening"
         hardening_run_all
         ;;
     dns)
@@ -264,48 +69,82 @@ case "$COMMAND" in
             error "Usage: better-anonymity dns [quad9|mullvad|cloudflare]"
             exit 1
         fi
+        load_module "network"
         network_set_dns "$1"
         ;;
     install)
         TOOL="$1"
-        case "$TOOL" in
-            tor) install_tor ;;
-            privoxy) install_privoxy ;;
-            gpg) install_gpg ;;
-            dnscrypt) install_dnscrypt ;;
-            pingbar) install_pingbar ;;
-            unbound) install_unbound ;;
-            *) error "Unknown tool: $TOOL" ;;
-        esac
+        if [ -z "$TOOL" ]; then
+             load_module "lifecycle"
+             lifecycle_install_cli
+        else
+            case "$TOOL" in
+                tor) 
+                    load_module "tor_manager"
+                    install_tor 
+                    ;;
+                privoxy) 
+                    load_module "installers"
+                    install_privoxy 
+                    ;;
+                gpg) 
+                    load_module "installers"
+                    install_gpg 
+                    ;;
+                dnscrypt) 
+                    load_module "installers"
+                    install_dnscrypt 
+                    ;;
+                pingbar) 
+                    load_module "installers"
+                    install_pingbar 
+                    ;;
+                unbound) 
+                    load_module "installers"
+                    install_unbound 
+                    ;;
+                *) error "Unknown tool: $TOOL" ;;
+            esac
+        fi
         ;;
     verify-dns)
+        load_module "network"
         network_verify_dns
         ;;
     verify-security)
+        load_module "macos_hardening"
         hardening_verify
         ;;
     install-firefox)
+         load_module "installers"
          install_firefox
          ;;
     install-keepassxc)
+         load_module "installers"
          install_keepassxc
          ;;
     harden-firefox)
+         load_module "installers"
          harden_firefox
          ;;
     install-tor)
+         load_module "installers"
          install_tor_browser
          ;;
     setup-gpg)
+         load_module "installers"
          setup_gpg
          ;;
     install-signal)
+         load_module "installers"
          install_signal
          ;;
     cleanup-metadata)
+         load_module "cleanup"
          cleanup_metadata
          ;;
     vault)
+         load_module "vault"
          shift
          case "$1" in
             write|w) vault_write "$2" ;;
@@ -315,6 +154,7 @@ case "$COMMAND" in
          esac
          ;;
     backup)
+         load_module "backup"
          shift
          case "$1" in
             encrypt) backup_encrypt_dir "$2" "$3" ;;
@@ -325,6 +165,7 @@ case "$COMMAND" in
          esac
          ;;
     wifi)
+         load_module "wifi"
          shift
          case "$1" in
             audit) wifi_audit ;;
@@ -333,6 +174,7 @@ case "$COMMAND" in
          esac
          ;;
     ssh)
+         load_module "ssh"
          shift
          case "$1" in
             audit-sshd) ssh_check_sshd_status ;;
@@ -343,6 +185,7 @@ case "$COMMAND" in
          esac
          ;;
     tor)
+         load_module "tor_manager"
          shift
          case "$1" in
             install) tor_install ;;
@@ -359,6 +202,7 @@ case "$COMMAND" in
          esac
          ;;
     i2p)
+         load_module "i2p_manager"
          shift
          case "$1" in
             install) i2p_install ;;
@@ -374,6 +218,7 @@ case "$COMMAND" in
          esac
          ;;
     misc-harden)
+        load_module "macos_hardening"
         hardening_harden_finder
         hardening_disable_bonjour
         hardening_secure_sudoers
@@ -384,24 +229,32 @@ case "$COMMAND" in
         hardening_reset_tcc
         ;;
     update-hosts)
+        load_module "network"
         network_update_hosts
         ;;
     setup)
+        load_module "lifecycle"
         lifecycle_setup
         ;;
     daily)
+        load_module "lifecycle"
         lifecycle_daily
         ;;
     update)
+        load_module "lifecycle"
         lifecycle_update
         ;;
     diagnose)
+        load_module "diagnosis"
+        load_module "wifi" # missing dependency for airport check?
+        load_module "core" # already sourced
+        # Diagnosis uses is_brew_installed, which is in core.
+        # It uses check_airport_exists which calls [ -x ].
+        # It uses networksetup (system).
         diagnosis_run
         ;;
-    install)
-        lifecycle_install_cli
-        ;;
     generate-password)
+        load_module "password_utils"
         input_count="${1:-6}"
         pwd=$(generate_password "$input_count")
         info "Generated Password: $pwd"

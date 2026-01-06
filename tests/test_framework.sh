@@ -59,3 +59,14 @@ assert_contains() {
         ((FAILED++))
     fi
 }
+
+
+pass() {
+    echo -e "${GREEN}[PASS]${NC} $1"
+    ((PASSED++))
+}
+
+fail() {
+    echo -e "${RED}[FAIL]${NC} $1"
+    ((FAILED++))
+}
