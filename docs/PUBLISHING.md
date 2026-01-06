@@ -12,6 +12,16 @@ pip install build twine
 
 You will also need an account on [PyPI](https://pypi.org/) and an API Token.
 
+## Creating an API Token
+
+1.  Log in to your account on [PyPI](https://pypi.org/).
+2.  Go to **Account Settings**.
+3.  Scroll down to the **API tokens** section and click **Add API token**.
+4.  **Description**: `better-anonymity-upload` (or similar).
+5.  **Scope**: Select **Entire account** (for the first upload) or restrict to `better-anonymity` if the project already exists.
+6.  Click **Add token**.
+7.  **COPY THE TOKEN IMMEDIATELY**. It starts with `pypi-`. This is the only time you will see it.
+
 ## 1. Build the Package
 
 Run the build command from the project root. This creates the distribution files in `dist/`.
