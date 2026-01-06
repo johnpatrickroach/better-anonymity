@@ -24,6 +24,13 @@ jobs:
 
     - name: Verify CLI Installation (Homebrew mode)
       run: |
+        # Debug: List current directory to verify files exist
+        ls -F
+
+        # Workaround: GitHub Actions checks out a detached HEAD.
+        # We need a local 'main' branch so Homebrew can clone it locally.
+        git checkout -b main 2>/dev/null || git checkout main || echo "Already on main"
+        
         # Workaround: Create a local tap to satisfy Homebrew in CI
         brew tap-new local/test --no-git
         
