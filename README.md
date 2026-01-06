@@ -33,10 +33,11 @@ Then choose your preferred installation method:
 
 ### Option 1: Homebrew (Recommended)
 
-Install using the local formula:
+Install using our custom tap:
 
 ```bash
-brew install --HEAD ./Formula/better-anonymity.rb
+brew tap johnpatrickroach/homebrew-tap
+brew install better-anonymity
 ```
 
 ### Option 2: Pip (Python)
