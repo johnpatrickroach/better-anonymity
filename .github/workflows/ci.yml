@@ -59,9 +59,7 @@ jobs:
         cp Formula/better-anonymity.rb $(brew --repo local/test)/Formula/
         brew install local/test/better-anonymity
         
-        echo "=== DEBUG: Installed Files ==="
-        ls -R $(brew --cellar better-anonymity)
-        
+
         better-anonymity help
         b-a help
 
