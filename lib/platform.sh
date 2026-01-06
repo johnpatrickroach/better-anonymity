@@ -24,7 +24,7 @@ check_macos() {
 
 detect_model() {
     # sysctl hw.model returns strings like "MacBookPro18,3", "Macmini9,1", etc.
-    local model_id=$(sysctl -n hw.model)
+    local model_id=$(sysctl -n hw.model | tr -d '[:space:]')
     export PLATFORM_MODEL="$model_id"
     
     if [[ "$model_id" == *"MacBook"* ]]; then
@@ -45,7 +45,7 @@ detect_model() {
 
 detect_os_version() {
     # Get macOS version (e.g., 10.15.7, 13.0, 14.2.1)
-    local ver=$(sw_vers -productVersion)
+    local ver=$(sw_vers -productVersion | tr -d '[:space:]')
     export PLATFORM_OS_VER="$ver"
     # Extract major version
     export PLATFORM_OS_VER_MAJOR=$(echo "$ver" | cut -d. -f1)
