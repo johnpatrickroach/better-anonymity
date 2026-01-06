@@ -5,12 +5,8 @@
 
 install_privoxy() {
     require_brew
-    info "Installing Privoxy..."
-    if is_brew_installed "privoxy"; then
-        info "Privoxy is already installed via Brew."
-    else
-        brew install privoxy
-    fi
+    require_brew
+    install_brew_package "privoxy"
 
     info "Applying configuration..."
     # Use BREW_PREFIX from platform.sh
