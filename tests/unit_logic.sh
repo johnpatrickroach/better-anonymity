@@ -29,6 +29,7 @@ require_brew() { :; }
 is_brew_installed() { return 1; }
 is_cask_installed() { return 1; }
 is_app_installed() { return 1; }
+check_config_and_backup() {
     echo "CHECK_CALL: $*"
     return 0 
 } 
