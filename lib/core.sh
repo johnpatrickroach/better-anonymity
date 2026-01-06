@@ -117,6 +117,62 @@ is_app_installed() {
     return 1
 }
 
+# Fast check if a command exists in PATH (Faster than brew list)
+check_installed() {
+    local cmd="$1"
+    if command -v "$cmd" >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+# Generic Brew Installer with Optimization
+# Usage: install_brew_package "package_name" [command_name]
+install_brew_package() {
+    local package="$1"
+    local cmd="${2:-$package}" # Default command name same as package
+
+    info "Checking installation for $package..."
+    
+    # 1. Fast Path: Check command
+    if check_installed "$cmd"; then
+        info "$package is already installed (found $cmd)."
+        return 0
+    fi
+
+    # 2. Slow Path: Check brew list (in case command differs or not in path)
+    if is_brew_installed "$package"; then
+        info "$package is installed via Homebrew."
+        return 0
+    fi
+
+    # 3. Install
+    info "Installing $package..."
+    brew install "$package"
+}
+
+# Generic Cask Installer
+# Usage: install_cask_check "cask_name" "App Name.app"
+install_cask_package() {
+    local cask="$1"
+    local app_name="$2"
+
+    info "Checking installation for $cask..."
+
+    if [ -n "$app_name" ] && is_app_installed "$app_name"; then
+        info "$app_name is already installed in /Applications."
+        return 0
+    fi
+
+    if is_cask_installed "$cask"; then
+        info "$cask is already installed via Homebrew Cask."
+        return 0
+    fi
+
+    info "Installing $cask..."
+    execute_sudo "Install $cask" brew install --cask "$cask"
+}
+
 # Smart Config Copy
 # Usage: check_config_and_backup source destination [sudo]
 check_config_and_backup() {
