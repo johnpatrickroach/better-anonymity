@@ -901,7 +901,7 @@ assert_contains "$OUTPUT" "TMUTIL_CALL: status" "Should call tmutil status"
 # Test 22: Wi-Fi Tools
 # --------------------
 check_root() { return 0; }
-wifi_get_interface() { echo "en0"; }
+
 
 # Mock airport as a script because lib checks [ -x ]
 MOCK_AIRPORT="/tmp/mock_airport_$$"
@@ -937,6 +937,9 @@ openssl() {
 source "$(dirname "$0")/../lib/wifi.sh"
 # Override AIRPORT_BIN after sourcing
 AIRPORT_BIN="$MOCK_AIRPORT"
+
+# Mock interface getter (override lib function)
+wifi_get_interface() { echo "en0"; }
 
 # Test Spoof
 OUTPUT=$(wifi_spoof_mac)
