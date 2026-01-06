@@ -1,4 +1,5 @@
-# MacOS Security, Privacy & Anonymity Tools
+# better-anonymity
+## MacOS Security, Privacy & Anonymity Tools
 
 This repository contains scripts and configuration files to automate the hardening of MacOS (Intel and Apple Silicon). It aims to enhance security, privacy, and anonymity by applying best practices inspired by the [drduh/macOS-Security-and-Privacy-Guide](https://github.com/drduh/macOS-Security-and-Privacy-Guide).
 
@@ -19,20 +20,75 @@ These scripts modify system settings, network configurations, and application pr
 - **Browser Hardening**: `user.js` for Firefox privacy.
 - **Anonymity**: Scripts to assist with Tor configuration.
 
+## Installation
+
+First, clone the repository:
+
+```bash
+git clone https://github.com/phaedrus/better-anonymity.git
+cd better-anonymity
+```
+
+Then choose your preferred installation method:
+
+### Option 1: Homebrew (Recommended)
+
+Install using the local formula:
+
+```bash
+brew install --HEAD ./Formula/better-anonymity.rb
+```
+
+### Option 2: Pip (Python)
+
+If you have Python 3 installed, you can install directly:
+
+```bash
+pip install .
+```
+
+This will verify dependencies and install the `better-anonymity` (and `b-a`) commands to your Python bin path.
+*Note: Ensure your Python bin directory is in your PATH.*
+
+### Option 3: Manual Install
+
+If you don't use Homebrew or Pip, manually install the global aliases:
+
+```bash
+./bin/better-anonymity install
+```
+
+This will create symlinks in `/usr/local/bin`, allowing you to run `better-anonymity` (or `b-a`) from anywhere.
+
 ## Usage
-The easiest way to get started is to use the interactive CLI:
 
+Interactive Menu:
 ```bash
-./bin/better-anonymity
+better-anonymity
 ```
 
-Or run specific commands directly:
-
+or use the short alias:
 ```bash
-./bin/better-anonymity harden
-./bin/better-anonymity dns mullvad
-./bin/better-anonymity install tor
+b-a
 ```
+
+### Commands
+
+- **Diagnosis & Scoring**: Check your system's privacy score.
+  ```bash
+  b-a diagnose
+  ```
+
+- **Hardening**: Apply macOS security settings.
+  ```bash
+  b-a harden
+  ```
+
+- **Anonymity Tools**: Install and manage tools.
+  ```bash
+  b-a install tor
+  b-a dns quad9
+  ```
 
 ### Documentation
 For detailed information on each module, please refer to the specific documentation:

@@ -41,20 +41,21 @@ ssh_harden_sshd() {
     fi
 
     ensure_root # Function from core.sh to auto-elevate if needed
-
-    info "Backing up current config to $backup..."
-    execute_sudo "Backup sshd_config" cp "$target" "$backup" || true
-
-    info "Applying hardened config..."
-    execute_sudo "Install sshd_config" cp "$SSHD_CONFIG_SRC" "$target"
-    execute_sudo "Set permissions" chmod 644 "$target"
-    execute_sudo "Set ownership" chown root:wheel "$target"
-
-    success "Configuration applied."
-    info "You must restart Remote Login for changes to take effect:"
-    info "  sudo launchctl stop com.openssh.sshd"
-    info "  sudo launchctl start com.openssh.sshd"
-    info "Or toggle 'Remote Login' in System Preferences."
+    
+    # Use helper from core.sh
+    if check_config_and_backup "$SSHD_CONFIG_SRC" "$target" "sudo"; then
+        # If check_config_and_backup returned 0, it might mean it copied OR it verified identical.
+        # We need to set permissions regardless if we touched it, or assume helper did it? 
+        # Helper does cp. We need to set perms.
+        execute_sudo "Set permissions" chmod 644 "$target"
+        execute_sudo "Set ownership" chown root:wheel "$target"
+        
+        success "Configuration applied."
+        info "You must restart Remote Login for changes to take effect:"
+        info "  sudo launchctl stop com.openssh.sshd"
+        info "  sudo launchctl start com.openssh.sshd"
+        info "Or toggle 'Remote Login' in System Preferences."
+    fi
     
     # Check validity
     execute_sudo "Test configuration" sshd -t
@@ -77,13 +78,8 @@ ssh_harden_client() {
         chmod 700 "$ssh_dir"
     fi
 
-    if [ -f "$target" ]; then
-        info "Backing up current config to $backup..."
-        cp "$target" "$backup"
-    fi
-
-    info "Applying hardened client config..."
-    cp "$SSH_CONFIG_SRC" "$target"
+    # Use helper
+    check_config_and_backup "$SSH_CONFIG_SRC" "$target"
     chmod 600 "$target"
 
     success "Client configuration applied to $target"

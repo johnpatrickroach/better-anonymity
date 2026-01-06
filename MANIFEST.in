@@ -1,0 +1,4 @@
+include better_anonymity/bin/*
+include better_anonymity/lib/*
+global-exclude *.pyc
+global-exclude __pycache__

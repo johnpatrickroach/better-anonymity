@@ -1,0 +1,59 @@
+# I2P (Invisible Internet Project)
+
+I2P is an anonymous network layer that allows for censorship-resistant, peer-to-peer communication. Anonymous connections are achieved by encrypting the user's traffic (by end-to-end encryption) and sending it through a volunteer-run network of roughly 55,000 computers distributed around the world.
+
+## Installation
+
+```bash
+# Install I2P (CLI only)
+better-anonymity i2p install
+
+# Or via Menu
+better-anonymity menu -> 5. Install I2P
+```
+
+## Setup & Usage
+
+After installation, I2P runs as a background router.
+
+### Basic Commands
+
+```bash
+# Start I2P Router
+better-anonymity i2p start
+
+# Stop I2P Router
+better-anonymity i2p stop
+
+# Check Status
+better-anonymity i2p status
+```
+
+### Web Console
+
+The I2P router is primarily managed via a web-based console hosted locally.
+
+```bash
+# Open Console
+better-anonymity i2p console
+```
+
+This will open `http://127.0.0.1:7657/home` in your default browser. From there you can:
+- View network status
+- Configure bandwidth limits
+- Access I2P sites (eepsites)
+- Manage tunnels
+
+## Verification
+
+To verify I2P is working:
+1. Start the router (`better-anonymity i2p start`).
+2. Open the console (`better-anonymity i2p console`).
+3. Check the sidebar for "Network: OK" (it may take a few minutes to bootstrap).
+
+## Uninstall
+
+To remove I2P:
+```bash
+brew uninstall i2p
+```

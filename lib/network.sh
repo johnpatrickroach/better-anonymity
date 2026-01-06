@@ -30,6 +30,18 @@ network_set_dns() {
     
     IFS=$'\n'
     for service in $services; do
+        current_dns=$(networksetup -getdnsservers "$service" | tr '\n' ' ' | sed 's/ $//')
+        
+        if [[ "$current_dns" == *"$dns_servers"* ]] || [[ "$dns_servers" == *"$current_dns"* ]]; then 
+             # Check if they are effectively equal. 
+             # If current_dns contains the target servers (and maybe more? No, exact match preference)
+             # Let's check for containment of our target string in the normalized current_dns
+             if [[ "$current_dns" == *"$dns_servers"* ]]; then
+                 info "DNS for $service is already set to $dns_servers."
+                 continue
+             fi
+        fi
+
         info "Configuring $service..."
         # Requires sudo
         execute_sudo "Set DNS for $service" networksetup -setdnsservers "$service" $dns_servers
@@ -40,6 +52,7 @@ network_set_dns() {
     execute_sudo "Kill mDNSResponder" killall -HUP mDNSResponder
     info "DNS updated and cache flushed."
 }
+
 
 network_update_hosts() {
     info "Updating /etc/hosts with StevenBlack blocklist..."

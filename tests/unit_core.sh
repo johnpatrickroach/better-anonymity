@@ -56,4 +56,105 @@ check_root_logic 0
 assert_equals "0" "$?" "Should return 0 if root"
 
 
+
+# Test 3: Check Functions
+# -----------------------
+
+# Mock brew
+brew() {
+    local cmd="$1"
+    local sub="$2"
+    local pkg="$3"
+    
+    if [ "$cmd" == "list" ]; then
+        if [ "$sub" == "--formula" ] && [ "$pkg" == "installed_pkg" ]; then return 0; fi
+        if [ "$sub" == "--cask" ] && [ "$pkg" == "installed_cask" ]; then return 0; fi
+    fi
+    return 1
+}
+
+# Test is_brew_installed
+if is_brew_installed "installed_pkg"; then
+    echo -e "${GREEN}[PASS]${NC} is_brew_installed detected package"
+    ((PASSED++))
+else
+    echo -e "${RED}[FAIL]${NC} is_brew_installed failed to detect package"
+    ((FAILED++))
+fi
+
+if ! is_brew_installed "missing_pkg"; then
+    echo -e "${GREEN}[PASS]${NC} is_brew_installed correctly reportedly missing"
+    ((PASSED++))
+else
+    echo -e "${RED}[FAIL]${NC} is_brew_installed falsely detected missing package"
+    ((FAILED++))
+fi
+
+# Test is_cask_installed
+if is_cask_installed "installed_cask"; then
+    echo -e "${GREEN}[PASS]${NC} is_cask_installed detected cask"
+    ((PASSED++))
+else
+    echo -e "${RED}[FAIL]${NC} is_cask_installed failed to detect cask"
+    ((FAILED++))
+fi
+
+# Test is_app_installed
+# Mock directory
+mkdir -p "/Applications/MockApp.app"
+if is_app_installed "MockApp.app"; then
+    echo -e "${GREEN}[PASS]${NC} is_app_installed detected app"
+    ((PASSED++))
+else
+    echo -e "${RED}[FAIL]${NC} is_app_installed failed to detect app"
+    ((FAILED++))
+fi
+rm -rf "/Applications/MockApp.app"
+
+if ! is_app_installed "NonExistent.app"; then
+    echo -e "${GREEN}[PASS]${NC} is_app_installed correctly reportedly missing"
+    ((PASSED++))
+else
+    echo -e "${RED}[FAIL]${NC} is_app_installed falsely detected missing app"
+    ((FAILED++))
+fi
+
+# Test check_config_and_backup
+# ----------------------------
+test_config_backup() {
+    local src="/tmp/test_src_$$"
+    local dest="/tmp/test_dest_$$"
+    
+    echo "content_new" > "$src"
+    echo "content_old" > "$dest"
+    
+    # Run function
+    OUTPUT=$(check_config_and_backup "$src" "$dest")
+
+    
+    # Verify backup created
+    count=$(ls "${dest}.bak."* 2>/dev/null | wc -l)
+    if [ "$count" -ge 1 ]; then
+        echo -e "${GREEN}[PASS]${NC} Backup created"
+        ((PASSED++))
+    else
+        echo -e "${RED}[FAIL]${NC} Backup NOT created"
+        ((FAILED++))
+    fi
+    
+    # Verify content updated
+    if [ "$(cat "$dest")" == "content_new" ]; then
+        echo -e "${GREEN}[PASS]${NC} Config updated"
+        ((PASSED++))
+    else
+        echo -e "${RED}[FAIL]${NC} Config NOT updated"
+        ((FAILED++))
+    fi
+    
+    # Cleanup
+    rm -f "$src" "$dest" "${dest}.bak."*
+}
+test_config_backup
+
 end_suite
+

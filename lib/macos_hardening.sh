@@ -31,30 +31,47 @@ hardening_disable_analytics() {
     
     # Ad Tracking (Privacy.sexy)
     info "Disabling Ad Tracking..."
-    defaults write com.apple.AdLib allowIdentifierForAdvertising -bool false
-    defaults write com.apple.AdLib allowApplePersonalizedAdvertising -bool false
-    defaults write com.apple.AdLib forceLimitAdTracking -bool true
+    if [ "$(defaults read com.apple.AdLib allowIdentifierForAdvertising 2>/dev/null)" != "0" ]; then
+        defaults write com.apple.AdLib allowIdentifierForAdvertising -bool false
+    fi
+     if [ "$(defaults read com.apple.AdLib allowApplePersonalizedAdvertising 2>/dev/null)" != "0" ]; then
+        defaults write com.apple.AdLib allowApplePersonalizedAdvertising -bool false
+    fi
+     if [ "$(defaults read com.apple.AdLib forceLimitAdTracking 2>/dev/null)" != "1" ]; then
+        defaults write com.apple.AdLib forceLimitAdTracking -bool true
+    fi
 
     # Firefox Telemetry
     if [ -d "/Applications/Firefox.app" ]; then
         info "Disabling Firefox Telemetry..."
-        execute_sudo "Enable Firefox Policies" defaults write /Library/Preferences/org.mozilla.firefox EnterprisePoliciesEnabled -bool TRUE
-        execute_sudo "Disable Firefox Telemetry" defaults write /Library/Preferences/org.mozilla.firefox DisableTelemetry -bool TRUE
+         if [ "$(defaults read /Library/Preferences/org.mozilla.firefox EnterprisePoliciesEnabled 2>/dev/null)" != "1" ]; then
+            execute_sudo "Enable Firefox Policies" defaults write /Library/Preferences/org.mozilla.firefox EnterprisePoliciesEnabled -bool TRUE
+        fi
+         if [ "$(defaults read /Library/Preferences/org.mozilla.firefox DisableTelemetry 2>/dev/null)" != "1" ]; then
+            execute_sudo "Disable Firefox Telemetry" defaults write /Library/Preferences/org.mozilla.firefox DisableTelemetry -bool TRUE
+        fi
     fi
     
     # Other App Telemetry
     hardening_disable_app_telemetry
 }
 
-hardening_disable_app_telemetry() {
+    hardening_disable_app_telemetry() {
     info "Disabling Third-Party App Telemetry..."
     
     # Google
-    defaults write com.google.Keystone.Agent checkInterval 0 2>/dev/null || true
+    if [ "$(defaults read com.google.Keystone.Agent checkInterval 2>/dev/null)" != "0" ]; then
+        defaults write com.google.Keystone.Agent checkInterval 0 2>/dev/null || true
+    fi
     
     # Microsoft Office / AutoUpdate
-    defaults write com.microsoft.autoupdate2 HowToCheck -string "Manual" 2>/dev/null || true
-    defaults write com.microsoft.office.telemetry SendAllTelemetryEnabled -bool false 2>/dev/null || true
+    if [ "$(defaults read com.microsoft.autoupdate2 HowToCheck 2>/dev/null)" != "Manual" ]; then
+        defaults write com.microsoft.autoupdate2 HowToCheck -string "Manual" 2>/dev/null || true
+    fi
+    if [ "$(defaults read com.microsoft.office.telemetry SendAllTelemetryEnabled 2>/dev/null)" != "0" ]; then
+        defaults write com.microsoft.office.telemetry SendAllTelemetryEnabled -bool false 2>/dev/null || true
+    fi
+
     
     # .NET / PowerShell
     export DOTNET_CLI_TELEMETRY_OPTOUT=1

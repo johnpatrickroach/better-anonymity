@@ -23,6 +23,15 @@ backup_encrypt_dir() {
     fi
     
     info "Archiving and Encrypting '$source_dir' to '$dest_file'..."
+    
+    if [ -f "$dest_file" ]; then
+        warn "Destination file '$dest_file' already exists."
+        if ! ask_confirmation "Overwrite existing backup?"; then
+            info "Backup cancelled."
+            return 0
+        fi
+    fi
+
     info "You will be asked for a passphrase by GPG."
     
     # tar -> gzip -> gpg
@@ -87,6 +96,15 @@ backup_create_volume() {
     local dmg_name="${vol_name}.dmg"
     
     info "Creating Encrypted DMG ($vol_size)..."
+    
+    if [ -f "$dmg_name" ]; then
+        warn "Volume file '$dmg_name' already exists."
+        if ! ask_confirmation "Overwrite existing volume?"; then
+            info "Volume creation cancelled."
+            return 0
+        fi
+    fi
+
     # AES-256 encryption. -stdinpass is hard to script securely in bash without leakage,
     # so we let hdiutil prompt interactively.
     hdiutil create "$dmg_name" -encryption -size "$vol_size" -volname "$vol_name" -fs APFS

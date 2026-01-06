@@ -8,7 +8,11 @@ tor_install() {
     info "Installing Tor..."
     
     # Install tor and torsocks
-    brew install tor torsocks
+    if is_brew_installed "tor"; then
+        info "Tor is already installed."
+    else
+        brew install tor torsocks
+    fi
 
     local CONF_DIR="$BREW_PREFIX/etc/tor"
     if [ ! -d "$CONF_DIR" ]; then
@@ -97,6 +101,16 @@ tor_enable_system_proxy() {
     warn "This will route SOCKS-capable traffic through Tor (127.0.0.1:9050)."
     warn "Note: This does NOT force all traffic (like UDP/ping) through Tor."
     
+    # Check current state
+    local state
+    state=$(networksetup -getsocksfirewallproxy Wi-Fi)
+    if echo "$state" | grep -q "Enabled: Yes"; then
+        if echo "$state" | grep -q "Server: 127.0.0.1" && echo "$state" | grep -q "Port: 9050"; then
+             info "System SOCKS Proxy is already enabled and correct."
+             return 0
+        fi
+    fi
+
     execute_sudo "Set SOCKS Proxy" networksetup -setsocksfirewallproxy Wi-Fi 127.0.0.1 9050
     execute_sudo "Enable SOCKS Proxy" networksetup -setsocksfirewallproxystate Wi-Fi on
     

@@ -25,6 +25,17 @@ die() { echo "DIED: $1"; }
 # Mock require_brew
 require_brew() { :; }
 
+# Mock Checks (Default to not installed so logic proceeds to install)
+is_brew_installed() { return 1; }
+is_cask_installed() { return 1; }
+is_app_installed() { return 1; }
+check_config_and_backup() { 
+    echo "CHECK_CALL: $*"
+    return 0 
+} 
+
+
+
 # Mock System Commands
 networksetup() {
     echo "networksetup called with: $*"
@@ -805,7 +816,7 @@ getconf() { echo "/tmp/mock_cache"; return 0; }
 ask_confirmation() { return 0; } # Auto-yes
 
 # We will use PWD since we run from root
-source "./lib/cleanup.sh"
+source "$(dirname "$0")/../lib/cleanup.sh"
 
 OUTPUT=$(cleanup_metadata)
 assert_contains "$OUTPUT" "Cleaning QuickLook Cache" "Should clean QL"
@@ -844,7 +855,7 @@ unset -f dscl unbound-anchor unbound-control-setup unbound-checkconf chown chmod
 # Mock GPG output
 gpg() { echo "Encrypted Data"; return 0; }
 # Source lib/vault.sh
-source "./lib/vault.sh"
+source "$(dirname "$0")/../lib/vault.sh"
 
 VAULT_DIR="/tmp/test_vault_$$" # Override for test
 
@@ -867,7 +878,7 @@ hdiutil() { echo "HDIUTIL_CALL: $*"; return 0; }
 tmutil() { echo "TMUTIL_CALL: $*" >&2; echo "Running = 1"; return 0; }
 
 # Source lib/backup.sh
-source "./lib/backup.sh"
+source "$(dirname "$0")/../lib/backup.sh"
 
 mkdir -p "/tmp/src"
 
@@ -923,7 +934,7 @@ openssl() {
     echo "aabbccddee"
 }
 
-source "./lib/wifi.sh"
+source "$(dirname "$0")/../lib/wifi.sh"
 # Override AIRPORT_BIN after sourcing
 AIRPORT_BIN="$MOCK_AIRPORT"
 
@@ -963,7 +974,7 @@ ROOT_DIR="."
 # touch "./config/ssh/ssh_config"
 # touch "./config/ssh/sshd_config"
 
-source "./lib/ssh.sh"
+source "$(dirname "$0")/../lib/ssh.sh"
 
 # Test Audit
 OUTPUT=$(ssh_check_sshd_status)
@@ -980,7 +991,7 @@ sshd() { echo "SSHD_TEST: $*"; }
 
 OUTPUT=$(ssh_harden_sshd 2>&1)
 assert_contains "$OUTPUT" "overwrite /etc/ssh/sshd_config" "Should warn"
-assert_contains "$OUTPUT" "CP_CALL: ./config/ssh/sshd_config /etc/ssh/sshd_config" "Should cp config"
+assert_contains "$OUTPUT" "CHECK_CALL: ./config/ssh/sshd_config /etc/ssh/sshd_config sudo" "Should check config"
 assert_contains "$OUTPUT" "SSHD_TEST: -t" "Should test config"
 
 # Test Hash Hosts
@@ -1011,7 +1022,7 @@ launchctl() { echo "LAUNCHCTL_CALL: $*"; }
 
 # Source lib again to ensure mocks apply (though already sourced by earlier tests, logic might bind early)
 # Actually, the function uses 'sudo' which is a function now.
-source "./lib/macos_hardening.sh"
+source "$(dirname "$0")/../lib/macos_hardening.sh"
 
 # Override MDNS_PLIST to non-existent for test
 MDNS_PLIST="/tmp/non_existent_plist_$$"
@@ -1095,6 +1106,8 @@ networksetup() {
     if [ "$1" == "-getsocksfirewallproxy" ]; then
         if [ "$MOCK_PROXY_ENABLED" == "true" ]; then
             echo "Enabled: Yes"
+            echo "Server: 127.0.0.1"
+            echo "Port: 9050"
         else
             echo "Enabled: No"
         fi
@@ -1168,21 +1181,21 @@ assert_contains "$OUTPUT" "CALL: tor_status" "Should check tor"
 
 # Test 29: Update
 # ---------------
+# Undo 'command' mock from previous test, so mkdir works
+unset -f command
+
 # Mock git
 git() {
     echo "GIT_CALL: $*"
-    return 0 
-}
-cd() {
-    echo "CD_CALL: $1"
     return 0
 }
+# Mock cd to prevent side effects
+cd() { echo "CD_CALL: $1"; return 0; }
 # Mock ROOT_DIR and .git dir
 TEST_GIT_ROOT=$(mktemp -d)
 mkdir "$TEST_GIT_ROOT/.git"
 ROOT_DIR="$TEST_GIT_ROOT"
 export ROOT_DIR
-
 
 OUTPUT=$(lifecycle_update)
 assert_contains "$OUTPUT" "Checking for 'better-anonymity' updates" "Should check update"
@@ -1201,7 +1214,84 @@ OUTPUT=$(lifecycle_update)
 assert_contains "$OUTPUT" "Not a git repository" "Should fail if not git"
 
 
+
+# Test 30: I2P Manager
+# --------------------
+start_suite "I2P Manager Tests"
+source "$(dirname "$0")/../lib/i2p_manager.sh"
+
+# Mock brew
+brew() {
+    echo "BREW_CALL: $*"
+    return 0
+}
+# Mock i2prouter
+i2prouter() {
+    echo "I2P_CALL: $*"
+    return 0
+}
+# Mock open
+open() {
+    echo "OPEN_CALL: $*"
+    return 0
+}
+# Mock command check
+command() {
+    if [ "$1" == "-v" ]; then
+        return 0 # simulate command found
+    fi
+    return 0
+}
+
+# Test Installation
+OUTPUT=$(i2p_install)
+assert_contains "$OUTPUT" "BREW_CALL: install i2p" "Should install i2p"
+
+# Test Start
+OUTPUT=$(i2p_start)
+assert_contains "$OUTPUT" "I2P_CALL: start" "Should start i2p"
+
+# Test Stop
+OUTPUT=$(i2p_stop)
+assert_contains "$OUTPUT" "I2P_CALL: stop" "Should stop i2p"
+
+# Test Restart
+OUTPUT=$(i2p_restart)
+assert_contains "$OUTPUT" "I2P_CALL: restart" "Should restart i2p"
+
+# Test Status
+OUTPUT=$(i2p_status)
+assert_contains "$OUTPUT" "I2P_CALL: status" "Should check status"
+
+# Test Console
+OUTPUT=$(i2p_console)
+assert_contains "$OUTPUT" "OPEN_CALL: http://127.0.0.1:7657/home" "Should open console"
+
+# end_suite removed to continue testing
+
+
+# Test 31: KeePassXC Installer
+# ----------------------------
+start_suite "KeePassXC Installer"
+source "$(dirname "$0")/../lib/installers.sh"
+
+# Mock brew to trace calls
+brew() {
+    echo "BREW_CALL: $*"
+    if [[ "$1" == "list" ]]; then
+        return 1
+    fi
+    return 0
+}
+
+
+OUTPUT=$(install_keepassxc)
+assert_contains "$OUTPUT" "BREW_CALL: install --cask keepassxc" "Should install keepassxc cask"
+assert_contains "$OUTPUT" "Installing KeePassXC" "Should print info"
+
 end_suite
+
+
 
 
 

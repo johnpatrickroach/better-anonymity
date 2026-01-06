@@ -4,8 +4,14 @@
 # Main CLI entrypoint
 
 # Resolve absolute path to the project root
-# Simpler approach: assume bin/ is one level deep
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Handle symlinks to ensure we find the real lib/ directory
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do 
+    DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" 
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR="$(dirname "$DIR")"
 LIB_DIR="$ROOT_DIR/lib"
 
@@ -26,10 +32,12 @@ source "$LIB_DIR/password_utils.sh"
 source "$LIB_DIR/cleanup.sh"
 source "$LIB_DIR/vault.sh"
 source "$LIB_DIR/backup.sh"
+source "$LIB_DIR/diagnosis.sh"
 source "$LIB_DIR/wifi.sh"
 source "$LIB_DIR/wifi.sh"
 source "$LIB_DIR/ssh.sh"
 source "$LIB_DIR/tor_manager.sh"
+source "$LIB_DIR/i2p_manager.sh"
 source "$LIB_DIR/lifecycle.sh"
 
 # Initialize capabilities
@@ -54,6 +62,8 @@ EOF
     echo "  menu              Interactive menu (default)"
     echo "  harden            Run macOS hardening checks"
     echo "  dns [provider]    Set DNS (quad9, mullvad, cloudflare)"
+    echo "  diagnose         Run system diagnosis and scoring"
+    echo "  install          Install global CLI aliases (b-a, better-anon)"
     echo "  install [tool]    Install tool (tor, privoxy, gpg)"
     echo "  generate-password Generate a secure passphrase"
     echo "  help              Show this help"
@@ -67,25 +77,27 @@ interactive_menu() {
     echo "2. Configure DNS"
     echo "3. Install Privoxy"
     echo "4. Install Tor Service & Browser"
-    echo "5. Install GPG"
-    echo "6. Install DNSCrypt"
-    echo "7. Install PingBar"
-    echo "8. Install Unbound"
-    echo "9. Generate Strong Password"
-    echo "10. Update Hosts Blocklist"
-    echo "11. Verify DNS Config"
-    echo "12. Verify Security Config"
-    echo "13. Install Firefox"
-    echo "14. Harden Firefox (Arkenfox)"
-    echo "15. Install Tor Browser"
-    echo "16. Setup GPG"
-    echo "17. Install Signal"
-    echo "18. Cleanup Metadata & Artifacts"
-    echo "19. Password Vault"
-    echo "20. Secure Backup Tools"
-    echo "21. Wi-Fi Security Tools"
-    echo "22. SSH Hardening"
-    echo "23. Misc Hardening (Manual)"
+    echo "5. Install I2P (Invisible Internet Project)"
+    echo "6. Install GPG"
+    echo "7. Install DNSCrypt"
+    echo "8. Install PingBar"
+    echo "9. Install Unbound"
+    echo "10. Generate Strong Password"
+    echo "11. Update Hosts Blocklist"
+    echo "12. Verify DNS Config"
+    echo "13. Verify Security Config"
+    echo "14. Install Firefox"
+    echo "15. Harden Firefox (Arkenfox)"
+    echo "16. Install Tor Browser (App)"
+    echo "17. Setup GPG"
+    echo "18. Install Signal"
+    echo "19. Cleanup Metadata & Artifacts"
+    echo "20. Password Vault"
+    echo "21. Secure Backup Tools"
+    echo "22. Wi-Fi Security Tools"
+    echo "23. SSH Hardening"
+    echo "24. Misc Hardening (Manual)"
+    echo "25. Install KeePassXC"
     echo "q. Quit"
     echo
     echo -n "Select an option: "
@@ -117,44 +129,57 @@ interactive_menu() {
                 2) tor_install ;;
              esac
              ;;
-        5) install_gpg ;;
-        6) install_dnscrypt ;;
-        7) install_pingbar ;;
-        8) install_unbound ;;
-        9)
+        5) 
+             echo "1) Install I2P"
+             echo "2) Start I2P"
+             echo "3) Stop I2P"
+             echo "4) Console"
+             read -p "Select: " ichoice
+             case $ichoice in
+                1) i2p_install ;;
+                2) i2p_start ;;
+                3) i2p_stop ;;
+                4) i2p_console ;;
+             esac
+             ;;
+        6) install_gpg ;;
+        7) install_dnscrypt ;;
+        8) install_pingbar ;;
+        9) install_unbound ;;
+        10)
              pwd=$(generate_password 6)
              info "Generated Password: $pwd"
              check_strength "$pwd"
              ;;
-        10)
+        11)
              network_update_hosts
              ;;
-        11)
+        12)
              network_verify_dns
              ;;
-        12)
+        13)
              hardening_verify
              ;;
-        13)
+        14)
              install_firefox
              ;;
-        14)
+        15)
              harden_firefox
              ;;
-        15)
+        16)
              install_tor_browser
              ;;
-        16)
+        17)
              setup_gpg
              ;;
-        17)
+        18)
              install_signal
              ;;
-        18)
+        19)
              cleanup_metadata
              ;;
-        19)
-             vault_list # Show list as default action or prompt? Let's prompt submenu or just list
+        20)
+             vault_list 
              echo "Vault Commands:"
              echo "  w [name] - Write/Create"
              echo "  r [name] - Read"
@@ -166,7 +191,7 @@ interactive_menu() {
                 l) vault_list ;;
              esac
              ;;
-        20)
+        21)
              echo "Backup Commands:"
              echo "  encrypt [dir]  - Encrypt Directory"
              echo "  decrypt [file] - Decrypt Archive"
@@ -180,7 +205,7 @@ interactive_menu() {
                 audit) backup_audit_timemachine ;;
              esac
              ;;
-        21)
+        22)
              echo "Wi-Fi Tools:"
              echo "  1) Audit Connection"
              echo "  2) Spoof MAC Address"
@@ -190,7 +215,7 @@ interactive_menu() {
                 2) wifi_spoof_mac ;;
              esac
              ;;
-        22)
+        23)
              echo "SSH Tools:"
              echo "  1) Audit SSHD Status"
              echo "  2) Harden SSHD (Server) Config"
@@ -204,7 +229,7 @@ interactive_menu() {
                 4) ssh_hash_hosts ;;
              esac
              ;;
-        23)
+        24)
              echo "Running Miscellaneous Hardening Steps..."
              hardening_harden_finder
              hardening_disable_bonjour
@@ -214,6 +239,9 @@ interactive_menu() {
              hardening_remove_guest
              hardening_privacy_tweaks
              hardening_reset_tcc
+             ;;
+        25)
+             install_keepassxc
              ;;
         q) exit 0 ;;
         *) error "Invalid option" ;;
@@ -262,6 +290,9 @@ case "$COMMAND" in
         ;;
     install-firefox)
          install_firefox
+         ;;
+    install-keepassxc)
+         install_keepassxc
          ;;
     harden-firefox)
          harden_firefox
@@ -331,6 +362,21 @@ case "$COMMAND" in
                ;;
          esac
          ;;
+    i2p)
+         shift
+         case "$1" in
+            install) i2p_install ;;
+            start)   i2p_start ;;
+            stop)    i2p_stop ;;
+            restart) i2p_restart ;;
+            status)  i2p_status ;;
+            console) i2p_console ;;
+            info)    i2p_info ;;
+            *) 
+               echo "Usage: better-anonymity i2p [install|start|stop|restart|status|console|info]" 
+               ;;
+         esac
+         ;;
     misc-harden)
         hardening_harden_finder
         hardening_disable_bonjour
@@ -352,6 +398,12 @@ case "$COMMAND" in
         ;;
     update)
         lifecycle_update
+        ;;
+    diagnose)
+        diagnosis_run
+        ;;
+    install)
+        lifecycle_install_cli
         ;;
     generate-password)
         input_count="${1:-6}"

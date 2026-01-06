@@ -80,3 +80,78 @@ execute_sudo() {
         sudo "$@"
     fi
 }
+
+# Check Functions
+# ---------------
+
+# Check if a brew formula is installed
+is_brew_installed() {
+    local formula="$1"
+    # Ensure brew is available
+    if ! command -v brew >/dev/null; then return 1; fi
+    
+    if brew list --formula "$formula" >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+# Check if a brew cask is installed
+is_cask_installed() {
+    local cask="$1"
+    if ! command -v brew >/dev/null; then return 1; fi
+    
+    if brew list --cask "$cask" >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+# Check if an app is installed in /Applications
+is_app_installed() {
+    local app_name="$1" # e.g. "Firefox.app"
+    if [ -d "/Applications/$app_name" ]; then
+        return 0
+    fi
+    return 1
+}
+
+# Smart Config Copy
+# Usage: check_config_and_backup source destination [sudo]
+check_config_and_backup() {
+    local src="$1"
+    local dest="$2"
+    local use_sudo="$3"
+
+    if [ ! -f "$src" ]; then
+        error "Source config not found: $src"
+        return 1
+    fi
+
+    local cp_cmd="cp"
+    if [ "$use_sudo" == "sudo" ]; then
+        cp_cmd="sudo cp"
+    fi
+
+    if [ -f "$dest" ]; then
+        # Check for difference
+        local diff_cmd="cmp -s"
+        # If we need sudo for cp, we likely need it for reading if check fails, 
+        # but let's try standard first. use sudo cmp if sudo requested.
+        if [ "$use_sudo" == "sudo" ]; then
+             diff_cmd="sudo cmp -s"
+        fi
+        
+        if $diff_cmd "$src" "$dest" 2>/dev/null; then
+            info "Config at $dest is identical. Skipping update."
+            return 0
+        fi
+
+        info "Config differs at $dest. Creating backup..."
+        $cp_cmd "$dest" "${dest}.bak.$(date +%s)"
+    fi
+
+    info "Installing config to $dest..."
+    $cp_cmd "$src" "$dest"
+}
+

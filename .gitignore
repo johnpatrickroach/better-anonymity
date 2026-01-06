@@ -1,0 +1,9 @@
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+
+# Test logs
+test_verify_*.txt

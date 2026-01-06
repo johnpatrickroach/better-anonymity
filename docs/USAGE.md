@@ -1,47 +1,58 @@
 # Usage Guide
-
 ## Getting Started
 
-The easiest way to use this repository is through the master setup script:
+First, install the global CLI aliases for ease of use:
 
 ```bash
-./setup.sh
+./bin/better-anonymity install
 ```
 
-This interactive script will guide you through the various hardening and configuration options.
+You can now use `better-anonymity` or the shorter `b-a`.
 
-## Individual Modules
-
-### OS Hardening (`scripts/macos_hardening.sh`)
-This script modifies macOS system preferences to enhance security and privacy.
-- **Firewall**: Enables the application firewall and stealth mode.
-- **Analytics**: Disables sending diagnostic data to Apple.
-- **Spotlight**: Prevents search terms from being sent to Apple.
-- **Finder**: Shows file extensions and secures the screen saver.
-
-Usage:
+## Interactive Mode
+Simply run the command without arguments to start the wizard:
 ```bash
-sudo ./scripts/macos_hardening.sh --all
+b-a
 ```
 
-### Network Privacy (`scripts/network_setup.sh`)
-Configures your DNS settings to use privacy-respecting providers.
-Supported providers: `quad9`, `mullvad`, `cloudflare`.
+## Command Reference
 
-Usage:
+### System Diagnosis
+Check your system's current security, privacy, and anonymity score.
 ```bash
-sudo ./scripts/network_setup.sh mullvad
+b-a diagnose
 ```
 
-### Privoxy (`scripts/setup_privoxy.sh`)
-Installs Privoxy via Homebrew and applies a configuration that blocks ads and tracking.
-The proxy runs on `127.0.0.1:8118`. You will need to configure your system or browser to use this proxy.
+### OS Hardening
+Apply macOS security settings (Firewall, Analytics, etc).
+```bash
+b-a harden
+```
+- **Note**: This may require sudo credentials.
 
-### Tor (`scripts/setup_tor.sh`)
-Installs and configures Tor. It exposes a SOCKS5 proxy on `127.0.0.1:9050`.
+### Network & DNS
+Configure encrypted DNS providers.
+```bash
+b-a dns quad9       # Set DNS to Quad9 (9.9.9.9)
+b-a dns mullvad     # Set DNS to Mullvad
+b-a dns cloudflare  # Set DNS to Cloudflare
+```
 
-### GPG (`scripts/setup_gpg.sh`)
-Installs GnuPG and `pinentry-mac`. It configures `gpg.conf` with strong algorithms (AES256, SHA512) and enables the gpg-agent.
+### Tool Installation
+Install and manage privacy tools via Homebrew.
+```bash
+b-a install tor      # Install Tor & Torsocks
+b-a install i2p      # Install I2P
+b-a install gpg      # Install GPG & Pinentry
+b-a install signal   # Install Signal Desktop
+```
+
+### Global Config
+Update the tool or run daily checks.
+```bash
+b-a update           # Git pull latest version
+b-a daily            # Run daily health checks
+```
 
 ## Browser Hardening
 The file `config/firefox/user.js` contains settings to harden Firefox.

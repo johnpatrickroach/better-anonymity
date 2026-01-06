@@ -6,7 +6,11 @@
 install_privoxy() {
     require_brew
     info "Installing Privoxy..."
-    brew install privoxy
+    if is_brew_installed "privoxy"; then
+        info "Privoxy is already installed via Brew."
+    else
+        brew install privoxy
+    fi
 
     info "Applying configuration..."
     # Use BREW_PREFIX from platform.sh
@@ -50,7 +54,11 @@ install_tor() {
 install_gpg() {
     require_brew
     info "Installing GPG..."
-    brew install gnupg pinentry-mac
+    if is_brew_installed "gnupg"; then
+        info "GnuPG is already installed."
+    else
+        brew install gnupg pinentry-mac
+    fi
 
     local GPG_HOME="$HOME/.gnupg"
     mkdir -p "$GPG_HOME"
@@ -71,7 +79,11 @@ install_gpg() {
 install_dnscrypt() {
     require_brew
     info "Installing DNSCrypt-Proxy..."
-    brew install dnscrypt-proxy
+    if is_brew_installed "dnscrypt-proxy"; then
+        info "DNSCrypt-Proxy is already installed."
+    else
+        brew install dnscrypt-proxy
+    fi
 
     local CONF_SRC="$(pwd)/config/dnscrypt-proxy/dnscrypt-proxy.toml"
     local CONF_DEST="$BREW_PREFIX/etc/dnscrypt-proxy.toml"
@@ -185,7 +197,11 @@ create_unbound_user() {
 install_unbound() {
     require_brew
     info "Installing Unbound..."
-    brew install unbound
+    if is_brew_installed "unbound"; then
+        info "Unbound is already installed."
+    else
+        brew install unbound
+    fi
 
     create_unbound_user
 
@@ -227,6 +243,11 @@ install_unbound() {
 
 install_firefox() {
     info "Installing Firefox..."
+    
+    if is_app_installed "Firefox.app"; then
+        warn "Firefox.app is already in /Applications. Skipping install."
+        return 0
+    fi
     
     local download_url="https://download.mozilla.org/?product=firefox-latest-ssl&os=osx&lang=en-US"
     local dmg_path
@@ -352,6 +373,11 @@ harden_firefox() {
 
 install_tor_browser() {
     info "Installing Tor Browser..."
+    
+    if is_app_installed "Tor Browser.app"; then
+        warn "Tor Browser.app is already in /Applications. Skipping install."
+        return 0
+    fi
     
     # Check for GPG
     if ! command -v gpg >/dev/null; then
@@ -528,7 +554,7 @@ install_signal() {
     
     require_brew
     
-    if brew list --cask signal >/dev/null 2>&1; then
+    if is_cask_installed "signal"; then
         info "Signal is already installed."
     else
         execute_sudo "Install Signal" brew install --cask signal
@@ -537,5 +563,21 @@ install_signal() {
     
     info "Refer to docs/MESSENGERS.md for usage instructions."
 }
+
+install_keepassxc() {
+    info "Installing KeePassXC..."
+    
+    require_brew
+    
+    if is_cask_installed "keepassxc"; then
+        info "KeePassXC is already installed."
+    else
+        execute_sudo "Install KeePassXC" brew install --cask keepassxc
+        info "KeePassXC installed successfully."
+    fi
+    
+    info "Refer to docs/PASSWORDS.md for usage instructions."
+}
+
 
 

@@ -101,3 +101,35 @@ lifecycle_update() {
         warn "Please download the latest version manually."
     fi
 }
+
+lifecycle_install_cli() {
+    header "Installing Global CLI..."
+    local BIN_PATH="/usr/local/bin"
+    local SOURCE_BIN="$ROOT_DIR/bin/better-anonymity"
+    
+    # Check if /usr/local/bin exists
+    if [ ! -d "$BIN_PATH" ]; then
+        warn "$BIN_PATH does not exist. Attempting to create..."
+        execute_sudo "Create bin/ folder" mkdir -p "$BIN_PATH"
+    fi
+    
+    info "Installing symlinks to $BIN_PATH..."
+    
+    # Create main link
+    execute_sudo "Link better-anonymity" ln -sf "$SOURCE_BIN" "$BIN_PATH/better-anonymity"
+    
+    # Create aliases
+    execute_sudo "Link better-anon" ln -sf "$SOURCE_BIN" "$BIN_PATH/better-anon"
+    execute_sudo "Link b-a" ln -sf "$SOURCE_BIN" "$BIN_PATH/b-a"
+    
+    if command -v better-anonymity &>/dev/null; then
+        success "CLI installed successfully!"
+        echo "You can now run:"
+        echo "  better-anonymity"
+        echo "  better-anon"
+        echo "  b-a"
+    else
+        warn "Installation completed, but 'better-anonymity' not found in PATH."
+        warn "Ensure $BIN_PATH is in your PATH."
+    fi
+}

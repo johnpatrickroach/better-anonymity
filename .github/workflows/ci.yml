@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Homebrew
+      run: brew update
+
+    - name: Run Regression Tests
+      run: tests/run_tests.sh
+
+    - name: Verify CLI Installation (Homebrew mode)
+      run: |
+        # Simulate local formula install
+        brew install --HEAD ./Formula/better-anonymity.rb
+        better-anonymity help
+        b-a help
+
+    - name: Verify CLI Installation (Pip mode)
+      run: |
+        pip3 install .
+        python3 -m better_anonymity help
+        b-a help

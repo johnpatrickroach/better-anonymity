@@ -19,6 +19,14 @@ For master passwords or encryption keys you need to memorize, use the **Diceware
 - 5-6 random words (e.g., `correct horse battery staple`).
 - High entropy and easier to type/remember than random characters.
 
+### 4. KeePassXC
+KeePassXC is a community-driven port of the Windows application “KeePass Password Safe”. It is a cross-platform, offline password manager.
+- **Install**: `better-anonymity install-keepassxc`
+- **Usage**:
+  - Open the app and create a new database.
+  - Store your master password securely (use Diceware!).
+  - Enable browser integration if desired.
+
 ---
 
 ## Better Anonymity Vault
