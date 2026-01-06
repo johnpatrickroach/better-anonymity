@@ -13,7 +13,7 @@ The default GPG configuration is compatible but not necessarily optimized for ma
 - **Key Format**: Enforces usage of long Key IDs to prevent collision attacks.
 
 ## Usage
-The `setup-gpg` command installs GPG and applies the hardened configuration to `~/.gnupg/gpg.conf`.
+The `install gpg` command installs GPG and applies the hardened configuration to `~/.gnupg/gpg.conf`.
 
 ### Security Note
 This configuration is optimized for high security:
