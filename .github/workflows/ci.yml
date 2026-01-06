@@ -67,6 +67,8 @@ jobs:
 
     - name: Verify CLI Installation (Pip mode)
       run: |
+        python3 -m venv venv
+        source venv/bin/activate
         pip3 install .
         python3 -m better_anonymity help
         b-a help

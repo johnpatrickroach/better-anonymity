@@ -47,6 +47,8 @@ If you have Python 3 installed, you can install directly:
 pip install .
 ```
 
+*Note: On newer macOS versions, you might encounter an "externally-managed-environment" error. If so, use `pipx install .` or `pip install . --break-system-packages` (if you are sure).*
+
 This will verify dependencies and install the `better-anonymity` (and `b-a`) commands to your Python bin path.
 *Note: Ensure your Python bin directory is in your PATH.*
 
