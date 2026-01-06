@@ -20,7 +20,6 @@ menu_hardening() {
 
     case $choice in
         1)
-            load_module "checks"
             load_module "macos_hardening"
             if ask_confirmation "Run all hardening steps?"; then
                 hardening_run_all

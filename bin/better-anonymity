@@ -44,6 +44,7 @@ usage() {
     echo "  dns [provider]    Set DNS (quad9, mullvad, cloudflare)"
     echo "  diagnose          Run system diagnosis and scoring"
     echo "  install           Install global CLI aliases (b-a, better-anon)"
+    echo "  uninstall         Remove global CLI aliases"
     echo "  install [tool]    Install tool (tor, privoxy, gpg)"
     echo "  generate-password Generate a secure passphrase"
     echo "  help              Show this help"
@@ -60,7 +61,6 @@ case "$COMMAND" in
         interactive_menu
         ;;
     harden)
-        load_module "checks"
         load_module "macos_hardening"
         hardening_run_all
         ;;
@@ -243,6 +243,10 @@ case "$COMMAND" in
     update)
         load_module "lifecycle"
         lifecycle_update
+        ;;
+    uninstall)
+        load_module "lifecycle"
+        lifecycle_uninstall
         ;;
     diagnose)
         load_module "diagnosis"

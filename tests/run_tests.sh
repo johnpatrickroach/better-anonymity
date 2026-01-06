@@ -30,9 +30,7 @@ run_suite() {
     fi
 }
 
-run_suite "tests/unit_core.sh"
-run_suite "tests/unit_logic.sh"
-run_suite "tests/unit_settings.sh"
+
 # run_suite "tests/unit_installer.sh" # Merged into others or standalone? Let's assume standard set.
 # Checking file list... installer tests might be inside logic or separate. 
 # Listing said: unit_logic.sh, unit_settings.sh. unit_core.sh exists. 

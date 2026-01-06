@@ -1,0 +1,57 @@
+#compdef better-anonymity
+
+_better-anonymity() {
+    local -a commands
+    commands=(
+        'menu:Open interactive menu'
+        'harden:Run macOS hardening checks'
+        'dns:Configure DNS provider (quad9/mullvad/cloudflare)'
+        'diagnose:Run system diagnosis and scoring'
+        'install:Install tools (tor, privoxy, gpg, etc)'
+        'generate-password:Generate secure password'
+        'help:Show usage information'
+        'verify-dns:Verify DNS configuration'
+        'verify-security:Verify security settings'
+    )
+
+    local -a dns_providers
+    dns_providers=(
+        'quad9:Quad9 (Blocked Malicious)'
+        'mullvad:Mullvad (No Logging)'
+        'cloudflare:Cloudflare (Fast)'
+    )
+
+    local -a tools
+    tools=(
+        'tor:Tor Service & Browser'
+        'privoxy:Privoxy HTTP Proxy'
+        'gpg:GnuPG'
+        'dnscrypt:DNSCrypt Proxy'
+        'unbound:Unbound DNS Resolver'
+        'signal:Signal Messenger'
+        'firefox:Firefox Browser'
+        'keepassxc:KeePassXC Password Manager'
+    )
+
+    _arguments \
+        '1: :->command' \
+        '*:: :->args'
+
+    case $state in
+        command)
+            _describe -t commands "better-anonymity command" commands
+            ;;
+        args)
+            case $line[1] in
+                dns)
+                    _describe -t dns_providers "DNS Provider" dns_providers
+                    ;;
+                install)
+                    _describe -t tools "Tool to install" tools
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_better-anonymity "$@"

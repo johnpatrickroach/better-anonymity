@@ -282,10 +282,12 @@ diagnosis_recommendations() {
         if [ "$p" -lt 100 ]; then
             echo "- Run 'better-anonymity harden' (Privacy Tweaks) to improve Privacy."
             echo "- Run 'better-anonymity install-firefox' and 'harden-firefox'."
+            echo "- Install Privacy Tools: 'install-signal' and 'install-keepassxc'."
         fi
         if [ "$a" -lt 100 ]; then
             echo "- Run 'better-anonymity install-tor' and 'install-i2p'."
-            echo "- Configure DNS using 'better-anonymity dns'."
+            echo "- Install Anonymity Tools: 'install-privoxy' and 'install-gpg'."
+            echo "- Configure Encrypted DNS: 'install-dnscrypt' or 'install-unbound'."
         fi
     else
         success "Excellent configuration! No immediate actions required."

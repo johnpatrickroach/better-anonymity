@@ -128,8 +128,30 @@ lifecycle_install_cli() {
         echo "  better-anonymity"
         echo "  better-anon"
         echo "  b-a"
+        echo ""
+        echo "To enable zsh completions, add this to your .zshrc:"
+        echo "  fpath=(\"$ROOT_DIR/completions\" \$fpath)"
+        echo "  autoload -Uz compinit"
+        echo "  compinit"
     else
         warn "Installation completed, but 'better-anonymity' not found in PATH."
         warn "Ensure $BIN_PATH is in your PATH."
     fi
+}
+    fi
+}
+
+lifecycle_uninstall() {
+    header "Uninstalling Better Anonymity CLI..."
+    
+    local BIN_PATH="/usr/local/bin"
+    if ask_confirmation "Remove global symlinks (b-a, better-anon)?"; then
+        execute_sudo "Remove better-anonymity" rm -f "$BIN_PATH/better-anonymity"
+        execute_sudo "Remove better-anon" rm -f "$BIN_PATH/better-anon"
+        execute_sudo "Remove b-a" rm -f "$BIN_PATH/b-a"
+        success "Symlinks removed."
+    fi
+    
+    warn "This command does NOT remove installed tools (Tor, Privoxy) or configuration files (~/.better-anonymity)."
+    info "To remove those, manual deletion is required to prevent data loss."
 }

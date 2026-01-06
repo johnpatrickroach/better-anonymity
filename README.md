@@ -66,34 +66,56 @@ This will create symlinks in `/usr/local/bin`, allowing you to run the tool from
 *   `better-anon`
 *   `b-a`
 
+## Quick Start (Recommended)
+
+1.  **First Run Setup**: Launch the interactive wizard to apply the security baseline.
+    ```bash
+    better-anonymity setup
+    ```
+
+2.  **Check Your Score**: Analyze your system's current privacy/anonymity status.
+    ```bash
+    better-anonymity diagnose
+    ```
+
+3.  **Interactive Menu**: Explore all features via the dashboard.
+    ```bash
+    better-anon
+    ```
+
 ## Usage
 
-Interactive Menu:
-```bash
-better-anonymity
-# OR
-better-anon
-# OR
-b-a
-```
+You can use the interactive menu or individual commands. CLI aliases `better-anonymity`, `better-anon`, and `b-a` are interchangeable.
 
-### Commands
+### Common Commands
 
-- **Diagnosis & Scoring**: Check your system's privacy score.
+- **Diagnosis**:
   ```bash
   b-a diagnose
   ```
 
-- **Hardening**: Apply macOS security settings.
+- **Hardening**:
   ```bash
-  b-a harden
+  b-a harden    # Apply macOS hardening
+  b-a ssh       # SSH Hardening menu
   ```
 
-- **Anonymity Tools**: Install and manage tools.
+- **Tools**:
   ```bash
   b-a install tor
+  b-a install signal
   b-a dns quad9
   ```
+
+### Uninstallation
+
+To remove the CLI aliases (`b-a`, `better-anon`) from your system:
+
+```bash
+better-anonymity uninstall
+```
+
+*Note: This does not remove installed tools (like Tor or Privoxy) or configuration files to prevent accidental data loss. You will need to remove those manually if desired.*
 
 ### Documentation
 For detailed information on each module, please refer to the specific documentation:
@@ -105,6 +127,17 @@ For detailed information on each module, please refer to the specific documentat
 - **[Firefox Hardening](docs/BROWSER.md)**: `user.js` configuration.
 - **[GPG](docs/GPG.md)**: Strong cryptography settings.
 - **[Password Generator](docs/PASSWORD.md)**: Strong passphrase generation.
+
+### Shell Completions
+
+To enable **zsh** completions (tab-autocomplete), add the following to your `.zshrc`:
+
+```bash
+# Add better-anonymity completions to fpath
+fpath=(/path/to/better-anonymity/completions $fpath)
+autoload -Uz compinit
+compinit
+```
 
 ## License
 
