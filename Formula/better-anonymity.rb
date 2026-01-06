@@ -8,15 +8,15 @@ class BetterAnonymity < Formula
   # or user can install via directory path.
 
   def install
-    # Install everything to libexec to preserve directory structure
-    libexec.install Dir["*"]
+    # Install everything to the prefix (e.g. /usr/local/Cellar/better-anonymity/HEAD)
+    prefix.install Dir["*"]
     
-    # Symlink the main binary to bin/
-    bin.install_symlink libexec/"bin/better-anonymity"
+    # Homebrew automatically links bin/* to /usr/local/bin
     
     # Create aliases
-    bin.install_symlink libexec/"bin/better-anonymity" => "better-anon"
-    bin.install_symlink libexec/"bin/better-anonymity" => "b-a"
+    # We use bin.install_symlink pointing to the name of the executable *in bin*
+    bin.install_symlink "better-anonymity" => "better-anon"
+    bin.install_symlink "better-anonymity" => "b-a"
   end
 
   def caveats
