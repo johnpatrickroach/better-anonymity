@@ -24,6 +24,10 @@ jobs:
       run: |
         # Workaround: Create a local tap to satisfy Homebrew in CI
         brew tap-new local/test --no-git
+        
+        # Patch formula to use local git repo (avoids HTTPS auth errors)
+        sed -i '' "s|https://github.com/phaedrus/better-anonymity.git|file://$(pwd)|g" Formula/better-anonymity.rb
+        
         cp Formula/better-anonymity.rb $(brew --repo local/test)/Formula/
         brew install --HEAD local/test/better-anonymity
         
