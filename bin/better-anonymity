@@ -52,8 +52,8 @@ usage() {
         cat "$LIB_DIR/banner.txt"
     fi
     echo ""
-    # Buffer flush/sync precaution
-    sleep 0.05
+    # Sacrificial line to absorb potential cursor glitches in CI
+    echo " "
     echo "Usage: better-anonymity [command] [options]"
     echo ""
     echo "Commands:"
