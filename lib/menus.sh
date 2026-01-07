@@ -260,6 +260,7 @@ interactive_menu() {
     echo "3. Software Installer"
     echo "4. Privacy Tools"
     echo "5. System Diagnosis (Score)"
+    echo "6. First Time Setup Wizard"
     echo "q. Quit"
     echo
     echo -n "Select an option: "
@@ -274,6 +275,11 @@ interactive_menu() {
             load_module "diagnosis"
             load_module "wifi"
             diagnosis_run 
+            read -p "Press Enter to continue..."
+            ;;
+        6)
+            load_module "lifecycle"
+            lifecycle_setup
             read -p "Press Enter to continue..."
             ;;
         q) exit 0 ;;
