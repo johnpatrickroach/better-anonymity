@@ -145,9 +145,8 @@ To enable **zsh** completions (tab-autocomplete), add the following to your `.zs
 
 ```bash
 # Add better-anonymity completions to fpath
-fpath=(/path/to/better-anonymity/completions $fpath)
-autoload -Uz compinit
-compinit
+echo 'fpath=(/path/to/better-anonymity/completions $fpath)' >> ~/.zshrc
+echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
 ```
 
 ## License
