@@ -6,9 +6,9 @@ setup(
     description="MacOS Security, Privacy & Anonymity Tools",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    author="Phaedrus",
-    author_email="phaedrus@example.com",
-    url="https://github.com/phaedrus/better-anonymity",
+    author="johnpatrickroach",
+    author_email="johnpatrickroach1@gmail.com",
+    url="https://github.com/johnpatrickroach/better-anonymity",
     packages=find_packages(),
     # Include the symlinked bin and lib directories as package data
     package_data={

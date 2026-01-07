@@ -1,8 +1,8 @@
 class BetterAnonymity < Formula
   desc "MacOS Security, Privacy & Anonymity Tools"
-  homepage "https://github.com/phaedrus/better-anonymity" # Placeholder
+  homepage "https://github.com/johnpatrickroach/better-anonymity" # Placeholder
   license "MIT"
-  head "https://github.com/phaedrus/better-anonymity.git", branch: "main"
+  head "https://github.com/johnpatrickroach/better-anonymity.git", branch: "main"
 
   # No url/sha256 needed for local dev/head-only formula initially, 
   # or user can install via directory path.

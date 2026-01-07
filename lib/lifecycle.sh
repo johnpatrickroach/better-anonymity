@@ -164,7 +164,7 @@ lifecycle_check_update() {
         fi
     else
         warn "Not a git repository. Cannot check for updates automatically."
-        info "Please check https://github.com/phaedrus/better-anonymity for releases."
+        info "Please check https://github.com/johnpatrickroach/better-anonymity for releases."
     fi
 }
 

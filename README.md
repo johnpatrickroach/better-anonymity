@@ -25,7 +25,7 @@ These scripts modify system settings, network configurations, and application pr
 First, clone the repository:
 
 ```bash
-git clone https://github.com/phaedrus/better-anonymity.git
+git clone https://github.com/johnpatrickroach/better-anonymity.git
 cd better-anonymity
 ```
 
