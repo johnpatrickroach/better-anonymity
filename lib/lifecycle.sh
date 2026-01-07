@@ -135,6 +135,9 @@ lifecycle_install_cli() {
         echo "  echo 'autoload -Uz compinit && compinit' >> ~/.zshrc"
         echo ""
         echo "Then restart your shell."
+        echo ""
+        echo "Recommended Next Step:"
+        echo "  Run 'better-anonymity setup' to apply the security baseline."
     else
         warn "Installation completed, but 'better-anonymity' not found in PATH."
         warn "Ensure $BIN_PATH is in your PATH."
