@@ -31,6 +31,10 @@ info() {
     printf "${GREEN}[INFO]${NC} %s\n" "$1"
 }
 
+success() {
+    printf "${GREEN}[SUCCESS]${NC} %s\n" "$1"
+}
+
 warn() {
     printf "${YELLOW}[WARN]${NC} %s\n" "$1"
 }
