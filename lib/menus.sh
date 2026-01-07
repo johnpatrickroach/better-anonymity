@@ -261,6 +261,8 @@ interactive_menu() {
     echo "4. Privacy Tools"
     echo "5. System Diagnosis (Score)"
     echo "6. First Time Setup Wizard"
+    echo "7. Check for Updates"
+    echo "8. Uninstall CLI"
     echo "q. Quit"
     echo
     echo -n "Select an option: "
@@ -280,6 +282,16 @@ interactive_menu() {
         6)
             load_module "lifecycle"
             lifecycle_setup
+            read -p "Press Enter to continue..."
+            ;;
+        7)
+            load_module "lifecycle"
+            lifecycle_check_update
+            read -p "Press Enter to continue..."
+            ;;
+        8)
+            load_module "lifecycle"
+            lifecycle_uninstall
             read -p "Press Enter to continue..."
             ;;
         q) exit 0 ;;
