@@ -140,8 +140,7 @@ lifecycle_install_cli() {
         warn "Ensure $BIN_PATH is in your PATH."
     fi
 }
-    fi
-}
+
 
 lifecycle_check_update() {
     header "Checking for Updates..."
