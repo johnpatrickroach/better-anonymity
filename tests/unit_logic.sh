@@ -88,6 +88,9 @@ OUTPUT=$(network_set_dns "quad9" | tr -d '\n')
 # echo "DEBUG OUTPUT: $OUTPUT"
 assert_contains "$OUTPUT" "SET_DNS: -setdnsserversWi-Fi9.9.9.9 149.112.112.112" "Should set Quad9 for Wi-Fi"
 
+OUTPUT=$(network_set_dns "localhost" | tr -d '\n')
+assert_contains "$OUTPUT" "SET_DNS: -setdnsserversWi-Fi127.0.0.1" "Should set Localhost for Wi-Fi"
+
 # Test 2: Installer Logic
 # -----------------------
 # Setup environment mocks

@@ -23,9 +23,19 @@ lifecycle_setup() {
 
     # 2. DNS
     echo ""
-    if ask_confirmation "Step 2: Configure Encrypted DNS (Quad9)?"; then
+    if ask_confirmation "Step 2: Configure Encrypted DNS? (Recommended: Localhost/DNSCrypt)"; then
         load_module "network"
-        network_set_dns "quad9"
+        echo "Select Provider:"
+        echo "1) Localhost (127.0.0.1) [Best for Anonymity]"
+        echo "2) Quad9 (9.9.9.9) [Good Baseline]"
+        echo "3) Mullvad"
+        read -r dns_setup_choice
+        case $dns_setup_choice in
+            1) network_set_dns "localhost" ;;
+            2) network_set_dns "quad9" ;;
+            3) network_set_dns "mullvad" ;;
+            *) network_set_dns "localhost" ;; # Default to localhost
+        esac
     fi
 
     # 3. Hosts Blocklist

@@ -42,6 +42,7 @@ b-a harden
 ### Network & DNS
 Configure encrypted DNS providers.
 ```bash
+b-a dns localhost   # Set DNS to Localhost (127.0.0.1) [Recommended if running DNSCrypt/Tor]
 b-a dns quad9       # Set DNS to Quad9 (9.9.9.9)
 b-a dns mullvad     # Set DNS to Mullvad
 b-a dns cloudflare  # Set DNS to Cloudflare

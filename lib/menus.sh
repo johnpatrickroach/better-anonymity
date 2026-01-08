@@ -90,12 +90,16 @@ menu_network() {
     case $choice in
         1)
             load_module "network"
-            echo "1) Quad9 2) Mullvad 3) Cloudflare"
+            echo "1) Localhost (127.0.0.1) [Recommended]"
+            echo "2) Quad9"
+            echo "3) Mullvad"
+            echo "4) Cloudflare"
             read -r dns_choice
             case $dns_choice in
-                1) network_set_dns "quad9" ;;
-                2) network_set_dns "mullvad" ;;
-                3) network_set_dns "cloudflare" ;;
+                1) network_set_dns "localhost" ;;
+                2) network_set_dns "quad9" ;;
+                3) network_set_dns "mullvad" ;;
+                4) network_set_dns "cloudflare" ;;
                 *) error "Invalid choice" ;;
             esac
             ;;

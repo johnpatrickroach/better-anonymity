@@ -8,6 +8,10 @@ network_set_dns() {
     local dns_servers=""
 
     case $provider in
+        "localhost")
+            dns_servers="127.0.0.1"
+            info "Setting DNS to Localhost (127.0.0.1)..."
+            ;;
         "quad9")
             dns_servers="9.9.9.9 149.112.112.112"
             info "Setting DNS to Quad9..."
