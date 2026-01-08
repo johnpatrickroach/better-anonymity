@@ -25,6 +25,10 @@ die() { echo "DIED: $1"; }
 # Mock require_brew
 require_brew() { :; }
 
+# Mock load_module to avoid errors in tests
+load_module() { :; }
+export -f load_module
+
 # Mock Checks (Default to not installed so logic proceeds to install)
 is_brew_installed() { return 1; }
 is_cask_installed() { return 1; }

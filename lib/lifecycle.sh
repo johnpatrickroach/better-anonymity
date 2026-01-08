@@ -12,6 +12,7 @@ lifecycle_setup() {
 
     # 1. macOS Hardening
     if ask_confirmation "Step 1: Apply Basic macOS Hardening (Firewall, Sudoers, Umask)?"; then
+        load_module "macos_hardening"
         hardening_enable_firewall
         hardening_secure_sudoers
         hardening_set_umask
@@ -23,12 +24,14 @@ lifecycle_setup() {
     # 2. DNS
     echo ""
     if ask_confirmation "Step 2: Configure Encrypted DNS (Quad9)?"; then
+        load_module "network"
         network_set_dns "quad9"
     fi
 
     # 3. Hosts Blocklist
     echo ""
     if ask_confirmation "Step 3: Install StevenBlack Hosts Blocklist (Ad-blocking)?"; then
+        load_module "network"
         network_update_hosts
     fi
 
@@ -36,14 +39,18 @@ lifecycle_setup() {
     echo ""
     echo "Step 4: Install Privacy Tools"
     if ask_confirmation "Install Tor Browser & Service?"; then
+        load_module "installers"
+        load_module "tor_manager"
         install_tor_browser
         tor_install
     fi
     if ask_confirmation "Install GPG (Encryption)?"; then
+        load_module "installers"
         install_gpg
         setup_gpg
     fi
     if ask_confirmation "Install Signal (Secure Messenger)?"; then
+        load_module "installers"
         install_signal
     fi
 

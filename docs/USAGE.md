@@ -12,8 +12,14 @@ You can now use any of the following commands:
 *   `better-anon`
 *   `b-a`
 
+## Quick Start
+Run the setup wizard to apply a security baseline:
+```bash
+b-a setup
+```
+
 ## Interactive Mode
-Simply run the command without arguments to start the wizard:
+Simply run the command without arguments to start the menu:
 ```bash
 b-a
 ```
@@ -54,7 +60,9 @@ b-a install signal   # Install Signal Desktop
 Update the tool or run daily checks.
 ```bash
 b-a update           # Git pull latest version
+b-a check-update     # Check for updates
 b-a daily            # Run daily health checks
+b-a uninstall        # Remove CLI aliases
 ```
 
 ## Browser Hardening

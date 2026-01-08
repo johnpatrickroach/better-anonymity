@@ -23,6 +23,13 @@ else
     pass "Lazy Loading Verified: installers.sh NOT sourced during 'help'."
 fi
 
+# Setup Mock Sudo to prevent password prompt
+MOCK_DIR=$(mktemp -d)
+echo '#!/bin/sh' > "$MOCK_DIR/sudo"
+echo 'echo "MOCK SUDO: $*"' >> "$MOCK_DIR/sudo"
+chmod +x "$MOCK_DIR/sudo"
+export PATH="$MOCK_DIR:$PATH"
+
 # 2. Verify 'install' DOES load installers.sh
 OUTPUT=$(bash -x "$BIN_PATH" install gpg 2>&1)
 # Note: install gpg tries to install. It might fail if not root or packages missing, but loading should happen.
@@ -43,3 +50,4 @@ else
 fi
 
 end_suite
+rm -rf "$MOCK_DIR"
