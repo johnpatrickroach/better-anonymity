@@ -852,6 +852,11 @@ assert_contains "$OUTPUT" "NPM_CALL: cache clean" "Should clean npm"
 OUTPUT=$(cleanup_ios_data)
 assert_contains "$OUTPUT" "XCRUN_CALL: simctl erase" "Should erase simulators"
 
+# Mock id for guest check
+id() {
+    if [[ "$*" == *"guest"* ]]; then return 0; fi
+    return 1
+}
 OUTPUT=$(hardening_remove_guest)
 assert_contains "$OUTPUT" "SYSADMINCTL_CALL: -deleteUser guest" "Should delete guest"
 
