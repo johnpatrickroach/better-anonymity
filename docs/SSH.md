@@ -58,3 +58,9 @@ Check if your SSH Server is running:
 ```bash
 better-anonymity ssh audit-sshd
 ```
+
+## Interactive Menu
+Run the command without arguments to open the SSH security menu:
+```bash
+better-anonymity ssh
+```
