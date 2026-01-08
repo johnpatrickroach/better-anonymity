@@ -6,6 +6,30 @@
 
 # --- Sub-Menus ---
 
+menu_ssh() {
+    clear
+    header "SSH Security Tools"
+    load_module "ssh"
+    echo "1. Audit SSHD Status"
+    echo "2. Harden SSHD (Server) Config"
+    echo "3. Harden SSH Client Config"
+    echo "4. Hash known_hosts"
+    echo "b. Back"
+    echo
+    echo -n "Select an option: "
+    read -r schoice
+    case $schoice in
+        1) ssh_check_sshd_status ;;
+        2) ssh_harden_sshd ;;
+        3) ssh_harden_client ;;
+        4) ssh_hash_hosts ;;
+        b|back) return ;;
+        *) error "Invalid option" ;;
+    esac
+    read -p "Press Enter to continue..."
+    menu_ssh
+}
+
 menu_hardening() {
     clear
     header "Hardening & Security"
@@ -30,19 +54,7 @@ menu_hardening() {
             hardening_verify
             ;;
         3)
-            load_module "ssh"
-            echo "SSH Tools:"
-            echo "  1) Audit SSHD Status"
-            echo "  2) Harden SSHD (Server) Config"
-            echo "  3) Harden SSH Client Config"
-            echo "  4) Hash known_hosts"
-            read -p "Select: " schoice
-            case $schoice in
-                1) ssh_check_sshd_status ;;
-                2) ssh_harden_sshd ;;
-                3) ssh_harden_client ;;
-                4) ssh_hash_hosts ;;
-            esac
+            menu_ssh
             ;;
         4)
             load_module "macos_hardening"
