@@ -42,7 +42,8 @@ else
 fi
 
 # 3. Verify 'harden' loads macos_hardening.sh
-OUTPUT=$(bash -x "$BIN_PATH" harden 2>&1)
+# Pipe 'n' to avoid actual changes or hanging on prompts
+OUTPUT=$(yes n | bash -x "$BIN_PATH" harden 2>&1)
 if echo "$OUTPUT" | grep -q "lib/macos_hardening.sh"; then
      pass "Module Loading Verified: macos_hardening.sh sourced during 'harden'."
 else

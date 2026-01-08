@@ -59,9 +59,16 @@ hardening_disable_analytics() {
     hardening_disable_app_telemetry() {
     info "Disabling Third-Party App Telemetry..."
     
-    # Google
+    hardening_disable_parallels
+    
+    # Google (Aggressive)
     if [ "$(defaults read com.google.Keystone.Agent checkInterval 2>/dev/null)" != "0" ]; then
         defaults write com.google.Keystone.Agent checkInterval 0 2>/dev/null || true
+    fi
+    # Delete Google Software Update agent if aggressive (Privacy.sexy does this)
+    if [ -d "$HOME/Library/Google/GoogleSoftwareUpdate" ]; then
+         info "Disabling Google Software Update..."
+         rm -rf "$HOME/Library/Google/GoogleSoftwareUpdate" 2>/dev/null || true
     fi
     
     # Microsoft Office / AutoUpdate
@@ -70,6 +77,14 @@ hardening_disable_analytics() {
     fi
     if [ "$(defaults read com.microsoft.office.telemetry SendAllTelemetryEnabled 2>/dev/null)" != "0" ]; then
         defaults write com.microsoft.office.telemetry SendAllTelemetryEnabled -bool false 2>/dev/null || true
+    fi
+    # Stricter Office
+    # Stricter Office
+    if [ "$(defaults read com.microsoft.office.telemetry ZeroDiagnosticData -bool 2>/dev/null)" != "1" ]; then
+        defaults write com.microsoft.office.telemetry ZeroDiagnosticData -bool true 2>/dev/null || true
+    fi
+     if [ "$(defaults read com.microsoft.office.telemetry UserOptIn -bool 2>/dev/null)" != "0" ]; then
+        defaults write com.microsoft.office.telemetry UserOptIn -bool false 2>/dev/null || true
     fi
 
     
@@ -80,6 +95,16 @@ hardening_disable_analytics() {
     local zshrc="$HOME/.zshrc"
     if ! grep -q "DOTNET_CLI_TELEMETRY_OPTOUT" "$zshrc"; then echo "export DOTNET_CLI_TELEMETRY_OPTOUT=1" >> "$zshrc"; fi
     if ! grep -q "POWERSHELL_TELEMETRY_OPTOUT" "$zshrc"; then echo "export POWERSHELL_TELEMETRY_OPTOUT=1" >> "$zshrc"; fi
+}
+
+hardening_disable_parallels() {
+    # Parallels Desktop Ads & Updates
+    if [ -d "/Applications/Parallels Desktop.app" ]; then
+        info "Disabling Parallels Desktop Ads/Updates..."
+        defaults write com.parallels.Parallels\ Desktop ApplicationPreferences.CheckForUpdates -bool false 2>/dev/null || true
+        defaults write com.parallels.Parallels\ Desktop "ApplicationPreferences.ShowPromo" -bool false 2>/dev/null || true
+        defaults write com.parallels.Parallels\ Desktop "ApplicationPreferences.ShowTutorial" -bool false 2>/dev/null || true
+    fi
 }
 
 

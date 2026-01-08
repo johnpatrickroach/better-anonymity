@@ -64,6 +64,14 @@ lifecycle_setup() {
         install_signal
     fi
 
+    # 5. Cleanup
+    echo ""
+    echo "Step 5: System Cleanup"
+    if ask_confirmation "Run initial privacy cleanup (Browsers, Logs, Metadata)?"; then
+        load_module "cleanup"
+        cleanup_metadata
+    fi
+
     echo ""
     success "Setup Complete!"
     info "Run 'better-anonymity verify-security' to check your status."

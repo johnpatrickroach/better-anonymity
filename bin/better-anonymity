@@ -49,6 +49,7 @@ usage() {
     echo "  install           Install global CLI aliases (b-a, better-anon)"
     echo "  uninstall         Remove global CLI aliases"
     echo "  install [tool]    Install tool (tor, privoxy, gpg)"
+    echo "  cleanup           Run system and browser cleanup"
     echo "  generate-password Generate a secure passphrase"
     echo "  help              Show this help"
     echo "  --version         Show version information"
@@ -157,7 +158,7 @@ case "$COMMAND" in
          load_module "installers"
          install_signal
          ;;
-    cleanup-metadata)
+    cleanup|cleanup-metadata)
          load_module "cleanup"
          cleanup_metadata
          ;;

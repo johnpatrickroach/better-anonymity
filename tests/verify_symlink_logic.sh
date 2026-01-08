@@ -1,6 +1,8 @@
 #!/bin/bash
 # tests/verify_symlink_logic.sh
 
+source "$(dirname "$0")/test_framework.sh"
+
 # Create a dummy structure to simulate the symlink environment
 mkdir -p tmp/bin tmp/lib
 echo "#!/bin/bash" > tmp/bin/target_script
@@ -22,9 +24,9 @@ OUTPUT=$(./tmp/symlink_script)
 EXPECTED="$(pwd)/tmp/bin"
 
 if [[ "$OUTPUT" == *"$EXPECTED"* ]]; then
-    echo "[PASS] Symlink resolved correctly to $EXPECTED"
+    pass "Symlink resolved correctly to $EXPECTED"
 else
-    echo "[FAIL] Symlink resolution failed. Got: $OUTPUT"
+    fail "Symlink resolution failed. Got: $OUTPUT"
     exit 1
 fi
 

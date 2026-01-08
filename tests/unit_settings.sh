@@ -39,7 +39,13 @@ defaults() {
         # Return correct expected values to simulate "Already Set" state
         if [[ "$domain" == *"Keystone.Agent"* ]]; then echo "0"; fi
         if [[ "$domain" == *"autoupdate2"* ]]; then echo "Manual"; fi
-        if [[ "$domain" == *"office.telemetry"* ]]; then echo "0"; fi
+        if [[ "$domain" == *"office.telemetry"* ]]; then 
+             if [[ "$key" == "ZeroDiagnosticData" ]]; then
+                 echo "1"
+             else
+                 echo "0"
+             fi
+        fi
         return 0
     elif [ "$op" == "write" ]; then
         DEFAULTS_WRITE_CALLED=1

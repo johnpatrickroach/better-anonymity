@@ -39,6 +39,13 @@ b-a harden
 ```
 - **Note**: This may require sudo credentials.
 
+### System Cleanup
+Perform aggressive cleanup of metadata, logs, and browser history.
+```bash
+b-a cleanup
+```
+- **Covers**: QuickLook, Finder, Browsers (Chrome/Safari), Quarantine Events, Memory.
+
 ### Network & DNS
 Configure encrypted DNS providers.
 ```bash

@@ -24,6 +24,12 @@ To prevent built-in software as well as code-signed, downloaded software from be
 - **Remote Events**: Disabled (`remoteappleevents`).
 - **Firefox Telemetry**: Disabled (if installed).
 
+### Third-Party Applications
+- **Parallels Desktop**: Disables ads, promo popups, and tutorials.
+- **Microsoft Office**: Disables "SendAllTelemetry" and sets "ZeroDiagnosticData" to true.
+- **Google**: Disables software update checks and removes the updater agent (Aggressive).
+- **Dotnet/PowerShell**: Sets telemetry opt-out variables.
+
 
 
 ### Spotlight

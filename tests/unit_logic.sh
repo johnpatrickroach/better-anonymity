@@ -835,7 +835,8 @@ source "$(dirname "$0")/../lib/cleanup.sh"
 
 OUTPUT=$(cleanup_metadata)
 assert_contains "$OUTPUT" "Cleaning QuickLook Cache" "Should clean QL"
-assert_contains "$OUTPUT" "QL_CALL: -r disablecache" "Should disable QL cache"
+# assert_contains "$OUTPUT" "QL_CALL: -r disablecache" "Should disable QL cache" # Deprecated
+assert_contains "$OUTPUT" "QL_CALL: -r cache" "Should reset QL cache"
 assert_contains "$OUTPUT" "DEFAULTS_CALL: delete" "Should delete defaults"
 assert_contains "$OUTPUT" "NVRAM_CALL: -d" "Should clear NVRAM"
 assert_contains "$OUTPUT" "RM_CALL: -rf" "Should call rm"
@@ -883,10 +884,9 @@ VAULT_DIR="/tmp/test_vault_$$" # Override for test
 OUTPUT=$(vault_init)
 assert_contains "$OUTPUT" "Initializing Vault" "Should init vault"
 if [ -d "$VAULT_DIR" ]; then 
-    echo "[PASS] Vault dir created"; 
+    pass "Vault dir created"
 else 
-    echo "[FAIL] Vault dir missing"; 
-    FAIL_COUNT=$((FAIL_COUNT+1)); 
+    fail "Vault dir missing"
 fi
 
 rm -rf "$VAULT_DIR"
@@ -1174,14 +1174,25 @@ hardening_enable_firewall() { echo "CALL: hardening_enable_firewall"; }
 network_set_dns() { echo "CALL: network_set_dns $1"; }
 network_update_hosts() { echo "CALL: network_update_hosts"; }
 tor_install() { echo "CALL: tor_install"; }
+install_tor_browser() { echo "CALL: install_tor_browser"; }
+install_gpg() { echo "CALL: install_gpg"; }
+setup_gpg() { echo "CALL: setup_gpg"; }
+install_signal() { echo "CALL: install_signal"; }
+cleanup_metadata() { echo "CALL: cleanup_metadata"; }
 
-OUTPUT=$(lifecycle_setup)
+# Pipe "2" to select Quad9 in the DNS menu
+OUTPUT=$(echo "2" | lifecycle_setup)
 assert_contains "$OUTPUT" "HEADER: Better Anonymity - First Time Setup" "Should show setup wizard"
 
 assert_contains "$OUTPUT" "CALL: hardening_enable_firewall" "Should apply hardening"
 assert_contains "$OUTPUT" "CALL: network_set_dns quad9" "Should set DNS"
 assert_contains "$OUTPUT" "CALL: network_update_hosts" "Should update hosts"
-assert_contains "$OUTPUT" "CALL: tor_install" "Should install tor"
+assert_contains "$OUTPUT" "CALL: tor_install" "Should install tor service"
+assert_contains "$OUTPUT" "CALL: install_tor_browser" "Should install tor browser"
+assert_contains "$OUTPUT" "CALL: install_gpg" "Should install gpg"
+assert_contains "$OUTPUT" "CALL: setup_gpg" "Should setup gpg"
+assert_contains "$OUTPUT" "CALL: install_signal" "Should install signal"
+assert_contains "$OUTPUT" "CALL: cleanup_metadata" "Should cleanup"
 
 # Test 28: Daily Check
 # --------------------

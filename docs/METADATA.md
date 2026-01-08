@@ -41,6 +41,16 @@ macOS and its applications generate significant amounts of metadata and cache ar
 - **Description**: Preferred network list stored in non-volatile RAM.
 - **Action**: Clears specific NVRAM variables.
 
+### 9. Browser Data (Aggressive)
+- **Chrome**: History, Cache, History-journal.
+- **Safari**: History, Cookies, Downloads, TopSites, and various Caches.
+- **Firefox**: Cookies, Form History, Session Store (for all profiles).
+
+### 10. System Artifacts
+- **Quarantine Events**: Clears the `LSQuarantineEvent` database which tracks downloaded files.
+- **Inactive Memory**: URL-like strings and sensitive data can persist in RAM. The script offers to run `sudo purge`.
+- **Trash**: Empties trash on all volumes.
+
 ## Usage
 Run via the CLI menu or directly:
 ```bash

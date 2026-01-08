@@ -15,14 +15,16 @@ cleanup_metadata() {
 
     # 1. QuickLook Cache
     info "Cleaning QuickLook Cache..."
-    execute_sudo "Disable QL Cache" qlmanage -r disablecache
-    # rm -rfv $(getconf DARWIN_USER_CACHE_DIR)/com.apple.QuickLook.thumbnailcache/
-    # The above is complex to resolve robustly in script without potential errors.
-    # We will stick to the qlmanage reset and generic user cache clear if deemed safe.
-    # For now, explicit targeted removal:
+    # 'qlmanage -r disablecache' is deprecated/invalid on newer macOS.
+    # We rely on 'qlmanage -r cache' (reset) below.
+    
     local user_cache_dir
     user_cache_dir=$(getconf DARWIN_USER_CACHE_DIR)
-    execute_sudo "Remove QL Thumbnails" rm -rf "$user_cache_dir/com.apple.QuickLook.thumbnailcache"
+    
+    # Try aggressive remove, but suppress errors (SIP/Permissions)
+    execute_sudo "Remove QL Thumbnails" rm -rf "$user_cache_dir/com.apple.QuickLook.thumbnailcache" 2>/dev/null || true
+    
+    # Official reset
     qlmanage -r cache
     
     # 2. Finder Metadata
@@ -96,6 +98,21 @@ cleanup_metadata() {
     # 14. Receipts (Optional/Aggressive)
     if ask_confirmation "Clear Installation Receipts (Aggressive)?"; then
         cleanup_receipts
+    fi
+
+    # 15. Memory (Optional)
+    if ask_confirmation "Purge Inactive Memory (sudo purge)?"; then
+        cleanup_memory
+    fi
+
+    # 16. Browsers (Aggressive)
+    if ask_confirmation "Clean Browser History & Cache (Chrome/Safari/Firefox)?"; then
+        cleanup_browsers
+    fi
+    
+    # 17. Quarantine (Aggressive)
+    if ask_confirmation "Clear Quarantine History (Downloaded files logs)?"; then
+        cleanup_quarantine
     fi
 
     info "Metadata cleanup completed."
@@ -196,4 +213,74 @@ remove_file_metadata() {
     xattr -d com.apple.metadata:kMDItemWhereFroms "$file" 2>/dev/null || true
     xattr -d com.apple.quarantine "$file" 2>/dev/null || true
     info "Metadata removed."
+}
+
+cleanup_memory() {
+    info "Clearing inactive memory..."
+    execute_sudo "Purge Memory" purge
+}
+
+cleanup_quarantine() {
+    info "Clearing File Quarantine Logs..."
+    
+    local db_file="$HOME/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2"
+    
+    if [ -f "$db_file" ]; then
+        # Check for immutability
+        if ls -lO "$db_file" | grep -q 'schg'; then
+            execute_sudo "Unflag system immutable" chflags noschg "$db_file"
+        fi
+        if ls -lO "$db_file" | grep -q 'uchg'; then
+             chflags nouchg "$db_file"
+        fi
+        
+        info "Deleting events from SQLite DB..."
+        sqlite3 "$db_file" "delete from LSQuarantineEvent"
+        
+        # Lock it? Privacy.sexy locks it. Let's ask or just do it if aggressive.
+        # For now, just clean.
+    fi
+    
+    # Clear attributes from Downloads
+    info "Removing quarantine attributes from ~/Downloads..."
+    find "$HOME/Downloads" -type f -exec xattr -d com.apple.quarantine {} 2>/dev/null \; || true
+}
+
+cleanup_browsers() {
+    info "Cleaning Browser Data..."
+    
+    # Chrome
+    local chrome_dir="$HOME/Library/Application Support/Google/Chrome/Default"
+    if [ -d "$chrome_dir" ]; then
+        info "Cleaning Chrome History/Cache..."
+        rm -rfv "$chrome_dir/History" "$chrome_dir/History-journal" "$chrome_dir/Application Cache" 2>/dev/null
+    fi
+    
+    # Safari
+    info "Cleaning Safari Data..."
+    rm -f "$HOME/Library/Safari/History.db"* 2>/dev/null
+    rm -f "$HOME/Library/Safari/Downloads.plist" 2>/dev/null
+    rm -f "$HOME/Library/Safari/LastSession.plist" 2>/dev/null
+    rm -f "$HOME/Library/Safari/TopSites.plist" 2>/dev/null
+    rm -f "$HOME/Library/Safari/WebpageIcons.db" 2>/dev/null
+    rm -rfv "$HOME/Library/Caches/com.apple.Safari/Cache.db" 2>/dev/null
+    rm -rfv "$HOME/Library/Caches/com.apple.Safari/Webpage Previews" 2>/dev/null
+    rm -f "$HOME/Library/Cookies/Cookies.binarycookies" 2>/dev/null
+    
+    # Firefox
+    local firefox_dir="$HOME/Library/Application Support/Firefox/Profiles"
+    if [ -d "$firefox_dir" ]; then
+        info "Cleaning Firefox Data (Cookies, Form History)..."
+        # Find all profiles
+        find "$firefox_dir" -name "*.default*" -type d | while read -r profile; do
+            rm -fv "$profile/cookies.sqlite"* 2>/dev/null
+            rm -fv "$profile/formhistory.sqlite" 2>/dev/null
+            rm -fv "$profile/sessionstore"* 2>/dev/null
+            rm -rfv "$profile/storage/default/http"* 2>/dev/null
+        done
+        
+        rm -rfv "$HOME/Library/Caches/Mozilla" 2>/dev/null
+    fi
+    
+    info "Browser cleanup finished."
 }

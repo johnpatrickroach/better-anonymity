@@ -213,7 +213,7 @@ menu_privacy() {
     echo "1. Generate Strong Password"
     echo "2. Password Vault (Encrypted Storage)"
     echo "3. Secure Backup Tools (Enc/Dec/Volume)"
-    echo "4. Cleanup Metadata & Artifacts"
+    echo "4. Cleanup Metadata, Browsers & Artifacts"
     echo "b. Back"
     echo
     echo -n "Select an option: "
