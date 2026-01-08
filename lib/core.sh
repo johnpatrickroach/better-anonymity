@@ -57,6 +57,13 @@ header() {
 # User Interaction
 ask_confirmation() {
     local prompt="$1"
+    
+    # Check for auto-yes override
+    if [ "${BETTER_ANONYMITY_AUTO_YES:-0}" -eq 1 ]; then
+        info "$prompt [y/N] (Auto-Yes)"
+        return 0
+    fi
+
     # Default to No if just Enter, strictly require Y/y
     warn "$prompt [y/N]"
     read -r response

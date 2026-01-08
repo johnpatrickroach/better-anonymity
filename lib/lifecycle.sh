@@ -25,17 +25,32 @@ lifecycle_setup() {
     echo ""
     if ask_confirmation "Step 2: Configure Encrypted DNS? (Recommended: Localhost/DNSCrypt)"; then
         load_module "network"
-        echo "Select Provider:"
-        echo "1) Localhost (127.0.0.1) [Best for Anonymity]"
-        echo "2) Quad9 (9.9.9.9) [Good Baseline]"
-        echo "3) Mullvad"
-        read -r dns_setup_choice
-        case $dns_setup_choice in
-            1) network_set_dns "localhost" ;;
-            2) network_set_dns "quad9" ;;
-            3) network_set_dns "mullvad" ;;
-            *) network_set_dns "localhost" ;; # Default to localhost
-        esac
+        # If auto-yes, prefer Localhost+DNSCrypt
+        if [ "${BETTER_ANONYMITY_AUTO_YES:-0}" -eq 1 ]; then
+             info "Auto-Resolution: Attempting to setup DNSCrypt-Proxy..."
+             load_module "installers"
+             
+             # Run in subshell to catch 'die' exits without killing main script
+             if (install_dnscrypt); then
+                 info "DNSCrypt-Proxy setup successful. Setting DNS to 127.0.0.1 (Localhost)..."
+                 network_set_dns "localhost"
+             else
+                 warn "DNSCrypt-Proxy setup failed. Falling back to Quad9..."
+                 network_set_dns "quad9"
+             fi
+        else
+            echo "Select Provider:"
+            echo "1) Localhost (127.0.0.1) [Best for Anonymity]"
+            echo "2) Quad9 (9.9.9.9) [Good Baseline]"
+            echo "3) Mullvad"
+            read -r dns_setup_choice
+            case $dns_setup_choice in
+                1) network_set_dns "localhost" ;;
+                2) network_set_dns "quad9" ;;
+                3) network_set_dns "mullvad" ;;
+                *) network_set_dns "localhost" ;; # Default to localhost
+            esac
+        fi
     fi
 
     # 3. Hosts Blocklist

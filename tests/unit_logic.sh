@@ -140,6 +140,10 @@ fdesetup() {
 }
 # Mock ask_confirmation
 ask_confirmation() {
+    if [ "${BETTER_ANONYMITY_AUTO_YES:-0}" -eq 1 ]; then
+        echo "(Auto-Yes)"
+        return 0
+    fi
     if [ "$MOCK_USER_CONFIRM" == "yes" ]; then
         return 0
     else
@@ -1193,6 +1197,16 @@ assert_contains "$OUTPUT" "CALL: install_gpg" "Should install gpg"
 assert_contains "$OUTPUT" "CALL: setup_gpg" "Should setup gpg"
 assert_contains "$OUTPUT" "CALL: install_signal" "Should install signal"
 assert_contains "$OUTPUT" "CALL: cleanup_metadata" "Should cleanup"
+
+# Test 27b: Setup Wizard (Auto Mode)
+export BETTER_ANONYMITY_AUTO_YES=1
+OUTPUT=$(lifecycle_setup)
+unset BETTER_ANONYMITY_AUTO_YES
+assert_contains "$OUTPUT" "HEADER: Better Anonymity - First Time Setup" "Should show setup wizard"
+# assert_contains "$OUTPUT" "(Auto-Yes)" "Should show auto-yes logs"
+assert_contains "$OUTPUT" "DNSCrypt-Proxy setup successful" "Should auto-setup DNSCrypt"
+assert_contains "$OUTPUT" "Setting DNS to 127.0.0.1" "Should auto-select Localhost"
+assert_contains "$OUTPUT" "CALL: cleanup_metadata" "Should cleanup in auto mode"
 
 # Test 28: Daily Check
 # --------------------

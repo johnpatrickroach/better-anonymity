@@ -41,6 +41,7 @@ usage() {
     echo "Commands:"
     echo "  menu              Interactive menu (default)"
     echo "  setup             Run first-time setup wizard"
+    echo "  auto              Run comprehensive setup automatically (Non-interactive)"
     echo "  harden            Run macOS hardening checks"
     echo "  update            Update better-anonymity (git pull)"
     echo "  check-update      Check for updates without applying"
@@ -256,6 +257,11 @@ case "$COMMAND" in
         network_update_hosts
         ;;
     setup)
+        load_module "lifecycle"
+        lifecycle_setup
+        ;;
+    auto)
+        export BETTER_ANONYMITY_AUTO_YES=1
         load_module "lifecycle"
         lifecycle_setup
         ;;
