@@ -188,9 +188,15 @@ hardening_remove_guest() {
     info "Removing Guest User..."
     if ask_confirmation "Permanently remove Guest User accounts?"; then
          execute_sudo "Disable Guest Login" defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool false
+         
          # Aggressive removal
-         execute_sudo "Remove Guest User" sysadminctl -deleteUser guest 2>/dev/null || true
-         execute_sudo "Remove Guest User (dscl)" dscl . -delete /Users/Guest 2>/dev/null || true
+         if id "guest" &>/dev/null; then
+            execute_sudo "Remove Guest User" sysadminctl -deleteUser guest 2>/dev/null || true
+         fi
+         
+         if dscl . -read /Users/Guest &>/dev/null; then
+            execute_sudo "Remove Guest User (dscl)" dscl . -delete /Users/Guest 2>/dev/null || true
+         fi
     fi
 }
 
