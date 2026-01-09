@@ -120,35 +120,35 @@ cleanup_metadata() {
 
 cleanup_trash() {
     info "Emptying Trash..."
-    execute_sudo "Empty Main Trash" rm -rfv ~/.Trash/* 2>/dev/null || true
+    execute_sudo "Empty Main Trash" rm -rf ~/.Trash/* 2>/dev/null || true
     # /Volumes is tricky, we just do best effort
-    execute_sudo "Empty Volumes Trash" rm -rfv /Volumes/*/.Trashes/* 2>/dev/null || true
+    execute_sudo "Empty Volumes Trash" rm -rf /Volumes/*/.Trashes/* 2>/dev/null || true
 }
 
 cleanup_receipts() {
     info "Clearing Installation Receipts..."
-    execute_sudo "Remove Receipts" rm -rfv /private/var/db/receipts/* 2>/dev/null
-    execute_sudo "Remove InstallHistory" rm -fv /Library/Receipts/InstallHistory.plist 2>/dev/null
+    execute_sudo "Remove Receipts" rm -rf /private/var/db/receipts/* 2>/dev/null
+    execute_sudo "Remove InstallHistory" rm -f /Library/Receipts/InstallHistory.plist 2>/dev/null
 }
 
 cleanup_dev_tools() {
     info "Cleaning Developer Tools..."
     
     # Xcode
-    rm -rfv ~/Library/Developer/Xcode/DerivedData/* 2>/dev/null
-    rm -rfv ~/Library/Developer/Xcode/Archives/* 2>/dev/null
-    rm -rfv ~/Library/Developer/Xcode/iOS\ Device\ Logs/* 2>/dev/null
+    rm -rf ~/Library/Developer/Xcode/DerivedData/* 2>/dev/null
+    rm -rf ~/Library/Developer/Xcode/Archives/* 2>/dev/null
+    rm -rf ~/Library/Developer/Xcode/iOS\ Device\ Logs/* 2>/dev/null
     
     # Gradle
-    [ -d "$HOME/.gradle/caches" ] && rm -rfv "$HOME/.gradle/caches/" 2>/dev/null
+    [ -d "$HOME/.gradle/caches" ] && rm -rf "$HOME/.gradle/caches/" 2>/dev/null
     
     # Adobe
-    execute_sudo "Clear Adobe Cache" rm -rfv "$HOME/Library/Application Support/Adobe/Common/Media Cache Files/"* 2>/dev/null
+    execute_sudo "Clear Adobe Cache" rm -rf "$HOME/Library/Application Support/Adobe/Common/Media Cache Files/"* 2>/dev/null
     
     # Dropbox/Google Drive
-    [ -d "$HOME/Dropbox/.dropbox.cache" ] && execute_sudo "Clear Dropbox" rm -rfv "$HOME/Dropbox/.dropbox.cache/"* 2>/dev/null
+    [ -d "$HOME/Dropbox/.dropbox.cache" ] && execute_sudo "Clear Dropbox" rm -rf "$HOME/Dropbox/.dropbox.cache/"* 2>/dev/null
     killall "Google Drive File Stream" 2>/dev/null || true
-    rm -rfv "$HOME/Library/Application Support/Google/DriveFS/"*"/content_cache" 2>/dev/null
+    rm -rf "$HOME/Library/Application Support/Google/DriveFS/"*"/content_cache" 2>/dev/null
     
     # Docker
     if command -v docker &>/dev/null; then
@@ -163,7 +163,7 @@ cleanup_dev_tools() {
     # Homebrew
     if command -v brew &>/dev/null; then 
         brew cleanup -s 2>/dev/null
-        rm -rfv "$(brew --cache)" 2>/dev/null
+        rm -rf "$(brew --cache)" 2>/dev/null
     fi
     
     # Ruby/Gems
@@ -175,11 +175,11 @@ cleanup_dev_tools() {
 cleanup_ios_data() {
     info "Cleaning iOS Data..."
     # iTunes Apps/Photo Cache
-    rm -rfv "$HOME/Music/iTunes/iTunes Media/Mobile Applications/"* 2>/dev/null
+    rm -rf "$HOME/Music/iTunes/iTunes Media/Mobile Applications/"* 2>/dev/null
     rm -rf "$HOME/Pictures/iPhoto Library/iPod Photo Cache/"* 2>/dev/null
     
     # Backups
-    rm -rfv "$HOME/Library/Application Support/MobileSync/Backup/"* 2>/dev/null
+    rm -rf "$HOME/Library/Application Support/MobileSync/Backup/"* 2>/dev/null
     
     # Simulators
     if command -v xcrun &>/dev/null; then
@@ -191,7 +191,7 @@ cleanup_ios_data() {
     # Connected Devices History
     defaults delete "$HOME/Library/Preferences/com.apple.iPod.plist" "conn:128:Last Connect" 2>/dev/null || true
     defaults delete "$HOME/Library/Preferences/com.apple.iPod.plist" Devices 2>/dev/null || true
-    execute_sudo "Clear Lockdown" rm -rfv /var/db/lockdown/* 2>/dev/null
+    execute_sudo "Clear Lockdown" rm -rf /var/db/lockdown/* 2>/dev/null
     
     info "iOS data cleanup finished."
 }
@@ -253,7 +253,7 @@ cleanup_browsers() {
     local chrome_dir="$HOME/Library/Application Support/Google/Chrome/Default"
     if [ -d "$chrome_dir" ]; then
         info "Cleaning Chrome History/Cache..."
-        rm -rfv "$chrome_dir/History" "$chrome_dir/History-journal" "$chrome_dir/Application Cache" 2>/dev/null
+        rm -rf "$chrome_dir/History" "$chrome_dir/History-journal" "$chrome_dir/Application Cache" 2>/dev/null
     fi
     
     # Safari
@@ -263,8 +263,8 @@ cleanup_browsers() {
     rm -f "$HOME/Library/Safari/LastSession.plist" 2>/dev/null
     rm -f "$HOME/Library/Safari/TopSites.plist" 2>/dev/null
     rm -f "$HOME/Library/Safari/WebpageIcons.db" 2>/dev/null
-    rm -rfv "$HOME/Library/Caches/com.apple.Safari/Cache.db" 2>/dev/null
-    rm -rfv "$HOME/Library/Caches/com.apple.Safari/Webpage Previews" 2>/dev/null
+    rm -rf "$HOME/Library/Caches/com.apple.Safari/Cache.db" 2>/dev/null
+    rm -rf "$HOME/Library/Caches/com.apple.Safari/Webpage Previews" 2>/dev/null
     rm -f "$HOME/Library/Cookies/Cookies.binarycookies" 2>/dev/null
     
     # Firefox
@@ -273,13 +273,13 @@ cleanup_browsers() {
         info "Cleaning Firefox Data (Cookies, Form History)..."
         # Find all profiles
         find "$firefox_dir" -name "*.default*" -type d | while read -r profile; do
-            rm -fv "$profile/cookies.sqlite"* 2>/dev/null
-            rm -fv "$profile/formhistory.sqlite" 2>/dev/null
+            rm -f "$profile/cookies.sqlite"* 2>/dev/null
+            rm -f "$profile/formhistory.sqlite" 2>/dev/null
             rm -fv "$profile/sessionstore"* 2>/dev/null
-            rm -rfv "$profile/storage/default/http"* 2>/dev/null
+            rm -rf "$profile/storage/default/http"* 2>/dev/null
         done
         
-        rm -rfv "$HOME/Library/Caches/Mozilla" 2>/dev/null
+        rm -rf "$HOME/Library/Caches/Mozilla" 2>/dev/null
     fi
     
     info "Browser cleanup finished."

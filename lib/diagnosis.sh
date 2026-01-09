@@ -7,12 +7,17 @@
 # These are arbitrary but prioritize critical items.
 
 check_airport_exists() {
-    [ -x "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport" ]
+    # Check for airport utility (legacy or new) OR networksetup (sufficient for spoofing)
+    [ -x "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport" ] || \
+    [ -x "/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport" ] || \
+    command -v networksetup >/dev/null
 }
 
 check_dir_exists() {
     [ -d "$1" ]
 }
+
+SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
 
 diagnosis_run() {
     header "System Diagnosis & Scoring"
@@ -29,7 +34,9 @@ diagnosis_run() {
     local sec_passed=0
     
     # Firewall (20 pts)
-    if "$SOCKETFILTERFW_CMD" --getglobalstate 2>/dev/null | grep -q "enabled"; then
+    # Firewall (20 pts)
+    # Check for "enabled" OR "on" (macOS versions differ)
+    if "$SOCKETFILTERFW_CMD" --getglobalstate 2>/dev/null | grep -E -q "enabled|on"; then
         ((sec_passed+=20))
         sec_checks=$((sec_checks+1))
     else
@@ -61,7 +68,8 @@ diagnosis_run() {
     fi
     
     # Stealth Mode (10 pts)
-    if "$SOCKETFILTERFW_CMD" --getstealthmode 2>/dev/null | grep -q "enabled"; then
+    # Stealth Mode (10 pts)
+    if "$SOCKETFILTERFW_CMD" --getstealthmode 2>/dev/null | grep -E -q "enabled|on"; then
         ((sec_passed+=10))
     else
         warn "  [FAIL] Stealth Mode is DISABLED."
@@ -69,7 +77,11 @@ diagnosis_run() {
 
     # SSH Hardening (10 pts)
     # Check if Remote Login is Off OR if Config is hardened (e.g. PermitRootLogin no)
-    if systemsetup -getremotelogin 2>/dev/null | grep -q "Off"; then
+    # Requires sudo on newer macOS
+    local remote_login_status
+    remote_login_status=$(sudo systemsetup -getremotelogin 2>/dev/null)
+    
+    if echo "$remote_login_status" | grep -i -q "Off"; then
         ((sec_passed+=10))
     else
         # If On, check config
@@ -276,18 +288,13 @@ diagnosis_recommendations() {
     if [ "$s" -lt 100 ] || [ "$p" -lt 100 ] || [ "$a" -lt 100 ]; then
         echo "RECOMMENDATIONS:"
         if [ "$s" -lt 100 ]; then
-            echo "- Run 'better-anonymity harden' to improve Security."
-            echo "- Run 'better-anonymity ssh harden' to secure Remote Login."
+            echo "- Security: Run 'better-anonymity harden' (covers Firewall, FileVault, SSH, etc)."
         fi
         if [ "$p" -lt 100 ]; then
-            echo "- Run 'better-anonymity harden' (Privacy Tweaks) to improve Privacy."
-            echo "- Run 'better-anonymity install-firefox' and 'harden-firefox'."
-            echo "- Install Privacy Tools: 'install-signal' and 'install-keepassxc'."
+            echo "- Privacy: Run 'better-anonymity install-firefox', 'harden-firefox', or install Signal/KeePassXC."
         fi
         if [ "$a" -lt 100 ]; then
-            echo "- Run 'better-anonymity install-tor' and 'install-i2p'."
-            echo "- Install Anonymity Tools: 'install-privoxy' and 'install-gpg'."
-            echo "- Configure Encrypted DNS: 'install-dnscrypt' or 'install-unbound'."
+            echo "- Anonymity: Run 'better-anonymity install-tor', 'install-i2p', or 'install-dnscrypt'."
         fi
     else
         success "Excellent configuration! No immediate actions required."

@@ -25,7 +25,7 @@ hardening_enable_firewall() {
 hardening_disable_analytics() {
     info "Disabling Analytics and Crash Reports..."
     execute_sudo "Unload DIAG info" launchctl unload -w /System/Library/LaunchDaemons/com.apple.SubmitDiagInfo.plist 2>/dev/null || true
-    defaults write /Library/Preferences/com.apple.loginwindow AutoSubmit -bool false
+    execute_sudo "Disable AutoSubmit" defaults write /Library/Preferences/com.apple.loginwindow AutoSubmit -bool false
     defaults write com.apple.assistant.support "Siri Data Sharing Opt-In Status" -int 2
     defaults write com.apple.CrashReporter DialogType none
     
@@ -142,8 +142,25 @@ hardening_configure_privacy() {
     info "Disabling Remote Apple Events..."
     execute_sudo "Disable Remote Events" systemsetup -setremoteappleevents off 2>/dev/null || true
 
+    # Remote Login (SSH)
+    hardening_disable_remote_login
+
     # Privacy Tweaks
     hardening_privacy_tweaks
+}
+
+hardening_disable_remote_login() {
+    # Check if currently on
+    if systemsetup -getremotelogin 2>/dev/null | grep -i "On"; then
+        warn "Remote Login (SSH) is currently ENABLED."
+        if ask_confirmation "Disable Remote Login (SSH) to reduce attack surface?"; then
+             execute_sudo "Disable Remote Login" systemsetup -setremotelogin off
+        else
+             info "Keeping Remote Login enabled (ensure it is hardened!)."
+        fi
+    else
+        info "Remote Login (SSH) is already disabled."
+    fi
 }
 
 hardening_privacy_tweaks() {
@@ -302,11 +319,13 @@ hardening_secure_homebrew() {
     # Disable Analytics
     info "Disabling Homebrew Analytics..."
     export HOMEBREW_NO_ANALYTICS=1
-    # We execute this as the user (or sudo if we are sudo? brew warns against running as root)
+    # We execute this as the user (brew warns against running as root)
     if [ -n "$SUDO_USER" ]; then
         execute_sudo "Disable Analytics (User)" su - "$SUDO_USER" -c "brew analytics off"
     else
-        execute_sudo "Disable Analytics" brew analytics off
+        # Run directly as current user (do NOT use execute_sudo which adds sudo)
+        info "Disable Analytics"
+        brew analytics off
     fi
     
     export HOMEBREW_NO_INSECURE_REDIRECT=1
@@ -411,7 +430,7 @@ hardening_verify() {
         all_good=false
     fi
 
-    if "$SOCKETFILTERFW_CMD" --getstealthmode | grep -q "enabled"; then
+    if "$SOCKETFILTERFW_CMD" --getstealthmode | grep -E -q "enabled|on"; then
         info "[PASS] Stealth Mode is enabled."
     else
         warn "[FAIL] Stealth Mode is DISABLED."

@@ -10,7 +10,7 @@ info() { echo "[INFO] $*"; }
 warn() { echo "[WARN] $*"; }
 error() { echo "[ERROR] $*"; }
 success() { echo "[SUCCESS] $*"; }
-# Mock execute_sudo to log and run if function exists
+# Mock execute_sudo to log and run
 execute_sudo() { 
     shift # Remove description
     # Check if the command is a function we defined
@@ -64,6 +64,16 @@ mkdir() { command mkdir "$@"; }
 # Load Libraries
 source "$(dirname "$0")/../lib/network.sh"
 source "$(dirname "$0")/../lib/installers.sh"
+
+# Mock Sudo Keepalive (Core)
+start_sudo_keepalive() { :; }
+stop_sudo_keepalive() { :; }
+
+# Mock execute_with_spinner to unhide output for tests
+execute_with_spinner() {
+    shift # Remove description string
+    "$@"
+}
 
 start_suite "Logic Flows"
 
@@ -1173,10 +1183,19 @@ header() {
     echo "HEADER: $1"
 }
 
+# Mock system checks that might execute in hardening
+systemsetup() { echo "On"; }
+defaults() { echo "0"; }
+fdesetup() { echo "FileVault is On"; }
+csrutil() { echo "enabled"; }
+spctl() { echo "assessments enabled"; }
+
 # Mock key underlying functions we expect to be called
 hardening_enable_firewall() { echo "CALL: hardening_enable_firewall"; }
 network_set_dns() { echo "CALL: network_set_dns $1"; }
 network_update_hosts() { echo "CALL: network_update_hosts"; }
+install_dnscrypt() { echo "CALL: install_dnscrypt"; }
+install_unbound() { echo "CALL: install_unbound"; }
 tor_install() { echo "CALL: tor_install"; }
 install_tor_browser() { echo "CALL: install_tor_browser"; }
 install_gpg() { echo "CALL: install_gpg"; }
@@ -1184,12 +1203,12 @@ setup_gpg() { echo "CALL: setup_gpg"; }
 install_signal() { echo "CALL: install_signal"; }
 cleanup_metadata() { echo "CALL: cleanup_metadata"; }
 
-# Pipe "2" to select Quad9 in the DNS menu
-OUTPUT=$(echo "2" | lifecycle_setup)
+# Pipe yes to cover potential menu items (though mock confirms most)
+OUTPUT=$(yes | head -n 20 | lifecycle_setup 2>&1)
 assert_contains "$OUTPUT" "HEADER: Better Anonymity - First Time Setup" "Should show setup wizard"
 
 assert_contains "$OUTPUT" "CALL: hardening_enable_firewall" "Should apply hardening"
-assert_contains "$OUTPUT" "CALL: network_set_dns quad9" "Should set DNS"
+assert_contains "$OUTPUT" "CALL: network_set_dns localhost" "Should set DNS to localhost (via DNSCrypt)"
 assert_contains "$OUTPUT" "CALL: network_update_hosts" "Should update hosts"
 assert_contains "$OUTPUT" "CALL: tor_install" "Should install tor service"
 assert_contains "$OUTPUT" "CALL: install_tor_browser" "Should install tor browser"

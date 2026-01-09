@@ -134,12 +134,25 @@ is_cask_installed() {
     return 1
 }
 
-# Check if an app is installed in /Applications
+# Check if an app is installed in /Applications or other standard locations
 is_app_installed() {
     local app_name="$1" # e.g. "Firefox.app"
+    
+    # Check standard locations
     if [ -d "/Applications/$app_name" ]; then
         return 0
     fi
+    if [ -d "$HOME/Applications/$app_name" ]; then
+        return 0
+    fi
+    if [ -d "/System/Applications/$app_name" ]; then
+        return 0
+    fi
+    
+    # Check if brew thinks it's likely installed (rough heuristic for cask)
+    # This might return true for "firefox", but we are looking for "Firefox.app"
+    # So we don't rely only on brew list for physical app presence check.
+    
     return 1
 }
 
@@ -150,6 +163,73 @@ check_installed() {
         return 0
     fi
     return 1
+}
+
+# Spinner Implementation
+_SPINNER_PID=""
+
+_spinner() {
+    local delay=0.1
+    local spinstr='|/-\'
+    while [ "$(ps a | awk '{print $1}' | grep "$1")" ]; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
+start_spinner() {
+    # Only if interactive
+    if [ -t 1 ]; then
+        # Hide cursor
+        tput civis
+        # Run spinner in background
+        _spinner $$ &
+        _SPINNER_PID=$!
+    fi
+}
+
+stop_spinner() {
+    if [ -n "$_SPINNER_PID" ]; then
+        kill "$_SPINNER_PID" >/dev/null 2>&1
+        _SPINNER_PID=""
+        tput cnorm # Reset cursor
+        printf " \b" # Clear spinner character
+    fi
+}
+
+# Wrapper for commands to show spinner
+execute_with_spinner() {
+    local msg="$1"
+    shift
+    local cmd="$*"
+    
+    info "$msg"
+    
+    # Temp Log
+    local temp_log
+    temp_log=$(mktemp /tmp/b-a-install.XXXXXX)
+    
+    start_spinner
+    
+    # Execute command
+    "$@" > "$temp_log" 2>&1
+    local status=$?
+    
+    stop_spinner
+    
+    if [ $status -eq 0 ]; then
+        rm -f "$temp_log"
+        return 0
+    else
+        error "Command failed. Output:"
+        cat "$temp_log"
+        rm -f "$temp_log"
+        return $status
+    fi
 }
 
 # Generic Brew Installer with Optimization
@@ -173,8 +253,7 @@ install_brew_package() {
     fi
 
     # 3. Install
-    info "Installing $package..."
-    brew install "$package"
+    execute_with_spinner "Installing $package (this may take a while)..." brew install "$package"
 }
 
 # Generic Cask Installer
@@ -195,8 +274,7 @@ install_cask_package() {
         return 0
     fi
 
-    info "Installing $cask..."
-    execute_sudo "Install $cask" brew install --cask "$cask"
+    execute_with_spinner "Installing $cask (this may take a while)..." brew install --cask "$cask"
 }
 
 # Smart Config Copy
@@ -236,6 +314,35 @@ check_config_and_backup() {
 
     info "Installing config to $dest..."
     $cp_cmd "$src" "$dest"
+}
+
+# Sudo Keep-Alive
+# ---------------
+SUDO_KEEPALIVE_PID=""
+
+start_sudo_keepalive() {
+    # If already running, skip
+    if [ -n "$SUDO_KEEPALIVE_PID" ] && kill -0 "$SUDO_KEEPALIVE_PID" 2>/dev/null; then
+        return
+    fi
+    
+    # Check if we have sudo privileges
+    info "Validating sudo access..."
+    sudo -v || return 1 # Exit if user cancels or fails
+    
+    # Loop in background
+    ( while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null & ) &
+    SUDO_KEEPALIVE_PID=$!
+    
+    # Trap exit to kill it
+    trap stop_sudo_keepalive EXIT
+}
+
+stop_sudo_keepalive() {
+    if [ -n "$SUDO_KEEPALIVE_PID" ]; then
+        kill "$SUDO_KEEPALIVE_PID" 2>/dev/null
+        SUDO_KEEPALIVE_PID=""
+    fi
 }
 
 # System Checks (Merged from checks.sh)

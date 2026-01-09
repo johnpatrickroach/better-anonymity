@@ -11,7 +11,8 @@ install_privoxy() {
     info "Applying configuration..."
     # Use BREW_PREFIX from platform.sh
     local CONF_DIR="$BREW_PREFIX/etc/privoxy"
-    local CONFIG_SRC="$(pwd)/config/privoxy"
+    # Use ROOT_DIR resolved from main script
+    local CONFIG_SRC="$ROOT_DIR/config/privoxy"
     
     # Copy main config
     if [ -f "$CONFIG_SRC/config" ]; then
@@ -49,14 +50,14 @@ install_tor() {
 
 install_gpg() {
     require_brew
-    install_brew_package "gnupg"
-    install_brew_package "pinentry-mac"
+    execute_with_spinner "Installing GnuPG..." install_brew_package "gnupg"
+    execute_with_spinner "Installing Pinentry..." install_brew_package "pinentry-mac"
 
     local GPG_HOME="$HOME/.gnupg"
     mkdir -p "$GPG_HOME"
     chmod 700 "$GPG_HOME"
 
-    local SRC_CONF="$(pwd)/config/gpg/gpg.conf"
+    local SRC_CONF="$ROOT_DIR/config/gpg/gpg.conf"
     local DEST_CONF="$GPG_HOME/gpg.conf"
 
     if [ -f "$SRC_CONF" ]; then
@@ -74,26 +75,19 @@ install_gpg() {
 
 setup_gpg() {
     info "Setting up GPG..."
-    # Reuse install_gpg logic or checks, but setup_gpg mainly configures.
-    # It seems to duplicate install_gpg's install step. Let's optimize.
-    require_brew
-    install_brew_package "gnupg"
-    # Pinentry might be needed too? existing code didn't check it here explicitly but relied on command -v gpg.
 
-    # ... (rest of configuration logic is specific here) ...
-    # Wait, existing setup_gpg duplicates install_gpg completely but with slightly different paths?
-    # install_gpg vs setup_gpg seems redundant.
-    # install_gpg installs AND configures. setup_gpg installs AND configures.
-    # Let's keep existing logic but use helpers.
-    
-    # Existing logic:
-    # if ! command -v gpg >/dev/null; then brew install... else installed...
-    # This is exactly what check_installed does.
-    
-    # Note: setup_gpg in the file (lines 505-550) is very similar to install_gpg (lines 54-77).
-    # I should probably consolidate them or just refactor setup_gpg to use the helper.
-    # Since they are separate functions in the file, I will refactor setup_gpg to use install_brew_package too.
-    
+    # Check for Homebrew
+    require_brew
+
+    # Install GPG if missing
+    if ! command -v gpg >/dev/null; then
+        info "Installing GnuPG..."
+        execute_with_spinner "Installing GnuPG..." brew install gnupg
+    else
+        info "GnuPG is already installed."
+    fi
+
+    # Create ~/.gnupg directory
     local gpg_dir="$HOME/.gnupg"
     if [ ! -d "$gpg_dir" ]; then
         info "Creating $gpg_dir..."
@@ -101,24 +95,40 @@ setup_gpg() {
         chmod 700 "$gpg_dir"
     fi
 
-    local config_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config/gpg/gpg.conf"
+    # Configure hardened gpg.conf
+    local config_src="$ROOT_DIR/config/gpg/gpg.conf"
     local config_dest="$gpg_dir/gpg.conf"
-    
-    # Use smart config copy!
-    check_config_and_backup "$config_src" "$config_dest"
-    chmod 600 "$config_dest"
-    info "GPG configured successfully."
+
+    if [ -f "$config_src" ]; then
+        if [ -f "$config_dest" ]; then
+            warn "Existing gpg.conf found at $config_dest."
+            # Create backup
+            local backup="$config_dest.backup.$(date +%s)"
+            cp "$config_dest" "$backup"
+            info "Backup created at $backup"
+        fi
+
+        info "Copying hardened configuration to $config_dest..."
+        cp "$config_src" "$config_dest"
+        chmod 600 "$config_dest"
+        info "GPG configured successfully."
+    else
+        error "Source configuration file not found at $config_src"
+        return 1
+    fi
     
     info "Please refer to docs/GPG.md for usage and YubiKey setup."
 }
 
 install_signal() {
+    info "Installing Signal Desktop..."
     require_brew
     install_cask_package "signal" "Signal.app"
     info "Refer to docs/MESSENGERS.md for usage instructions."
 }
 
 install_keepassxc() {
+    info "Installing KeePassXC..."
     require_brew
     install_cask_package "keepassxc" "KeePassXC.app"
     info "Refer to docs/PASSWORDS.md for usage instructions."
@@ -130,10 +140,10 @@ install_dnscrypt() {
     if is_brew_installed "dnscrypt-proxy"; then
         info "DNSCrypt-Proxy is already installed."
     else
-        brew install dnscrypt-proxy
+        execute_with_spinner "Installing DNSCrypt-Proxy..." brew install dnscrypt-proxy
     fi
 
-    local CONF_SRC="$(pwd)/config/dnscrypt-proxy/dnscrypt-proxy.toml"
+    local CONF_SRC="$ROOT_DIR/config/dnscrypt-proxy/dnscrypt-proxy.toml"
     local CONF_DEST="$BREW_PREFIX/etc/dnscrypt-proxy.toml"
 
     if [ ! -f "$CONF_SRC" ]; then
@@ -260,7 +270,7 @@ install_unbound() {
     execute_sudo "Setup Control" unbound-control-setup -d "$BREW_PREFIX/etc/unbound"
 
     info "Copying configuration..."
-    local CONF_SRC="$(pwd)/config/unbound/unbound.conf"
+    local CONF_SRC="$ROOT_DIR/config/unbound/unbound.conf"
     local CONF_DEST="$BREW_PREFIX/etc/unbound/unbound.conf"
 
     if [ ! -f "$CONF_SRC" ]; then
@@ -431,7 +441,7 @@ install_tor_browser() {
     if ! command -v gpg >/dev/null; then
         warn "GPG is not installed. Attempting to install via brew..."
         require_brew
-        execute_sudo "Install gnupg" brew install gnupg
+        brew install gnupg
     fi
     
     # 1. Fetch Latest Version
@@ -559,7 +569,7 @@ setup_gpg() {
     # Install GPG if missing
     if ! command -v gpg >/dev/null; then
         info "Installing GnuPG..."
-        execute_sudo "Install GnuPG" brew install gnupg
+        brew install gnupg
     else
         info "GnuPG is already installed."
     fi
@@ -597,35 +607,7 @@ setup_gpg() {
     info "Please refer to docs/GPG.md for usage and YubiKey setup."
 }
 
-install_signal() {
-    info "Installing Signal Desktop..."
-    
-    require_brew
-    
-    if is_cask_installed "signal"; then
-        info "Signal is already installed."
-    else
-        execute_sudo "Install Signal" brew install --cask signal
-        info "Signal installed successfully."
-    fi
-    
-    info "Refer to docs/MESSENGERS.md for usage instructions."
-}
 
-install_keepassxc() {
-    info "Installing KeePassXC..."
-    
-    require_brew
-    
-    if is_cask_installed "keepassxc"; then
-        info "KeePassXC is already installed."
-    else
-        execute_sudo "Install KeePassXC" brew install --cask keepassxc
-        info "KeePassXC installed successfully."
-    fi
-    
-    info "Refer to docs/PASSWORDS.md for usage instructions."
-}
 
 
 

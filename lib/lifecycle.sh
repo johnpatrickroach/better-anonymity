@@ -10,6 +10,10 @@ lifecycle_setup() {
     echo "You can skip any step you prefer not to apply."
     echo ""
 
+    # Refresh Sudo credentials to avoid timeouts
+    start_sudo_keepalive
+    echo ""
+
     # 1. macOS Hardening
     if ask_confirmation "Step 1: Apply Basic macOS Hardening (Firewall, Sudoers, Umask)?"; then
         load_module "macos_hardening"
@@ -18,38 +22,64 @@ lifecycle_setup() {
         hardening_set_umask
         hardening_disable_bonjour
         hardening_disable_analytics
-        success "Basic hardening applied."
+        
+        # Extended Hardening
+        echo ""
+        info "Checking Advanced Hardening features..."
+        hardening_ensure_filevault
+        hardening_ensure_lockdown
+        
+        success "Hardening applied."
     fi
 
     # 2. DNS
     echo ""
     if ask_confirmation "Step 2: Configure Encrypted DNS? (Recommended: Localhost/DNSCrypt)"; then
         load_module "network"
-        # If auto-yes, prefer Localhost+DNSCrypt
+        load_module "installers"
+
+        # Auto-Mode Logic
         if [ "${BETTER_ANONYMITY_AUTO_YES:-0}" -eq 1 ]; then
-             info "Auto-Resolution: Attempting to setup DNSCrypt-Proxy..."
-             load_module "installers"
-             
-             # Run in subshell to catch 'die' exits without killing main script
-             if (install_dnscrypt); then
-                 info "DNSCrypt-Proxy setup successful. Setting DNS to 127.0.0.1 (Localhost)..."
+             info "Auto-Resolution: Installing Unbound + DNSCrypt-Proxy..."
+             if (install_dnscrypt) && (install_unbound); then
+                 info "Unbound + DNSCrypt-Proxy setup successful."
+                 info "Setting System DNS to 127.0.0.1 (Unbound)..."
                  network_set_dns "localhost"
              else
-                 warn "DNSCrypt-Proxy setup failed. Falling back to Quad9..."
+                 warn "Advanced DNS setup failed. Falling back to Quad9..."
                  network_set_dns "quad9"
              fi
         else
-            echo "Select Provider:"
-            echo "1) Localhost (127.0.0.1) [Best for Anonymity]"
-            echo "2) Quad9 (9.9.9.9) [Good Baseline]"
-            echo "3) Mullvad"
-            read -r dns_setup_choice
-            case $dns_setup_choice in
-                1) network_set_dns "localhost" ;;
-                2) network_set_dns "quad9" ;;
-                3) network_set_dns "mullvad" ;;
-                *) network_set_dns "localhost" ;; # Default to localhost
-            esac
+            # Interactive Logic
+            local dns_msg="Configure Advanced DNS (Unbound + DNSCrypt)? [Best Anonymity]"
+            
+            # Check if likely installed
+            if check_installed "dnscrypt-proxy" && check_installed "unbound"; then
+                dns_msg="Unbound & DNSCrypt detected. Use Localhost (127.0.0.1)?"
+            fi
+            
+            if ask_confirmation "$dns_msg"; then
+                # Ensure both are installed
+                if ! check_installed "dnscrypt-proxy"; then install_dnscrypt; fi
+                if ! check_installed "unbound"; then install_unbound; fi
+                
+                network_set_dns "localhost"
+            else
+                # Fallback Menu
+                echo "Select Alternative Provider:"
+                echo "1) Quad9 (9.9.9.9) [Recommended Fallback]"
+                echo "2) Mullvad (194.242.2.2)"
+                echo "3) Cloudflare (1.1.1.1)"
+                echo "4) Localhost (Manual)"
+                read -r dns_setup_choice
+                case $dns_setup_choice in
+                    1) network_set_dns "quad9" ;;
+                    2) network_set_dns "mullvad" ;;
+                    3) network_set_dns "cloudflare" ;;
+                    4) network_set_dns "localhost" ;;
+                    *) network_set_dns "quad9" ;;
+                esac
+            fi
         fi
     fi
 
@@ -60,14 +90,27 @@ lifecycle_setup() {
         network_update_hosts
     fi
 
-    # 4. Essential Tools
+    # 4. Browser Privacy
     echo ""
-    echo "Step 4: Install Privacy Tools"
+    echo "Step 4: Browser Privacy"
+    if ask_confirmation "Install & Harden Firefox (Arkenfox user.js)?"; then
+        load_module "installers"
+        install_firefox
+        harden_firefox
+    fi
+
+    # 5. Essential Tools
+    echo ""
+    echo "Step 5: Install Privacy Tools"
     if ask_confirmation "Install Tor Browser & Service?"; then
         load_module "installers"
         load_module "tor_manager"
         install_tor_browser
         tor_install
+    fi
+    if ask_confirmation "Install I2P (Invisible Internet Project)?"; then
+        load_module "i2p_manager"
+        i2p_install
     fi
     if ask_confirmation "Install GPG (Encryption)?"; then
         load_module "installers"
@@ -78,10 +121,18 @@ lifecycle_setup() {
         load_module "installers"
         install_signal
     fi
+    if ask_confirmation "Install KeePassXC (Password Manager)?"; then
+        load_module "installers"
+        install_keepassxc
+    fi
+    if ask_confirmation "Install Privoxy (Local Proxy)?"; then
+        load_module "installers"
+        install_privoxy
+    fi
 
-    # 5. Cleanup
+    # 6. Cleanup
     echo ""
-    echo "Step 5: System Cleanup"
+    echo "Step 6: System Cleanup"
     if ask_confirmation "Run initial privacy cleanup (Browsers, Logs, Metadata)?"; then
         load_module "cleanup"
         cleanup_metadata
