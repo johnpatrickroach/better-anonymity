@@ -280,6 +280,12 @@ install_unbound() {
     # We must copy with permissions, so probably sudo is needed if /etc/unbound is root owned (it usually is)
     execute_sudo "Copy Config" cp "$CONF_SRC" "$CONF_DEST"
 
+    # Patch configuration for ARM Macs (replace /usr/local with /opt/homebrew if needed)
+    if [[ "$BREW_PREFIX" != "/usr/local" ]]; then
+        info "Patching Unbound config for ARM/Alternative Homebrew path..."
+        execute_sudo "Patch Config" sed -i '' "s|/usr/local|$BREW_PREFIX|g" "$CONF_DEST"
+    fi
+
     info "Verifying configuration..."
     if ! execute_sudo "Check Config" unbound-checkconf "$CONF_DEST"; then
         die "Unbound configuration check failed!"
@@ -478,14 +484,24 @@ install_tor_browser() {
     local version_url="https://www.torproject.org/download/"
     local version_page
     version_page=$(curl -sL "$version_url")
-    # regex to capture version from links like TorBrowser-13.0.1-macos_ALL.dmg
-    # We search for the dmg link pattern in the page
+    
+    # regex for new format: tor-browser-macos-15.0.3.dmg
     local version
-    version=$(echo "$version_page" | grep -o 'TorBrowser-[0-9.]\+-macos_ALL\.dmg' | head -n 1 | sed -E 's/TorBrowser-([0-9.]+)-.*/\1/')
+    local filename_format="new"
+    
+    # Use -Eo for extended regex (support +) and only output matching
+    version=$(echo "$version_page" | grep -Eo 'tor-browser-macos-[0-9.]+\.dmg' | head -n 1 | sed -E 's/tor-browser-macos-([0-9.]+)\.dmg/\1/')
     
     if [ -z "$version" ]; then
-         # Try older pattern
-         version=$(echo "$version_page" | grep -o 'TorBrowser-[0-9.]\+-osx64_en-US\.dmg' | head -n 1 | sed -E 's/TorBrowser-([0-9.]+)-.*/\1/')
+         # Try old format: TorBrowser-13.0.1-macos_ALL.dmg
+         version=$(echo "$version_page" | grep -Eo 'TorBrowser-[0-9.]+-macos_ALL\.dmg' | head -n 1 | sed -E 's/TorBrowser-([0-9.]+)-.*/\1/')
+         filename_format="legacy_all"
+    fi
+    
+    if [ -z "$version" ]; then
+         # Try older legacy: TorBrowser-12.5-osx64_en-US.dmg
+         version=$(echo "$version_page" | grep -Eo 'TorBrowser-[0-9.]+-osx64_en-US\.dmg' | head -n 1 | sed -E 's/TorBrowser-([0-9.]+)-.*/\1/')
+         filename_format="legacy_osx"
     fi
 
     if [ -z "$version" ]; then
@@ -495,22 +511,18 @@ install_tor_browser() {
     info "Latest Version detected: $version"
     
     # Construct download URL
-    # We'll use the filename we scraped if possible, or reconstruct it to be safe? 
-    # Let's reconstruct based on version to match the folder structure
-    # Dist path: /dist/torbrowser/{version}/TorBrowser-{version}-macos_ALL.dmg
     local download_base="https://www.torproject.org/dist/torbrowser/$version"
-    local dmg_filename="TorBrowser-${version}-macos_ALL.dmg"
+    local dmg_filename
+    
+    if [ "$filename_format" == "new" ]; then
+        dmg_filename="tor-browser-macos-${version}.dmg"
+    elif [ "$filename_format" == "legacy_all" ]; then
+        dmg_filename="TorBrowser-${version}-macos_ALL.dmg"
+    else
+        dmg_filename="TorBrowser-${version}-osx64_en-US.dmg"
+    fi
+    
     local asc_filename="${dmg_filename}.asc"
-    
-    # Validation: If we scraped a different filename (e.g. osx64_en-US), we should use that.
-    # But usually macos_ALL is the standard since v13??
-    # Let's verify what grep found.
-    # If the grep found nothing, we died. 
-    # If grep found something like TorBrowser-13.0.1-macos_ALL.dmg, we extracted 13.0.1.
-    # If grep found TorBrowser-12.5-osx64_en-US.dmg, we extracted 12.5.
-    
-    # To be robust, let's use the exact file we found in grep if we can?
-    # Actually, simpler: construct download URL and curl it. If 404, try legacy name.
     
     local dmg_path="/tmp/$dmg_filename"
     local asc_path="/tmp/$asc_filename"
@@ -518,15 +530,21 @@ install_tor_browser() {
     info "Downloading $dmg_filename..."
     # We use -f to fail on 404
     if ! curl -f -L -o "$dmg_path" "$download_base/$dmg_filename"; then
-        warn "Failed to download $dmg_filename. Trying legacy filename..."
-        dmg_filename="TorBrowser-${version}-osx64_en-US.dmg"
-        asc_filename="${dmg_filename}.asc"
-        dmg_path="/tmp/$dmg_filename"
-        asc_path="/tmp/$asc_filename"
+        warn "Failed to download $dmg_filename. Trying alternatives..."
+        
+        # Fallback Logic if format detection was wrong or mismatch
+        if [ "$filename_format" == "new" ]; then
+             dmg_filename="TorBrowser-${version}-macos_ALL.dmg"
+        else
+             dmg_filename="tor-browser-macos-${version}.dmg"
+        fi
         
         if ! curl -f -L -o "$dmg_path" "$download_base/$dmg_filename"; then
-             die "Download failed for both naming conventions."
+             die "Download failed."
         fi
+        # Update filename for signature
+        asc_filename="${dmg_filename}.asc"
+        asc_path="/tmp/$asc_filename"
     fi
     
     info "Downloading signature..."
@@ -556,13 +574,22 @@ install_tor_browser() {
     
     # 3. Install (Mount & Copy)
     info "Mounting DMG..."
-    local mount_point
-    mount_point=$(hdiutil attach "$dmg_path" -nobrowse | grep '/Volumes/' | awk '{$1=$2=""; print $0}' | xargs)
-    if [ -z "$mount_point" ]; then die "Failed to mount DMG."; fi
+    local mount_point="/tmp/Tor_Browser_Mount_$$"
+    mkdir -p "$mount_point"
+    
+    # -nobrowse: don't show in Finder
+    # -mountpoint: verify where it goes
+    # -noverify: skip verification for speed (we already checked GPG signature)
+    # -noautoopen: don't open window
+    if ! hdiutil attach "$dmg_path" -mountpoint "$mount_point" -nobrowse -noverify -noautoopen -quiet; then
+         rmdir "$mount_point"
+         die "Failed to mount DMG."
+    fi
     
     info "Copying to /Applications..."
     if [ ! -d "$mount_point/Tor Browser.app" ]; then
         hdiutil detach "$mount_point" -quiet
+        rmdir "$mount_point"
         die "Tor Browser.app not found in DMG."
     fi
     
@@ -570,6 +597,7 @@ install_tor_browser() {
     
     info "Unmounting..."
     hdiutil detach "$mount_point" -quiet
+    rmdir "$mount_point"
     
     # 4. Code Signature Check
     info "Verifying Code Signature (Apple Developer ID)..."

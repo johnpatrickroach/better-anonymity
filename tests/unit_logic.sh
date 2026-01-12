@@ -278,7 +278,7 @@ OUTPUT=$(hardening_secure_homebrew)
 # Restore HOME
 export HOME="$OLD_HOME"
 
-echo "DEBUG OUTPUT (Brew): $OUTPUT"
+# echo "DEBUG OUTPUT (Brew): $OUTPUT"
 assert_contains "$OUTPUT" "Disabling Homebrew Analytics" "Should try to disable analytics"
 assert_contains "$OUTPUT" "brew called with: analytics off" "Should run brew analytics off"
 assert_contains "$OUTPUT" "Set HOMEBREW_NO_INSECURE_REDIRECT=1" "Should set env var"
@@ -481,6 +481,15 @@ chown() { echo "EXEC: chown $*"; return 0; }
 chmod() { echo "EXEC: chmod $*"; return 0; }
 brew() { echo "EXEC: brew $*"; return 0; }
 networksetup() { echo "EXEC: networksetup $*"; return 0; }
+sed() {
+    if [[ "$*" == *"-i"* ]]; then
+        echo "EXEC: sed $*"
+        return 0
+    else
+        # Pass through to real sed for stream processing
+        command sed "$@"
+    fi
+}
 
 OUTPUT=$(install_unbound)
 
@@ -499,6 +508,11 @@ assert_contains "$OUTPUT" "EXEC: brew services start unbound" "Should start serv
 
 # Verify Copy Command execution
 assert_contains "$OUTPUT" "EXEC: cp" "Should run cp command base"
+# Verify Patching
+# Since we set BREW_PREFIX to a temp dir in this test suite (which is not /usr/local)
+# The patch logic SHOULD trigger.
+assert_contains "$OUTPUT" "Patching Unbound config" "Should announce patching"
+assert_contains "$OUTPUT" "EXEC: sed -i" "Should run sed"
 assert_contains "$OUTPUT" "unbound.conf" "Should contain unbound.conf"
 
 # Cleanup
@@ -805,38 +819,44 @@ gpg() {
     fi
 }
 
-# Mock curl for version fetch
-curl() {
-    # Parse args for -o (download)
-    local output_file=""
-    local url=""
-    local args=("$@")
-    for ((i=0; i<${#args[@]}; i++)); do
-        if [[ "${args[i]}" == "-o" ]]; then
-            output_file="${args[i+1]}"
-        fi
-        # Assume last arg is URL usually, or we can check regex
-        if [[ "${args[i]}" == http* ]]; then
-            url="${args[i]}"
-        fi
-    done
 
-    if [[ -n "$output_file" ]]; then
-         touch "$output_file"
-         echo "CURL: downloaded to $output_file"
-         return 0
-    fi
-    
-    # If fetching version page (no -o)
-    if [[ "$*" == *"torproject.org/download/"* ]]; then
-        echo "<html><a href=\"/dist/torbrowser/13.0.1/TorBrowser-13.0.1-macos_ALL.dmg\">Download</a></html>"
+curl() {
+    if [[ "$*" == *"https://www.torproject.org/download/"* ]]; then
+        # New format
+        echo "Link: <a href=\"https://www.torproject.org/dist/torbrowser/15.0.3/tor-browser-macos-15.0.3.dmg\">macOS</a>"
+        return 0
+    elif [[ "$*" == *"-f -L -o"* ]]; then
+        # Simulate download success
         return 0
     fi
-    echo "CURL: unknown call $*"
+     echo "CURL_CALL: $*"
 }
 
 # hdiutil, codesign, spctl mocks
+# hdiutil, codesign, spctl mocks
 hdiutil() {
+    # If using -mountpoint, we just check if it exists or mkdir it?
+    # The script does mkdir -p before calling hdiutil
+    # We just need to ensure the "mount" succeeds.
+    if [[ "$*" == *"-mountpoint"* ]]; then
+        # Check if argument after -mountpoint exists?
+        # In test, we just assume success.
+        # But we need to simulate the "Tor Browser.app" appearing inside it.
+        # We can extract the mount point from args
+        local args=("$@")
+        local mp=""
+        for ((i=0; i<${#args[@]}; i++)); do
+            if [[ "${args[i]}" == "-mountpoint" ]]; then
+                mp="${args[i+1]}"
+            fi
+        done
+        
+        if [[ -n "$mp" ]]; then
+            mkdir -p "$mp/Tor Browser.app"
+            echo "HDIUTIL: Mounted at $mp"
+            return 0
+        fi
+    fi
     echo "/dev/disk2s1  Apple_HFS   /Volumes/Tor Browser"
 }
 codesign() {
@@ -847,17 +867,19 @@ spctl() {
     echo "/Applications/Tor Browser.app: accepted"
 }
 
-OUTPUT=$(install_tor_browser)
+OUTPUT=$(install_tor_browser 2>&1)
 
-assert_contains "$OUTPUT" "Latest Version detected: 13.0.1" "Should detect latest version"
-assert_contains "$OUTPUT" "Downloading TorBrowser-13.0.1-macos_ALL.dmg" "Should download dmg"
+assert_contains "$OUTPUT" "Latest Version detected: 15.0.3" "Should detect latest version"
+# Expect new filename format
+assert_contains "$OUTPUT" "Downloading tor-browser-macos-15.0.3.dmg" "Should download dmg"
 assert_contains "$OUTPUT" "Downloading signature" "Should download signature"
 
 # Check GPG calls from log
 GPG_LOG=$(cat "$TEST_HOME/gpg_calls.log")
 assert_contains "$GPG_LOG" "--list-keys 0xEF6E" "Should check for key"
 assert_contains "$OUTPUT" "Importing Tor Browser Developers key" "Should import key"
-assert_contains "$GPG_LOG" "--verify" "Should verify signature"
+# Verify signature on the NEW filename path
+assert_contains "$GPG_LOG" "--verify /tmp/tor-browser-macos-15.0.3.dmg.asc /tmp/tor-browser-macos-15.0.3.dmg" "Should verify signature"
 assert_contains "$OUTPUT" "PGP Signature Verified" "Should PASS signature verify"
 assert_contains "$OUTPUT" "Code Signature matches The Tor Project (MADPSAYN6T)" "Should verify code signature"
 
