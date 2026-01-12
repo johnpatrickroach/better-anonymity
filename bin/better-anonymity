@@ -38,21 +38,39 @@ usage() {
      # Indent aggressively to bypass CI terminal truncation (consumes ~9 chars)
     echo "         Usage: better-anonymity [command] [options]"
     echo ""
-    echo "Commands:"
+    echo "Core Commands:"
     echo "  menu              Interactive menu (default)"
     echo "  setup             Run first-time setup wizard"
     echo "  auto              Run comprehensive setup automatically (Non-interactive)"
-    echo "  harden            Run macOS hardening checks"
+    echo "  daily             Run daily health checks"
     echo "  update            Update better-anonymity (git pull)"
-    echo "  check-update      Check for updates without applying"
-    echo "  dns [provider]    Set DNS (quad9, mullvad, cloudflare)"
-    echo "  diagnose          Run system diagnosis and scoring"
-    echo "  install           Install global CLI aliases (b-a, better-anon)"
-    echo "  uninstall         Remove global CLI aliases"
-    echo "  install [tool]    Install tool (tor, privoxy, gpg)"
+    echo "  help              Show this help"
+    echo ""
+    echo "Security & Privacy:"
+    echo "  harden            Run macOS hardening checks"
+    echo "  misc-harden       Run miscellaneous hardening (Finder, sudoers, etc.)"
+    echo "  verify-security   Verify system security status"
     echo "  cleanup           Run system and browser cleanup"
     echo "  generate-password Generate a secure passphrase"
-    echo "  help              Show this help"
+    echo ""
+    echo "Network & Connectivity:"
+    echo "  dns [provider]    Set DNS (quad9, mullvad, cloudflare)"
+    echo "  verify-dns        Verify DNS configuration"
+    echo "  update-hosts      Update StevenBlack hosts blocklist"
+    echo "  wifi [cmd]        Wi-Fi tools (audit, spoof-mac)"
+    echo "  ssh [cmd]         SSH tools (audit-sshd, harden-client)"
+    echo ""
+    echo "Tools & Services:"
+    echo "  install [tool]    Install tools (tor, i2p, privoxy, gpg, signal, etc.)"
+    echo "  tor [cmd]         Manage Tor service (start, stop, status)"
+    echo "  i2p [cmd]         Manage I2P service (start, stop, console)"
+    echo "  vault [cmd]       Manage password vault (read, write)"
+    echo "  backup [cmd]      Secure backup tools (encrypt, decrypt)"
+    echo "  diagnose          Run system diagnosis"
+    echo ""
+    echo "CLI Management:"
+    echo "  install           Install global CLI aliases"
+    echo "  uninstall         Remove global CLI aliases"
     echo "  --version         Show version information"
     echo ""
 }
@@ -73,6 +91,11 @@ fi
 
 # Main Command Dispatch
 COMMAND="$1"
+# Sanitize command: remove non-breaking spaces and trim
+# Hex A0 is NBSP. We use tr to remove it if present.
+if [[ -n "$COMMAND" ]]; then
+    COMMAND=$(echo "$COMMAND" | tr -d '\240' | xargs)
+fi
 shift
 
 case "$COMMAND" in
