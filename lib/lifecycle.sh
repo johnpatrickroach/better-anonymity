@@ -78,6 +78,18 @@ lifecycle_setup() {
         hardening_disable_bonjour
         hardening_disable_analytics
         
+        if ask_confirmation "Run all hardening steps (Privacy, Updates, Homebrew, etc.)?"; then
+            hardening_update_system
+            hardening_configure_privacy
+            hardening_secure_screen
+            hardening_harden_finder
+            hardening_anonymize_hostname
+            hardening_secure_homebrew
+            hardening_disable_captive_portal
+            hardening_remove_guest
+            # TCC reset skipped (manual only)
+        fi
+        
         # Extended Hardening
         echo ""
         info "Checking Advanced Hardening features..."

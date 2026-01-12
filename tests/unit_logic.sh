@@ -1332,6 +1332,16 @@ install_gpg() { echo "CALL: install_gpg"; }
 setup_gpg() { echo "CALL: setup_gpg"; }
 install_signal() { echo "CALL: install_signal"; }
 cleanup_metadata() { echo "CALL: cleanup_metadata"; }
+
+# Additional Hardening Mocks
+hardening_update_system() { echo "CALL: hardening_update_system"; }
+hardening_configure_privacy() { echo "CALL: hardening_configure_privacy"; }
+hardening_secure_screen() { echo "CALL: hardening_secure_screen"; }
+hardening_harden_finder() { echo "CALL: hardening_harden_finder"; }
+hardening_anonymize_hostname() { echo "CALL: hardening_anonymize_hostname"; }
+hardening_secure_homebrew() { echo "CALL: hardening_secure_homebrew"; }
+hardening_disable_captive_portal() { echo "CALL: hardening_disable_captive_portal"; }
+hardening_remove_guest() { echo "CALL: hardening_remove_guest"; }
 setup_advanced_dns_atomic() {
     echo "CALL: setup_advanced_dns_atomic"
     # Simulate success side effects
@@ -1348,6 +1358,16 @@ assert_contains "$OUTPUT" "HEADER: Better Anonymity - First Time Setup" "Should 
 assert_contains "$OUTPUT" "CALL: hardening_enable_firewall" "Should apply hardening"
 assert_contains "$OUTPUT" "CALL: network_set_dns localhost" "Should set DNS to localhost (via DNSCrypt)"
 assert_contains "$OUTPUT" "CALL: network_update_hosts" "Should update hosts"
+
+# Verify Extended Hardening Calls
+assert_contains "$OUTPUT" "CALL: hardening_update_system" "Should check updates"
+assert_contains "$OUTPUT" "CALL: hardening_configure_privacy" "Should configure privacy"
+assert_contains "$OUTPUT" "CALL: hardening_secure_screen" "Should secure screen"
+assert_contains "$OUTPUT" "CALL: hardening_harden_finder" "Should harden finder"
+assert_contains "$OUTPUT" "CALL: hardening_anonymize_hostname" "Should anonymize hostname"
+assert_contains "$OUTPUT" "CALL: hardening_secure_homebrew" "Should secure homebrew"
+assert_contains "$OUTPUT" "CALL: hardening_disable_captive_portal" "Should disable captive portal"
+assert_contains "$OUTPUT" "CALL: hardening_remove_guest" "Should remove guest"
 assert_contains "$OUTPUT" "CALL: tor_install" "Should install tor service"
 assert_contains "$OUTPUT" "CALL: install_tor_browser" "Should install tor browser"
 assert_contains "$OUTPUT" "CALL: install_gpg" "Should install gpg"
