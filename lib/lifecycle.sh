@@ -87,7 +87,7 @@ lifecycle_setup() {
             hardening_secure_homebrew
             hardening_disable_captive_portal
             hardening_remove_guest
-            # TCC reset skipped (manual only)
+            hardening_reset_tcc
         fi
         
         # Extended Hardening

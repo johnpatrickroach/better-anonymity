@@ -1342,6 +1342,7 @@ hardening_anonymize_hostname() { echo "CALL: hardening_anonymize_hostname"; }
 hardening_secure_homebrew() { echo "CALL: hardening_secure_homebrew"; }
 hardening_disable_captive_portal() { echo "CALL: hardening_disable_captive_portal"; }
 hardening_remove_guest() { echo "CALL: hardening_remove_guest"; }
+hardening_reset_tcc() { echo "CALL: hardening_reset_tcc"; }
 setup_advanced_dns_atomic() {
     echo "CALL: setup_advanced_dns_atomic"
     # Simulate success side effects
@@ -1368,6 +1369,7 @@ assert_contains "$OUTPUT" "CALL: hardening_anonymize_hostname" "Should anonymize
 assert_contains "$OUTPUT" "CALL: hardening_secure_homebrew" "Should secure homebrew"
 assert_contains "$OUTPUT" "CALL: hardening_disable_captive_portal" "Should disable captive portal"
 assert_contains "$OUTPUT" "CALL: hardening_remove_guest" "Should remove guest"
+assert_contains "$OUTPUT" "CALL: hardening_reset_tcc" "Should reset TCC"
 assert_contains "$OUTPUT" "CALL: tor_install" "Should install tor service"
 assert_contains "$OUTPUT" "CALL: install_tor_browser" "Should install tor browser"
 assert_contains "$OUTPUT" "CALL: install_gpg" "Should install gpg"
