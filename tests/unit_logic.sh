@@ -26,7 +26,7 @@ die() { echo "DIED: $1"; }
 require_brew() { :; }
 
 # Mock load_module to avoid errors in tests
-load_module() { :; }
+load_module() { echo "LOAD_MODULE: $1"; }
 export -f load_module
 
 # Mock Checks (Default to not installed so logic proceeds to install)
@@ -1383,6 +1383,11 @@ assert_contains "$OUTPUT" "HEADER: Daily Health Check" "Should show daily header
 assert_contains "$OUTPUT" "CALL: hardening_verify" "Should verify security"
 assert_contains "$OUTPUT" "CALL: network_verify_dns" "Should verify dns"
 assert_contains "$OUTPUT" "CALL: tor_status" "Should check tor"
+
+# Verify module loading
+assert_contains "$OUTPUT" "LOAD_MODULE: network" "Should load network module"
+assert_contains "$OUTPUT" "LOAD_MODULE: macos_hardening" "Should load macos_hardening module"
+assert_contains "$OUTPUT" "LOAD_MODULE: tor_manager" "Should load tor_manager module"
 
 # Test 29: Update
 # ---------------

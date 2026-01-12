@@ -193,6 +193,10 @@ lifecycle_setup() {
 
 lifecycle_daily() {
     header "Daily Health Check"
+    # Load required modules
+    load_module "network"
+    load_module "macos_hardening"
+    load_module "tor_manager"
     
     # 1. Update Tools
     info "Checking for tool updates..."
