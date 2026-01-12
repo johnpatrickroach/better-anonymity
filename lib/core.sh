@@ -194,6 +194,7 @@ start_spinner() {
 
 stop_spinner() {
     if [ -n "$_SPINNER_PID" ]; then
+        disown "$_SPINNER_PID"
         kill "$_SPINNER_PID" >/dev/null 2>&1
         _SPINNER_PID=""
         tput cnorm # Reset cursor
