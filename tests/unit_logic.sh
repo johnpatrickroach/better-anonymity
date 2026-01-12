@@ -201,7 +201,8 @@ defaults() {
         fi
     else
          # Echo simple success for other defaults calls if any
-         :
+         echo "EXEC: defaults $*"
+         return 0
     fi
 }
 # Also mock open for the execute_sudo call
@@ -248,7 +249,10 @@ assert_contains "$OUTPUT" "Skipping Lockdown Mode" "Should skip if user declines
 # ----------------
 OUTPUT=$(hardening_enable_firewall)
 assert_contains "$OUTPUT" "EXEC: /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on" "Should enable firewall"
+# We cannot simulate the retry loop easily without complex mocks here.
+# But we can check that we still see the enablement command.
 assert_contains "$OUTPUT" "EXEC: /usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on" "Should enable stealth mode"
+
 assert_contains "$OUTPUT" "EXEC: /usr/libexec/ApplicationFirewall/socketfilterfw --setallowsigned off" "Should disable allow signed"
 assert_contains "$OUTPUT" "EXEC: pkill -HUP socketfilterfw" "Should reload firewall"
 
@@ -259,7 +263,19 @@ assert_contains "$OUTPUT" "EXEC: pkill -HUP socketfilterfw" "Should reload firew
 MOCK_BREW_EXISTS=true
 command() {
     if [ "$1" == "-v" ] && [ "$2" == "brew" ]; then
-        if [ "$MOCK_BREW_EXISTS" == "true" ]; then return 0; else return 1; fi
+        if [ "$MOCK_BREW_EXISTS" == "true" ]; then 
+            # Create a temp script that acts as brew
+            local mock_brew_bin="/tmp/mock_brew_bin"
+            if [ ! -f "$mock_brew_bin" ]; then
+                echo '#!/bin/bash' > "$mock_brew_bin"
+                echo 'echo "brew called with: $*"' >> "$mock_brew_bin"
+                chmod +x "$mock_brew_bin"
+            fi
+            echo "$mock_brew_bin"
+            return 0
+        else 
+            return 1
+        fi
     else
         # For other commands (mkdir etc) just return 0
         return 0

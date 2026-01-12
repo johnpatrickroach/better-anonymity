@@ -16,7 +16,36 @@ hardening_enable_firewall() {
     info "Enabling Firewall..."
     execute_sudo "Enable socketfilterfw" "$SOCKETFILTERFW_CMD" --setglobalstate on
     execute_sudo "Enable logging" "$SOCKETFILTERFW_CMD" --setloggingmode on
-    execute_sudo "Enable stealth mode" "$SOCKETFILTERFW_CMD" --setstealthmode on
+    # Capture output to check for errors/status
+    local output
+    output=$(execute_sudo "Enable stealth mode" "$SOCKETFILTERFW_CMD" --setstealthmode on 2>&1)
+    echo "$output" # Show to user
+
+    if echo "$output" | grep -q "managed Mac"; then
+        warn "Firewall settings are managed by an MDM profile. Skipping Stealth Mode enforcement."
+        return 0
+    fi
+    
+    # Verify and Retry
+    local stealth_retries=0
+    while ! "$SOCKETFILTERFW_CMD" --getstealthmode | grep -E -q "enabled|on"; do
+        if [ "$stealth_retries" -ge 3 ]; then
+            warn "Could not enable Stealth Mode after 3 attempts."
+            break
+        fi
+        warn "Stealth Mode failed to enable. Retrying ($((stealth_retries+1))/3)..."
+        sleep 1
+        output=$(execute_sudo "Retry Stealth Mode" "$SOCKETFILTERFW_CMD" --setstealthmode on 2>&1)
+        echo "$output"
+        
+        if echo "$output" | grep -q "managed Mac"; then
+             warn "Firewall settings are managed by an MDM profile. Skipping Stealth Mode enforcement."
+             break
+        fi
+
+        stealth_retries=$((stealth_retries + 1))
+    done
+
     execute_sudo "Disable allow signed" "$SOCKETFILTERFW_CMD" --setallowsigned off
     execute_sudo "Disable allow signed app" "$SOCKETFILTERFW_CMD" --setallowsignedapp off
     execute_sudo "Reload Firewall" pkill -HUP socketfilterfw
@@ -319,9 +348,13 @@ hardening_secure_homebrew() {
     # Disable Analytics
     info "Disabling Homebrew Analytics..."
     export HOMEBREW_NO_ANALYTICS=1
+    # Capture brew path
+    local brew_path
+    brew_path=$(command -v brew)
+
     # We execute this as the user (brew warns against running as root)
     if [ -n "$SUDO_USER" ]; then
-        execute_sudo "Disable Analytics (User)" su - "$SUDO_USER" -c "brew analytics off"
+        execute_sudo "Disable Analytics (User)" su - "$SUDO_USER" -c "$brew_path analytics off"
     else
         # Run directly as current user (do NOT use execute_sudo which adds sudo)
         info "Disable Analytics"
