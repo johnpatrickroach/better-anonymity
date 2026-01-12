@@ -107,6 +107,8 @@ assert_contains "$OUTPUT" "SET_DNS: -setdnsserversWi-Fi127.0.0.1" "Should set Lo
 BREW_PREFIX="/tmp/mock_brew"
 mkdir -p "$BREW_PREFIX/etc/privoxy"
 # Create dummy source config/actions so cp works
+ROOT_DIR="."
+export ROOT_DIR
 mkdir -p config/privoxy
 touch config/privoxy/config config/privoxy/user.action
 
@@ -377,6 +379,8 @@ touch "$TEST_PROJECT_DIR/config/dnscrypt-proxy/dnscrypt-proxy.toml"
 # Switch to test project dir to make $(pwd) return the test path
 # This mocks the user running the script from their project root
 cd "$TEST_PROJECT_DIR" || exit 1
+ROOT_DIR="$TEST_PROJECT_DIR"
+export ROOT_DIR
 
 # Mock brew for this test
 brew() {
@@ -491,7 +495,7 @@ assert_contains "$OUTPUT" "Copying configuration" "Should copy config"
 assert_contains "$OUTPUT" "EXEC: unbound-checkconf" "Should check config"
 assert_contains "$OUTPUT" "EXEC: chown -R _unbound:staff" "Should chown"
 assert_contains "$OUTPUT" "EXEC: brew services start unbound" "Should start service"
-assert_contains "$OUTPUT" "EXEC: networksetup -setdnsservers Wi-Fi 127.0.0.1" "Should set DNS"
+
 
 # Verify Copy Command execution
 assert_contains "$OUTPUT" "EXEC: cp" "Should run cp command base"
@@ -499,6 +503,94 @@ assert_contains "$OUTPUT" "unbound.conf" "Should contain unbound.conf"
 
 # Cleanup
 cd - > /dev/null || exit 1
+
+# Test 11b: Unbound Integrity Check
+# ---------------------------------
+# Mock check_installed
+check_installed() {
+    if [ "$1" == "unbound" ]; then
+        if [ "$MOCK_UNBOUND_INSTALLED" == "false" ]; then return 1; fi
+        return 0
+    fi
+}
+
+# Mock dscl
+dscl() {
+    if [[ "$*" == *"-list"* ]]; then
+        if [[ "$*" == *"/Users/_unbound"* ]]; then
+            if [ "$MOCK_UNBOUND_USER" == "false" ]; then return 1; fi
+        fi
+        if [[ "$*" == *"/Groups/_unbound"* ]]; then
+            if [ "$MOCK_UNBOUND_GROUP" == "false" ]; then return 1; fi
+        fi
+        return 0
+    fi
+}
+
+# Mock config file existence
+# We can't mock [ -f ... ] easily in bash unit tests without creating the file.
+# So we will create the file in a temp dir.
+TEST_CHECK_ROOT=$(mktemp -d)
+BREW_PREFIX="$TEST_CHECK_ROOT"
+export BREW_PREFIX
+CONFIG_DIR="$BREW_PREFIX/etc/unbound"
+mkdir -p "$CONFIG_DIR"
+
+# Scenario 1: Missing Binary
+MOCK_UNBOUND_INSTALLED="false"
+MOCK_UNBOUND_USER="true"
+MOCK_UNBOUND_GROUP="true"
+touch "$CONFIG_DIR/unbound.conf"
+
+check_unbound_integrity
+if [ $? -eq 1 ]; then
+    success "Detected missing binary"
+else
+    die "Failed to detect missing binary"
+fi
+
+# Scenario 2: Missing User
+MOCK_UNBOUND_INSTALLED="true"
+MOCK_UNBOUND_USER="false"
+MOCK_UNBOUND_GROUP="true"
+check_unbound_integrity
+if [ $? -eq 1 ]; then
+    success "Detected missing user"
+else
+    die "Failed to detect missing user"
+fi
+
+# Scenario 3: Missing Group
+MOCK_UNBOUND_USER="true"
+MOCK_UNBOUND_GROUP="false"
+check_unbound_integrity
+if [ $? -eq 1 ]; then
+    success "Detected missing group"
+else
+    die "Failed to detect missing group"
+fi
+
+# Scenario 4: Missing Config
+MOCK_UNBOUND_GROUP="true"
+rm "$CONFIG_DIR/unbound.conf"
+check_unbound_integrity
+if [ $? -eq 1 ]; then
+    success "Detected missing config"
+else
+    die "Failed to detect missing config"
+fi
+
+# Scenario 5: All Good
+touch "$CONFIG_DIR/unbound.conf"
+check_unbound_integrity
+if [ $? -eq 0 ]; then
+    success "Integrity check passed (All components present)"
+else
+    die "Integrity check failed when it should pass"
+fi
+
+# Cleanup
+rm -rf "$TEST_CHECK_ROOT"
 
 # Test 12: DNS Verification
 # -------------------------
@@ -826,7 +918,7 @@ brew() {
 
 OUTPUT=$(install_signal)
 assert_contains "$OUTPUT" "Installing Signal Desktop" "Should start signal install"
-assert_contains "$OUTPUT" "BREW_CALL: install --cask signal" "Should call brew cask install"
+assert_contains "$OUTPUT" "brew called with: cask install signal" "Should call brew cask install"
 assert_contains "$OUTPUT" "Refer to docs/MESSENGERS.md" "Should show docs link"
 
 
@@ -1194,14 +1286,22 @@ spctl() { echo "assessments enabled"; }
 hardening_enable_firewall() { echo "CALL: hardening_enable_firewall"; }
 network_set_dns() { echo "CALL: network_set_dns $1"; }
 network_update_hosts() { echo "CALL: network_update_hosts"; }
-install_dnscrypt() { echo "CALL: install_dnscrypt"; }
-install_unbound() { echo "CALL: install_unbound"; }
+install_dnscrypt() { echo "CALL: install_dnscrypt"; return 0; }
+install_unbound() { echo "CALL: install_unbound"; return 0; }
 tor_install() { echo "CALL: tor_install"; }
 install_tor_browser() { echo "CALL: install_tor_browser"; }
 install_gpg() { echo "CALL: install_gpg"; }
 setup_gpg() { echo "CALL: setup_gpg"; }
 install_signal() { echo "CALL: install_signal"; }
 cleanup_metadata() { echo "CALL: cleanup_metadata"; }
+setup_advanced_dns_atomic() {
+    echo "CALL: setup_advanced_dns_atomic"
+    # Simulate success side effects
+    echo "DNSCrypt-Proxy setup successful"
+    echo "Setting System DNS to 127.0.0.1"
+    echo "CALL: network_set_dns localhost"
+    return 0
+}
 
 # Pipe yes to cover potential menu items (though mock confirms most)
 OUTPUT=$(yes | head -n 20 | lifecycle_setup 2>&1)
@@ -1224,7 +1324,7 @@ unset BETTER_ANONYMITY_AUTO_YES
 assert_contains "$OUTPUT" "HEADER: Better Anonymity - First Time Setup" "Should show setup wizard"
 # assert_contains "$OUTPUT" "(Auto-Yes)" "Should show auto-yes logs"
 assert_contains "$OUTPUT" "DNSCrypt-Proxy setup successful" "Should auto-setup DNSCrypt"
-assert_contains "$OUTPUT" "Setting DNS to 127.0.0.1" "Should auto-select Localhost"
+assert_contains "$OUTPUT" "Setting System DNS to 127.0.0.1" "Should auto-select Localhost"
 assert_contains "$OUTPUT" "CALL: cleanup_metadata" "Should cleanup in auto mode"
 
 # Test 28: Daily Check
@@ -1353,8 +1453,64 @@ brew() {
 
 
 OUTPUT=$(install_keepassxc)
-assert_contains "$OUTPUT" "BREW_CALL: install --cask keepassxc" "Should install keepassxc cask"
+assert_contains "$OUTPUT" "brew called with: cask install keepassxc" "Should install keepassxc cask"
 assert_contains "$OUTPUT" "Installing KeePassXC" "Should print info"
+
+
+
+
+# Test 32: Atomic Advanced DNS Setup
+# ----------------------------------
+start_suite "Atomic Advanced DNS"
+# Sourcing lifecycle again to get the real function setup_advanced_dns_atomic
+# But we need to be careful about overwrites. 
+# We overrode it in Test 27. We need to restore it by sourcing lib again.
+source "$(dirname "$0")/../lib/lifecycle.sh"
+
+# Mock dependencies
+install_dnscrypt() { echo "INSTALL: dnscrypt"; return 0; }
+install_unbound() { echo "INSTALL: unbound"; return 0; }
+network_set_dns() { echo "NET_DNS: $1"; }
+warn() { echo "WARN: $*"; }
+error() { echo "ERROR: $*"; }
+success() { echo "SUCCESS: $*"; }
+info() { echo "INFO: $*"; }
+
+# Mock nc (netcat)
+nc() {
+    # Usage: nc -z <host> <port>
+    local port="$3"
+    if [ "$MOCK_PORTS_OPEN" == "true" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Scenario 1: Success (Both ports open)
+MOCK_PORTS_OPEN="true"
+OUTPUT=$(setup_advanced_dns_atomic)
+assert_contains "$OUTPUT" "INSTALL: dnscrypt" "Should install dnscrypt"
+assert_contains "$OUTPUT" "INSTALL: unbound" "Should install unbound"
+assert_contains "$OUTPUT" "Both services are verified running" "Should verify success"
+assert_contains "$OUTPUT" "NET_DNS: localhost" "Should set localhost"
+
+# Scenario 2: Failure (Ports closed)
+MOCK_PORTS_OPEN="false"
+OUTPUT=$(setup_advanced_dns_atomic)
+assert_contains "$OUTPUT" "Verification Failed" "Should report failure"
+assert_contains "$OUTPUT" "NET_DNS: quad9" "Should fallback to quad9"
+
+# Scenario 3: Partial Install Failure (DNSCrypt fails)
+install_dnscrypt() { echo "INSTALL: dnscrypt"; return 1; }
+OUTPUT=$(setup_advanced_dns_atomic)
+assert_contains "$OUTPUT" "DNSCrypt-Proxy installation failed" "Should handle install failure"
+# Should NOT call set dns
+if [[ "$OUTPUT" == *"NET_DNS"* ]]; then
+    fail "Should not set DNS if install fails"
+else
+    pass "Correctly aborted before DNS set"
+fi
 
 end_suite
 

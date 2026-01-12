@@ -75,6 +75,7 @@ For more information, see [What is a DNS Leak?](https://www.dnsleaktest.com/what
 ./bin/better-anonymity install unbound
 ```
 *   **Method**: Installs via Homebrew, creates `_unbound` user, and configures permissions.
+*   **Integrity Check**: The setup now verifies that the binary, `_unbound` user, `_unbound` group, and configuration file are all present before considering Unbound installed.
 *   **Configuration**:
     *   Copies `config/unbound/unbound.conf`.
     *   Fetches DNSSEC root anchor.

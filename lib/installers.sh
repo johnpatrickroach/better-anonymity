@@ -292,11 +292,40 @@ install_unbound() {
     info "Directing Unbound (Brew) to start on boot..."
     execute_sudo "Start Service" brew services start unbound
 
-    info "Switching system DNS to 127.0.0.1..."
-    execute_sudo "Set DNS" networksetup -setdnsservers Wi-Fi 127.0.0.1
-
     info "Unbound installed and configured."
     info "Test DNSSEC with: dig org. SOA +dnssec @127.0.0.1 | grep -E 'NOERROR|ad'"
+}
+
+check_unbound_integrity() {
+    # 1. Check if Package is installed
+    if ! check_installed "unbound"; then
+        return 1
+    fi
+
+    # 2. Check for User and Group
+    if ! dscl . -list /Users/_unbound &>/dev/null; then
+        return 1
+    fi
+    if ! dscl . -list /Groups/_unbound &>/dev/null; then
+        return 1
+    fi
+
+    # 3. Check for Config
+    # We need BREW_PREFIX. Platform.sh should be loaded, but ensure it.
+    if [ -z "$BREW_PREFIX" ]; then
+        # Fallback detection if needed, or assume platform.sh loaded
+        if [ "$(uname -m)" == "arm64" ]; then
+            BREW_PREFIX="/opt/homebrew"
+        else
+            BREW_PREFIX="/usr/local"
+        fi
+    fi
+    
+    if [ ! -f "$BREW_PREFIX/etc/unbound/unbound.conf" ]; then
+        return 1
+    fi
+
+    return 0
 }
 
 install_firefox() {

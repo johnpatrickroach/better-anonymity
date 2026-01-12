@@ -3,6 +3,61 @@
 # lib/lifecycle.sh
 # Lifecycle management: setup, daily checks, updates
 
+setup_advanced_dns_atomic() {
+    info "Starting Atomic Advanced DNS Setup..."
+    
+    # 1. Install & Configure Services
+    if ! install_dnscrypt; then
+        warn "DNSCrypt-Proxy installation failed."
+        return 1
+    fi
+    
+    if ! install_unbound; then
+        warn "Unbound installation failed."
+        return 1
+    fi
+    
+    # 2. Verify Services are Running
+    info "Verifying services are active and listening..."
+    
+    local dnscrypt_ready=false
+    local unbound_ready=false
+    
+    # Check DNSCrypt (Port 5355)
+    for i in {1..10}; do
+        if nc -z 127.0.0.1 5355 &>/dev/null; then
+            dnscrypt_ready=true
+            break
+        fi
+        sleep 1
+    done
+    
+    # Check Unbound (Port 53 typically, or configured port if different? assuming 53 as per unbound.conf)
+    # Note: Unbound might take a moment to bind
+    for i in {1..10}; do
+        if nc -z 127.0.0.1 53 &>/dev/null; then
+            unbound_ready=true
+            break
+        fi
+        sleep 1
+    done
+    
+    if [ "$dnscrypt_ready" = true ] && [ "$unbound_ready" = true ]; then
+        success "Both services are verified running."
+        info "Setting System DNS to Localhost (127.0.0.1)..."
+        network_set_dns "localhost"
+        return 0
+    else
+        error "Verification Failed!"
+        if [ "$dnscrypt_ready" = false ]; then warn "DNSCrypt-Proxy is NOT responding on port 5355."; fi
+        if [ "$unbound_ready" = false ]; then warn "Unbound is NOT responding on port 53."; fi
+        
+        warn "Falling back to safe default (Quad9)..."
+        network_set_dns "quad9"
+        return 1
+    fi
+}
+
 lifecycle_setup() {
     clear
     header "Better Anonymity - First Time Setup"
@@ -41,29 +96,22 @@ lifecycle_setup() {
         # Auto-Mode Logic
         if [ "${BETTER_ANONYMITY_AUTO_YES:-0}" -eq 1 ]; then
              info "Auto-Resolution: Installing Unbound + DNSCrypt-Proxy..."
-             if (install_dnscrypt) && (install_unbound); then
+             if setup_advanced_dns_atomic; then
                  info "Unbound + DNSCrypt-Proxy setup successful."
-                 info "Setting System DNS to 127.0.0.1 (Unbound)..."
-                 network_set_dns "localhost"
              else
-                 warn "Advanced DNS setup failed. Falling back to Quad9..."
-                 network_set_dns "quad9"
+                 warn "Advanced DNS setup failed during auto-mode."
              fi
         else
             # Interactive Logic
             local dns_msg="Configure Advanced DNS (Unbound + DNSCrypt)? [Best Anonymity]"
             
-            # Check if likely installed
-            if check_installed "dnscrypt-proxy" && check_installed "unbound"; then
+            # Check if likely installed (and configured)
+            if check_installed "dnscrypt-proxy" && check_unbound_integrity; then
                 dns_msg="Unbound & DNSCrypt detected. Use Localhost (127.0.0.1)?"
             fi
             
             if ask_confirmation "$dns_msg"; then
-                # Ensure both are installed
-                if ! check_installed "dnscrypt-proxy"; then install_dnscrypt; fi
-                if ! check_installed "unbound"; then install_unbound; fi
-                
-                network_set_dns "localhost"
+                setup_advanced_dns_atomic
             else
                 # Fallback Menu
                 echo "Select Alternative Provider:"
