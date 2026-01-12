@@ -270,6 +270,10 @@ menu_privacy() {
 
 interactive_menu() {
     clear
+    if [ -f "$LIB_DIR/banner.txt" ]; then
+        cat "$LIB_DIR/banner.txt"
+        echo ""
+    fi
     header "Better Anonymity - Main Menu"
     echo "1. Hardening & Security"
     echo "2. Network & Anonymity"
