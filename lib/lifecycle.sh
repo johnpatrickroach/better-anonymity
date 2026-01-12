@@ -200,7 +200,7 @@ lifecycle_install_cli() {
     
     # Check if /usr/local/bin exists
     if [ ! -d "$BIN_PATH" ]; then
-        warn "$BIN_PATH does not exist. Attempting to create..."
+        info "$BIN_PATH does not exist. Creating directory for global aliases..."
         execute_sudo "Create bin/ folder" mkdir -p "$BIN_PATH"
     fi
     
