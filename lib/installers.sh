@@ -267,49 +267,87 @@ install_pingbar() {
          die "Swift compiler not found. Please install Xcode Command Line Tools (xcode-select --install)."
     fi
 
-    # Create a temp dir for building
-    local BUILD_DIR
-    BUILD_DIR=$(mktemp -d)
+    local APP_PATH="${PINGBAR_APP_PATH:-/Applications/PingBar.app}"
+    local BUNDLE_ID="fr.jedisct1.PingBar"
+    local need_install=true
     
-    info "Cloning PingBar..."
-    if ! git clone https://github.com/jedisct1/pingbar.git "$BUILD_DIR/pingbar"; then
+    if [ -d "$APP_PATH" ]; then
+        info "PingBar is already installed."
+        need_install=false
+    fi
+    
+    if [ "$need_install" = "true" ]; then
+        # Create a temp dir for building
+        local BUILD_DIR
+        BUILD_DIR=$(mktemp -d)
+        
+        info "Cloning PingBar..."
+        if ! git clone https://github.com/jedisct1/pingbar.git "$BUILD_DIR/pingbar"; then
+            rm -rf "$BUILD_DIR"
+            die "Failed to clone PingBar repository."
+        fi
+
+        pushd "$BUILD_DIR/pingbar" > /dev/null || die "Failed to enter build directory."
+        
+        info "Building PingBar (this may take a moment)..."
+        if ! make bundle; then
+            popd > /dev/null
+            rm -rf "$BUILD_DIR"
+            die "PingBar build failed."
+        fi
+        
+        info "Installing PingBar..."
+        # 'make install' typically defaults to /Applications or similar. 
+        # We will trust it or assume standard behavior.
+        if ! make install; then
+            popd > /dev/null
+            rm -rf "$BUILD_DIR"
+            die "PingBar installation failed."
+        fi
+
+        popd > /dev/null
         rm -rf "$BUILD_DIR"
-        die "Failed to clone PingBar repository."
     fi
-
-    pushd "$BUILD_DIR/pingbar" > /dev/null || die "Failed to enter build directory."
-    
-    info "Building PingBar (this may take a moment)..."
-    if ! make bundle; then
-         popd > /dev/null
-         rm -rf "$BUILD_DIR"
-         die "PingBar build failed."
-    fi
-    
-    info "Installing PingBar..."
-    # 'make install' typically defaults to /Applications or similar. 
-    # We will trust it or assume standard behavior.
-    if ! make install; then
-         popd > /dev/null
-         rm -rf "$BUILD_DIR"
-         die "PingBar installation failed."
-    fi
-
-    popd > /dev/null
-    rm -rf "$BUILD_DIR"
     
     info "Configuring PingBar..."
-    # Defaults keys based on typical Jedisct1 naming or derived from prompt requirements
-    local BUNDLE_ID="fr.jedisct1.PingBar"
+    local config_changed=false
     
     # "Restore my custom DNS after passing captive portal"
-    defaults write "$BUNDLE_ID" RestoreDNS -bool true
+    # defaults read returns strict 1/0 usually? Or strings? We'll check carefully.
+    local current_dns=$(defaults read "$BUNDLE_ID" RestoreDNS 2>/dev/null)
+    if [ "$current_dns" != "1" ] && [ "$current_dns" != "true" ]; then
+        defaults write "$BUNDLE_ID" RestoreDNS -bool true
+        config_changed=true
+    fi
     
     # "Launch PingBar at login"
-    defaults write "$BUNDLE_ID" LaunchAtLogin -bool true
+    local current_launch=$(defaults read "$BUNDLE_ID" LaunchAtLogin 2>/dev/null)
+    if [ "$current_launch" != "1" ] && [ "$current_launch" != "true" ]; then
+        defaults write "$BUNDLE_ID" LaunchAtLogin -bool true
+        config_changed=true
+    fi
     
+    if [ "$config_changed" = "false" ]; then
+        info "PingBar configuration is up to date."
+    else
+        info "PingBar configuration updated."
+    fi
+
+    # Check process
+    if pgrep -x "PingBar" >/dev/null; then
+        if [ "$config_changed" = "true" ]; then
+            info "Restarting PingBar to apply changes..."
+            killall PingBar
+            open "$APP_PATH"
+        else
+            info "PingBar is already running."
+        fi
+    else
+        info "Starting PingBar..."
+        open "$APP_PATH"
+    fi
+
     info "PingBar installed and configured."
-    info "You can find it in your Applications folder."
 }
 
 create_unbound_user() {
@@ -358,10 +396,23 @@ install_unbound() {
     create_unbound_user
 
     info "Setting up DNSSEC root key (requires sudo)..."
-    execute_sudo "Fetch Root Key" unbound-anchor -a "$BREW_PREFIX/etc/unbound/root.key" || true # unbound-anchor can fail if certs are tricky, checking validity later is better
+    local ROOT_KEY="$BREW_PREFIX/etc/unbound/root.key"
+    if [ ! -f "$ROOT_KEY" ]; then
+        execute_sudo "Fetch Root Key" unbound-anchor -a "$ROOT_KEY" || true # unbound-anchor can fail if certs are tricky, checking validity later is better
+    else
+        info "Root key already exists at $ROOT_KEY. Skipping fetch."
+    fi
 
     info "Generating Control Certificates..."
-    execute_sudo "Setup Control" unbound-control-setup -d "$BREW_PREFIX/etc/unbound"
+    local CERT_DIR="$BREW_PREFIX/etc/unbound"
+    if [ ! -f "$CERT_DIR/unbound_control.key" ] || \
+       [ ! -f "$CERT_DIR/unbound_control.pem" ] || \
+       [ ! -f "$CERT_DIR/unbound_server.key" ] || \
+       [ ! -f "$CERT_DIR/unbound_server.pem" ]; then
+        execute_sudo "Setup Control" unbound-control-setup -d "$CERT_DIR"
+    else
+        info "Control certificates already exist in $CERT_DIR. Skipping generation."
+    fi
 
     info "Copying configuration..."
     local CONF_SRC="$ROOT_DIR/config/unbound/unbound.conf"
@@ -385,7 +436,15 @@ install_unbound() {
     # Check vs Destination
     # Use sudo cmp because destination might be root-owned
     if [ -f "$CONF_DEST" ]; then
-        if sudo cmp -s "$TEMP_CONF" "$CONF_DEST"; then
+        local files_match=false
+        # Check readability to avoid unnecessary sudo
+        if [ -r "$CONF_DEST" ]; then
+            cmp -s "$TEMP_CONF" "$CONF_DEST" && files_match=true
+        else
+            sudo cmp -s "$TEMP_CONF" "$CONF_DEST" && files_match=true
+        fi
+
+        if [ "$files_match" == "true" ]; then
             info "Unbound configuration is up to date."
         else
             info "Configuration changed. Updating $CONF_DEST..."

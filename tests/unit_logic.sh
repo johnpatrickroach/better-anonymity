@@ -434,6 +434,7 @@ trap - EXIT
 # Test 10: PingBar Installation
 # -----------------------------
 # Mock swift, git, make, defaults
+# Mock swift, git, make, defaults, open, pgrep
 swift() { return 0; }
 git() { 
     echo "EXEC: git $*"
@@ -447,7 +448,17 @@ git() {
     return 0
 }
 make() { echo "EXEC: make $*"; return 0; }
-defaults() { echo "EXEC: defaults $*"; return 0; }
+defaults() { 
+    if [ "$1" == "read" ]; then return 1; fi # Simulate setting missing
+    echo "EXEC: defaults $*"; return 0; 
+}
+open() { echo "EXEC: open $*"; return 0; }
+pgrep() { return 1; } # Simulate not running
+
+# Override path to force install
+PINGBAR_APP_PATH="/tmp/mock_pingbar_t10.app"
+export PINGBAR_APP_PATH
+rm -rf "$PINGBAR_APP_PATH"
 
 OUTPUT=$(install_pingbar)
 
@@ -461,9 +472,11 @@ assert_contains "$OUTPUT" "EXEC: make install" "Should make install"
 assert_contains "$OUTPUT" "Configuring PingBar" "Should configure"
 assert_contains "$OUTPUT" "EXEC: defaults write fr.jedisct1.PingBar RestoreDNS -bool true" "Should set RestoreDNS"
 assert_contains "$OUTPUT" "EXEC: defaults write fr.jedisct1.PingBar LaunchAtLogin -bool true" "Should set LaunchAtLogin"
+assert_contains "$OUTPUT" "Starting PingBar..." "Should announce start"
+assert_contains "$OUTPUT" "EXEC: open /tmp/mock_pingbar_t10.app" "Should open app"
 
 # Cleanup mocks
-unset -f swift git make defaults
+unset -f swift git make defaults open pgrep
 
 
 # Test 11: Unbound Installation
@@ -1006,7 +1019,14 @@ assert_contains "$OUTPUT" "Refer to docs/MESSENGERS.md" "Should show docs link"
 # -------------------------
 # Mock destructive commands to prevent actual deletion during test
 defaults() { echo "DEFAULTS_CALL: $*"; return 0; }
-rm() { echo "RM_CALL: $*"; return 0; }
+rm() { 
+    echo "RM_CALL: $*"
+    # execute if safe path
+    if [[ "$*" == *"/tmp/"* ]]; then
+        command rm "$@"
+    fi
+    return 0
+}
 qlmanage() { echo "QL_CALL: $*"; return 0; }
 nvram() { echo "NVRAM_CALL: $*"; return 0; }
 chflags() { echo "CHFLAGS_CALL: $*"; return 0; }
@@ -1861,21 +1881,119 @@ touch "$ROOT_DIR/config/unbound/unbound.conf"
 mkdir -p "$BREW_PREFIX/etc/unbound"
 touch "$BREW_PREFIX/etc/unbound/unbound.conf"
 
-# Scenario 8: Unbound Config Differs
+# Scenario 8: Unbound Config Differs, Root Key Missing, Certs Missing (Fresh)
 MOCK_FILES_SAME="false"
-MOCK_SERVICE_RUNNING="true" # Should restart due to config change
+MOCK_SERVICE_RUNNING="true" 
+# Aggressive cleanup with real rm
+if declare -f rm > /dev/null; then unset -f rm; fi
+rm -rf "$BREW_PREFIX/etc/unbound"
+# Restore mock
+rm() { echo "RM_CALL: $*"; return 0; }
+
+mkdir -p "$BREW_PREFIX/etc/unbound"
+touch "$BREW_PREFIX/etc/unbound/unbound.conf"
 
 OUTPUT=$(install_unbound 2>&1)
 assert_contains "$OUTPUT" "Configuration changed. Updating" "Should update unbound conf"
-assert_contains "$OUTPUT" "BREW_RESTART: unbound" "Should restart unbound if config changed"
+assert_contains "$OUTPUT" "BREW_RESTART: unbound" "Should restart unbound"
+assert_contains "$OUTPUT" "EXEC: unbound-anchor" "Should fetch root key"
+assert_contains "$OUTPUT" "EXEC: unbound-control-setup" "Should generate control certs"
 
-# Scenario 9: Unbound Config Same + Running
+# Scenario 9: Unbound Config Same + Running + Root Key Exists + Certs Exist
 MOCK_FILES_SAME="true"
 MOCK_SERVICE_RUNNING="true"
+touch "$BREW_PREFIX/etc/unbound/root.key" 
+# Mock existance of certs
+touch "$BREW_PREFIX/etc/unbound/unbound_control.key"
+touch "$BREW_PREFIX/etc/unbound/unbound_control.pem"
+touch "$BREW_PREFIX/etc/unbound/unbound_server.key"
+touch "$BREW_PREFIX/etc/unbound/unbound_server.pem"
 
 OUTPUT=$(install_unbound 2>&1)
 assert_contains "$OUTPUT" "Unbound configuration is up to date" "Should report up to date"
 assert_contains "$OUTPUT" "Unbound is already running with latest config. Skipping restart." "Should skip restart"
+assert_contains "$OUTPUT" "Root key already exists" "Should skip root key fetch"
+assert_contains "$OUTPUT" "Control certificates already exist" "Should skip control generation"
+if [[ "$OUTPUT" == *"EXEC: unbound-control-setup"* ]]; then fail "Should NOT generate certs"; else pass "Correctly skipped cert generation"; fi
+if [[ "$OUTPUT" == *"EXEC: unbound-anchor"* ]]; then fail "Should NOT fetch root key"; else pass "Correctly skipped root key fetch"; fi
 if [[ "$OUTPUT" == *"BREW_RESTART"* ]]; then fail "Should NOT restart unbound"; else pass "Correctly skipped unbound restart"; fi
+
+
+
+# Test 35: PingBar Idempotency
+# ----------------------------
+echo "Running Test Suite: PingBar Idempotency"
+echo "----------------------------------------"
+
+# Use a temp directory for the mocked app
+PINGBAR_APP_PATH="/tmp/mock_pingbar_${RANDOM}.app"
+export PINGBAR_APP_PATH
+
+# Define shared mocks
+swift() { return 0; }
+git() { echo "EXEC: git $*"; if [ "$1" == "clone" ]; then mkdir -p "${PINGBAR_APP_PATH%/*}/../pingbar"; fi; return 0; }
+make() { echo "EXEC: make $*"; return 0; }
+pkill() { echo "EXEC: pkill $*"; return 0; }
+killall() { echo "EXEC: killall $*"; return 0; }
+open() { echo "EXEC: open $*"; return 0; }
+
+pgrep() {
+    if [ "$MOCK_IS_RUNNING" == "true" ]; then return 0; else return 1; fi
+}
+
+defaults() { 
+    if [ "$1" == "read" ]; then
+        if [[ "$*" == *"RestoreDNS" ]]; then echo "$MOCK_CONFIG_RESTORE"; return 0; fi
+        if [[ "$*" == *"LaunchAtLogin" ]]; then echo "$MOCK_CONFIG_LAUNCH"; return 0; fi
+        return 1
+    fi
+    echo "EXEC: defaults $*"
+    return 0 
+}
+
+# Scenario 1: Skip All (Installed, Config Correct, Running)
+MOCK_IS_RUNNING="true"
+MOCK_CONFIG_RESTORE="1"
+MOCK_CONFIG_LAUNCH="1"
+mkdir -p "$PINGBAR_APP_PATH"
+
+OUTPUT=$(install_pingbar 2>&1)
+assert_contains "$OUTPUT" "PingBar is already installed" "Should detect installed"
+assert_contains "$OUTPUT" "PingBar configuration is up to date" "Should detect config match"
+assert_contains "$OUTPUT" "PingBar is already running" "Should detect running"
+if [[ "$OUTPUT" == *"Building PingBar"* ]]; then fail "Should NOT build"; else pass "Correctly skipped build"; fi
+if [[ "$OUTPUT" == *"EXEC: open"* ]]; then fail "Should NOT open"; else pass "Correctly skipped open"; fi
+
+
+# Scenario 2: Config Update Only (Installed, Config Wrong, Not Running)
+MOCK_IS_RUNNING="false"
+MOCK_CONFIG_RESTORE="0"
+MOCK_CONFIG_LAUNCH="0"
+mkdir -p "$PINGBAR_APP_PATH"
+
+OUTPUT=$(install_pingbar 2>&1)
+assert_contains "$OUTPUT" "PingBar is already installed" "Should detect installed (S2)"
+assert_contains "$OUTPUT" "PingBar configuration updated" "Should update config"
+assert_contains "$OUTPUT" "Starting PingBar..." "Should start"
+assert_contains "$OUTPUT" "EXEC: open $PINGBAR_APP_PATH" "Should open app"
+
+
+# Scenario 3: Fresh Install (Not Installed)
+rm -rf "$PINGBAR_APP_PATH"
+MOCK_IS_RUNNING="false"
+# Defaults READ usually fails or returns empty if app never run.
+MOCK_CONFIG_RESTORE="" 
+MOCK_CONFIG_LAUNCH=""
+
+OUTPUT=$(install_pingbar 2>&1)
+assert_contains "$OUTPUT" "Cloning PingBar" "Should clone"
+assert_contains "$OUTPUT" "Building PingBar" "Should build"
+assert_contains "$OUTPUT" "Installing PingBar" "Should install"
+assert_contains "$OUTPUT" "Starting PingBar..." "Should start (S3)"
+
+# Clean up
+rm -rf "$PINGBAR_APP_PATH"
+unset PINGBAR_APP_PATH
+unset -f swift git make pkill killall open pgrep defaults
 
 end_suite
