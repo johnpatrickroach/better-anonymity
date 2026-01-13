@@ -627,7 +627,18 @@ rm -rf "$TEST_CHECK_ROOT"
 # Mocks
 sudo() { if [[ "$1" == "-v" ]]; then return 0; fi; "$@"; } # Mock sudo
 scutil() { echo "  nameserver[0] : 127.0.0.1"; }
-networksetup() { echo "127.0.0.1"; }
+networksetup() { 
+    if [[ "$1" == "-getdnsservers" ]]; then
+        echo "127.0.0.1"
+    elif [[ "$1" == "-getwebproxy" ]] || [[ "$1" == "-getsecurewebproxy" ]]; then
+        echo "Enabled: Yes"
+        echo "Server: 127.0.0.1"
+        echo "Port: 8118"
+        echo "Authenticated Proxy Enabled: 0"
+    else
+        echo "127.0.0.1"
+    fi
+}
 brew() {
     if [[ "$*" == "services list" ]]; then
        echo "Name           Status  User File"
@@ -657,10 +668,36 @@ assert_contains "$OUTPUT" "privoxy is running" "Should check privoxy"
 assert_contains "$OUTPUT" "System resolver is using localhost" "Should check system resolver"
 assert_contains "$OUTPUT" "nameserver[0] : 127.0.0.1" "Should show scutil output"
 assert_contains "$OUTPUT" "Wi-Fi is configured to use 127.0.0.1" "Should check networksetup"
+assert_contains "$OUTPUT" "Checking Privoxy (HTTP/HTTPS) Proxy Settings" "Should start proxy check"
+assert_contains "$OUTPUT" "HTTP Proxy is using Privoxy (127.0.0.1:8118)" "Should verify HTTP proxy"
+assert_contains "$OUTPUT" "HTTPS Proxy is using Privoxy (127.0.0.1:8118)" "Should verify HTTPS proxy"
+# Mock pgrep
+pgrep() { 
+    if [ "${MOCK_PGREP_FAIL:-0}" -eq 1 ]; then return 1; fi
+    return 0 
+}
+
 assert_contains "$OUTPUT" "Testing Valid DNSSEC" "Should test valid DNSSEC"
 assert_contains "$OUTPUT" "Valid DNSSEC signature verified" "Should PASS valid DNSSEC"
 assert_contains "$OUTPUT" "Testing Invalid DNSSEC" "Should test invalid DNSSEC"
 assert_contains "$OUTPUT" "Invalid DNSSEC rejected" "Should PASS invalid DNSSEC"
+
+# Test 12b: DNS Verification (Fallback to pgrep)
+# ----------------------------------------------
+# Simulate brew services NOT showing started, but pgrep finding them
+brew() {
+    if [[ "$*" == "services list" ]]; then
+       echo "Name           Status  User File"
+       echo "dnscrypt-proxy stopped root ..."
+       echo "unbound        stopped root ..."
+       echo "privoxy        none    root ..."
+    fi
+}
+# pgrep mock (above) defaults to return 0 (success)
+OUTPUT=$(network_verify_dns)
+assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should check dnscrypt-proxy (fallback)"
+assert_contains "$OUTPUT" "privoxy is running" "Should check privoxy (fallback)"
+
 
 
 # Test 13: Security Verification

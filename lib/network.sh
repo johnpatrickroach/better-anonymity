@@ -120,25 +120,29 @@ network_verify_dns() {
          services_out=$(sudo brew services list 2>/dev/null)
          echo "$services_out"
          
-         if echo "$services_out" | grep -q "dnscrypt-proxy.*started"; then
+         if echo "$services_out" | grep -q "dnscrypt-proxy.*started" || pgrep -x "dnscrypt-proxy" >/dev/null; then
              info "[PASS] dnscrypt-proxy is running."
          else
              warn "[FAIL] dnscrypt-proxy is NOT running or has errors."
          fi
          
-         if echo "$services_out" | grep -q "unbound.*started"; then
+         if echo "$services_out" | grep -q "unbound.*started" || pgrep -x "unbound" >/dev/null; then
              info "[PASS] unbound is running."
          else
              warn "[FAIL] unbound is NOT running or has errors."
          fi
 
-         if echo "$services_out" | grep -q "privoxy.*started"; then
+         if echo "$services_out" | grep -q "privoxy.*started" || pgrep -x "privoxy" >/dev/null; then
              info "[PASS] privoxy is running."
          else
              warn "[FAIL] privoxy is NOT running or has errors."
          fi
     else
          warn "Homebrew not found. Skipping service check."
+         # Still check processes if brew missing
+         if pgrep -x "dnscrypt-proxy" >/dev/null; then info "[PASS] dnscrypt-proxy process found."; fi
+         if pgrep -x "unbound" >/dev/null; then info "[PASS] unbound process found."; fi
+         if pgrep -x "privoxy" >/dev/null; then info "[PASS] privoxy process found."; fi
     fi
 
     # 1. Check System Resolver
@@ -168,6 +172,32 @@ network_verify_dns() {
             info "[PASS] Wi-Fi is configured to use 127.0.0.1."
         else
             warn "[FAIL] Wi-Fi does NOT appear to use 127.0.0.1."
+        fi
+
+        # 3. Check Proxy Settings (Privoxy)
+        info "Checking Privoxy (HTTP/HTTPS) Proxy Settings..."
+        local proxy_out
+        
+        # Check webproxy (HTTP)
+        proxy_out=$(networksetup -getwebproxy Wi-Fi)
+        echo "$proxy_out"
+        if echo "$proxy_out" | grep -q "Enabled: Yes" && \
+           echo "$proxy_out" | grep -q "Server: 127.0.0.1" && \
+           echo "$proxy_out" | grep -q "Port: 8118"; then
+            info "[PASS] HTTP Proxy is using Privoxy (127.0.0.1:8118)."
+        else
+            warn "[FAIL] HTTP Proxy is NOT correctly configured for Privoxy."
+        fi
+        
+        # Check securewebproxy (HTTPS)
+        proxy_out=$(networksetup -getsecurewebproxy Wi-Fi)
+        echo "$proxy_out"
+        if echo "$proxy_out" | grep -q "Enabled: Yes" && \
+           echo "$proxy_out" | grep -q "Server: 127.0.0.1" && \
+           echo "$proxy_out" | grep -q "Port: 8118"; then
+            info "[PASS] HTTPS Proxy is using Privoxy (127.0.0.1:8118)."
+        else
+            warn "[FAIL] HTTPS Proxy is NOT correctly configured for Privoxy."
         fi
     fi
 
