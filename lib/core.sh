@@ -198,7 +198,8 @@ stop_spinner() {
         kill "$_SPINNER_PID" >/dev/null 2>&1
         _SPINNER_PID=""
         tput cnorm # Reset cursor
-        printf " \b" # Clear spinner character
+        # Clear the entire line using CR + Clear to EOL
+        printf "\r\033[K"
     fi
 }
 
