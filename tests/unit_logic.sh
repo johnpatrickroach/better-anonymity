@@ -112,12 +112,16 @@ export ROOT_DIR
 mkdir -p config/privoxy
 touch config/privoxy/config config/privoxy/user.action
 
+# Mock cmp to force update (simulating missing destination)
+cmp() { return 1; }
+
+
 PLATFORM_ARCH="arm64"
 
 OUTPUT=$(install_privoxy)
 assert_contains "$OUTPUT" "brew called with: install privoxy" "Should call brew install privoxy"
 assert_contains "$OUTPUT" "brew called with: services restart privoxy" "Should restart privoxy"
-assert_contains "$OUTPUT" "Copying user.action" "Should copy user.action"
+assert_contains "$OUTPUT" "Updating user.action" "Should copy user.action"
 assert_contains "$OUTPUT" "SET_DNS: -setwebproxy Wi-Fi 127.0.0.1 8118" "Should set HTTP proxy"
 assert_contains "$OUTPUT" "SET_DNS: -setsecurewebproxy Wi-Fi 127.0.0.1 8118" "Should set HTTPS proxy"
 
@@ -1614,7 +1618,7 @@ else
     pass "Correctly aborted before DNS set"
 fi
 
-end_suite
+
 
 
 
@@ -1683,5 +1687,110 @@ MOCK_ALREADY_INSTALLED="true"
 # OR we use `shunit2` properly which handles this. Here we have a custom harness.
 # Given constraints, we will stick to verifying the Install Flow (Scenario 1) which is critical.
 # The `grep` mock above ensures we test the failure path of the check.
+
+end_suite
+
+# Test 34: Installer Idempotency (Privoxy & GPG)
+# -----------------------------------------------
+start_suite "Installer Idempotency"
+source "$(dirname "$0")/../lib/installers.sh"
+
+# Mock environment
+BREW_PREFIX="/tmp/mock_brew_idempotency"
+ROOT_DIR="/tmp/mock_root"
+mkdir -p "$BREW_PREFIX/etc/privoxy"
+mkdir -p "$BREW_PREFIX/bin" # For gpg pinentry path check
+mkdir -p "$ROOT_DIR/config/privoxy"
+mkdir -p "$ROOT_DIR/config/gpg"
+HOME="/tmp/mock_home"
+mkdir -p "$HOME"
+
+# Mock tools
+brew() {
+    # echo "BREW: $*"
+    if [ "$1" == "services" ] && [ "$2" == "restart" ]; then
+        echo "BREW_RESTART: $3"
+    elif [ "$1" == "services" ] && [ "$2" == "list" ]; then
+        if [ "$MOCK_SERVICE_RUNNING" == "true" ]; then
+            echo "$3 started"
+        else
+            echo "$3 stopped"
+        fi
+    fi
+}
+networksetup() {
+    if [[ "$1" == "-get"* ]]; then
+        if [ "$MOCK_PROXY_SET" == "true" ]; then
+            echo "Enabled: Yes"
+            echo "Server: 127.0.0.1"
+            echo "Port: 8118"
+        else
+            echo "Enabled: No"
+        fi
+    else
+        echo "NETSETUP_SET: $*"
+    fi
+}
+# Mock cmp to control "diff" logic
+cmp() {
+    # If MOCK_FILES_SAME is true, return 0 (no diff), else 1 (diff)
+    if [ "$MOCK_FILES_SAME" == "true" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+# Mock killall for gpg-agent
+killall() { echo "KILLALL: $*"; }
+
+# --- Privoxy Tests ---
+touch "$ROOT_DIR/config/privoxy/config"
+touch "$ROOT_DIR/config/privoxy/user.action"
+
+# Scenario 1: Config Differs, Proxy Not Set
+MOCK_FILES_SAME="false"
+MOCK_PROXY_SET="false"
+MOCK_SERVICE_RUNNING="true" # Even if running, should restart if config changed
+
+OUTPUT=$(install_privoxy 2>&1)
+assert_contains "$OUTPUT" "Configuration changed. Updating..." "Should update config if cmp fails"
+assert_contains "$OUTPUT" "BREW_RESTART: privoxy" "Should restart privoxy if config changed"
+assert_contains "$OUTPUT" "NETSETUP_SET: -setwebproxy" "Should set proxy if missing"
+
+# Scenario 2: Config Same, Proxy Set (Fully Idempotent)
+MOCK_FILES_SAME="true"
+MOCK_PROXY_SET="true"
+MOCK_SERVICE_RUNNING="true"
+
+OUTPUT=$(install_privoxy 2>&1)
+assert_contains "$OUTPUT" "Configuration is up to date." "Should report up to date"
+assert_contains "$OUTPUT" "Privoxy is running and config is unchanged. Skipping restart." "Should skip restart"
+if [[ "$OUTPUT" == *"BREW_RESTART"* ]]; then fail "Should NOT restart privoxy"; else pass "Correctly skipped restart"; fi
+if [[ "$OUTPUT" == *"NETSETUP_SET"* ]]; then fail "Should NOT set proxy"; else pass "Correctly skipped networksetup"; fi
+
+
+# --- GPG Tests ---
+touch "$ROOT_DIR/config/gpg/gpg.conf"
+# Helper to assert file content for agent conf
+cat_agent_conf() { cat "$HOME/.gnupg/gpg-agent.conf"; }
+
+# Scenario 3: GPG Config Differs
+MOCK_FILES_SAME="false"
+OUTPUT=$(install_gpg 2>&1)
+assert_contains "$OUTPUT" "Updating gpg.conf..." "Should update gpg.conf"
+assert_contains "$OUTPUT" "Reloading gpg-agent..." "Should reload agent"
+assert_contains "$OUTPUT" "KILLALL: gpg-agent" "Should kill agent"
+
+# Scenario 4: GPG Config Same
+MOCK_FILES_SAME="true"
+# We also need to ensure the grep check for agent.conf passes to avoid update there.
+mkdir -p "$HOME/.gnupg"
+echo "pinentry-program $BREW_PREFIX/bin/pinentry-mac" > "$HOME/.gnupg/gpg-agent.conf"
+
+OUTPUT=$(install_gpg 2>&1)
+assert_contains "$OUTPUT" "gpg.conf is up to date." "Should report gpg.conf valid"
+assert_contains "$OUTPUT" "gpg-agent.conf is up to date." "Should report agent conf valid"
+assert_contains "$OUTPUT" "GPG configuration unchanged. Skipping agent reload." "Should skip reload"
+if [[ "$OUTPUT" == *"KILLALL"* ]]; then fail "Should NOT kill agent"; else pass "Correctly skipped agent kill"; fi
 
 end_suite

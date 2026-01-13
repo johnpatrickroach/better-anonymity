@@ -104,14 +104,36 @@ install_gpg() {
 
     local SRC_CONF="$ROOT_DIR/config/gpg/gpg.conf"
     local DEST_CONF="$GPG_HOME/gpg.conf"
+    local CHANGED="false"
 
     if [ -f "$SRC_CONF" ]; then
-        cp "$SRC_CONF" "$DEST_CONF"
-        chmod 600 "$DEST_CONF"
+        if [ ! -f "$DEST_CONF" ] || ! cmp -s "$SRC_CONF" "$DEST_CONF"; then
+             info "Updating gpg.conf..."
+             cp "$SRC_CONF" "$DEST_CONF"
+             chmod 600 "$DEST_CONF"
+             CHANGED="true"
+        else
+             info "gpg.conf is up to date."
+        fi
     fi
 
-    echo "pinentry-program $BREW_PREFIX/bin/pinentry-mac" > "$GPG_HOME/gpg-agent.conf"
-    killall gpg-agent 2>/dev/null || true
+    local AGENT_CONF="$GPG_HOME/gpg-agent.conf"
+    local EXPECTED_AGENT_CONF="pinentry-program $BREW_PREFIX/bin/pinentry-mac"
+    
+    if [ ! -f "$AGENT_CONF" ] || ! grep -Fxq "$EXPECTED_AGENT_CONF" "$AGENT_CONF"; then
+         info "Updating gpg-agent.conf..."
+         echo "$EXPECTED_AGENT_CONF" > "$AGENT_CONF"
+         CHANGED="true"
+    else
+         info "gpg-agent.conf is up to date."
+    fi
+
+    if [ "$CHANGED" == "true" ]; then
+        info "Reloading gpg-agent..."
+        killall gpg-agent 2>/dev/null || true
+    else
+        info "GPG configuration unchanged. Skipping agent reload."
+    fi
 }
 
 

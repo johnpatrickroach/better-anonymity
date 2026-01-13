@@ -56,6 +56,7 @@ assert_contains() {
     else
         echo -e "${RED}[FAIL]${NC} $message"
         echo "       Could not find '$needle' in output"
+        echo "       ACTUAL: $haystack"
         ((FAILED++))
     fi
 }
