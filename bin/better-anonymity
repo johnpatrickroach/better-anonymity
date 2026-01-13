@@ -6,12 +6,40 @@
 # Resolve absolute path to the project root
 # Handle symlinks to ensure we find the real lib/ directory
 SOURCE="${BASH_SOURCE[0]}"
-while [ -h "$SOURCE" ]; do 
+# Resolve path reliably (Python fallback for macOS/Linux)
+# 1. If SOURCE is just a command name (not a path) or relative and not found, resolve via PATH
+if [[ "$SOURCE" != */* ]] && [ ! -f "$SOURCE" ] && [ ! -L "$SOURCE" ]; then
+    CMD_SOURCE=$(command -v "$SOURCE")
+    if [ -n "$CMD_SOURCE" ]; then
+        SOURCE="$CMD_SOURCE"
+    fi
+fi
+
+RESOLVED_SOURCE=""
+
+# 2. Try Python (Most robust, handles symlinks recursively)
+if [ -z "$RESOLVED_SOURCE" ] && command -v python3 >/dev/null 2>&1; then
+    # Redirect stderr to devnull to avoid permission errors
+    RESOLVED_SOURCE=$(python3 -c "import os; print(os.path.realpath('${BASH_SOURCE[0]}'))" 2>/dev/null)
+fi
+
+# 3. Try Perl (Native on macOS/Linux fallback)
+if [ -z "$RESOLVED_SOURCE" ] && command -v perl >/dev/null 2>&1; then
+    RESOLVED_SOURCE=$(perl -MCwd -e 'print Cwd::abs_path(shift)' "$SOURCE" 2>/dev/null)
+fi
+
+if [ -n "$RESOLVED_SOURCE" ]; then
+    SOURCE="$RESOLVED_SOURCE"
+    DIR="$(dirname "$SOURCE")"
+else
+    # 4. Fallback shell loop (Last resort)
+    while [ -h "$SOURCE" ]; do 
+        DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+        SOURCE="$(readlink "$SOURCE")"
+        [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" 
+    done
     DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
-    SOURCE="$(readlink "$SOURCE")"
-    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" 
-done
-DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+fi
 ROOT_DIR="$(dirname "$DIR")"
 LIB_DIR="$ROOT_DIR/lib"
 

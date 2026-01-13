@@ -270,12 +270,32 @@ lifecycle_install_cli() {
     
     info "Installing symlinks to $BIN_PATH..."
     
-    # Create main link
-    execute_sudo "Link better-anonymity" ln -sf "$SOURCE_BIN" "$BIN_PATH/better-anonymity"
+    # Create wrapper script (more robust than symlink for permissions/resolution)
+    # We use a wrapper that execs the absolute path to avoid symlink resolution issues
+    local WRAPPER_CONTENT="#!/bin/bash
+exec \"$SOURCE_BIN\" \"\$@\""
+
+    # Check if correct wrapper is already installed
+    if [ -f "$BIN_PATH/better-anonymity" ] && grep -qF "$SOURCE_BIN" "$BIN_PATH/better-anonymity"; then
+        success "better-anonymity is already installed (wrapper points to $SOURCE_BIN)."
+        return 0
+    fi
+
+    # Install main wrapper
+    info "Installing wrapper script to $BIN_PATH/better-anonymity..."
+    # Write to temp file first
+    local tmp_wrapper
+    tmp_wrapper=$(mktemp /tmp/b-a-wrapper.XXXXXX)
+    echo "$WRAPPER_CONTENT" > "$tmp_wrapper"
+    chmod +x "$tmp_wrapper"
     
-    # Create aliases
-    execute_sudo "Link better-anon" ln -sf "$SOURCE_BIN" "$BIN_PATH/better-anon"
-    execute_sudo "Link b-a" ln -sf "$SOURCE_BIN" "$BIN_PATH/b-a"
+    # Move to destination (sudo)
+    execute_sudo "Install Wrapper" mv "$tmp_wrapper" "$BIN_PATH/better-anonymity"
+    execute_sudo "Set Permissions" chmod 755 "$BIN_PATH/better-anonymity"
+
+    # Create aliases (symlinks to the wrapper are fine, as the wrapper knows the path)
+    execute_sudo "Link better-anon" ln -sf "$BIN_PATH/better-anonymity" "$BIN_PATH/better-anon"
+    execute_sudo "Link b-a" ln -sf "$BIN_PATH/better-anonymity" "$BIN_PATH/b-a"
     
     if command -v better-anonymity &>/dev/null; then
         success "CLI installed successfully!"
