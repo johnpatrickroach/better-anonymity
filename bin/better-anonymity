@@ -152,7 +152,7 @@ case "$COMMAND" in
             case "$TOOL" in
                 tor) 
                     load_module "tor_manager"
-                    install_tor 
+                    tor_install 
                     ;;
                 privoxy) 
                     load_module "installers"

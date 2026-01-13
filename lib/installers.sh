@@ -13,16 +13,30 @@ install_privoxy() {
     local CONF_DIR="$BREW_PREFIX/etc/privoxy"
     # Use ROOT_DIR resolved from main script
     local CONFIG_SRC="$ROOT_DIR/config/privoxy"
+    local RESTART_NEEDED="false"
     
     # Copy main config
     if [ -f "$CONFIG_SRC/config" ]; then
-        if [ -f "$CONF_DIR/config" ]; then cp "$CONF_DIR/config" "$CONF_DIR/config.bak"; fi
-        cp "$CONFIG_SRC/config" "$CONF_DIR/config"
+        # Check if config differs (ignore empty lines/comments for robustness, or just direct cmp)
+        # We need to handle the ARM patch logic too. 
+        # Strategy: Generate the target config in a temp file, then compare.
+        local TEMP_CONFIG=$(mktemp /tmp/privoxy_config.XXXXXX)
+        cp "$CONFIG_SRC/config" "$TEMP_CONFIG"
         
         # Patch for ARM if needed
         if [ "$PLATFORM_ARCH" == "arm64" ]; then
-            sed -i '' "s|/usr/local|$BREW_PREFIX|g" "$CONF_DIR/config"
+            sed -i '' "s|/usr/local|$BREW_PREFIX|g" "$TEMP_CONFIG"
         fi
+        
+        if ! cmp -s "$TEMP_CONFIG" "$CONF_DIR/config"; then
+            info "Configuration changed. Updating..."
+            if [ -f "$CONF_DIR/config" ]; then cp "$CONF_DIR/config" "$CONF_DIR/config.bak"; fi
+            cp "$TEMP_CONFIG" "$CONF_DIR/config"
+            RESTART_NEEDED="true"
+        else
+            info "Configuration is up to date."
+        fi
+        rm -f "$TEMP_CONFIG"
     else
         die "Config not found: $CONFIG_SRC/config"
     fi
@@ -30,17 +44,48 @@ install_privoxy() {
     # Copy actions and filters
     for file in user.action; do
         if [ -f "$CONFIG_SRC/$file" ]; then
-            info "Copying $file..."
-            cp "$CONFIG_SRC/$file" "$CONF_DIR/$file"
+            if ! cmp -s "$CONFIG_SRC/$file" "$CONF_DIR/$file"; then
+                info "Updating $file..."
+                cp "$CONFIG_SRC/$file" "$CONF_DIR/$file"
+                RESTART_NEEDED="true"
+            fi
         fi
     done
 
-    info "Restarting Privoxy..."
-    brew services restart privoxy
+    if [ "$RESTART_NEEDED" == "true" ] || ! brew services list | grep "privoxy" | grep -q "started"; then
+        info "Restarting Privoxy..."
+        brew services restart privoxy
+    else
+        info "Privoxy is running and config is unchanged. Skipping restart."
+    fi
 
     info "Configuring System Proxy (HTTP/HTTPS)..."
-    execute_sudo "Set HTTP Proxy" networksetup -setwebproxy "Wi-Fi" 127.0.0.1 8118
-    execute_sudo "Set HTTPS Proxy" networksetup -setsecurewebproxy "Wi-Fi" 127.0.0.1 8118
+    
+    # Check current state to avoid redundant sudo
+    local DO_HTTP="false"
+    local DO_HTTPS="false"
+    
+    local HTTP_PROXY=$(networksetup -getwebproxy "Wi-Fi")
+    if ! echo "$HTTP_PROXY" | grep -q "Enabled: Yes" || ! echo "$HTTP_PROXY" | grep -q "Server: 127.0.0.1" || ! echo "$HTTP_PROXY" | grep -q "Port: 8118"; then
+        DO_HTTP="true"
+    fi
+    
+    local HTTPS_PROXY=$(networksetup -getsecurewebproxy "Wi-Fi")
+    if ! echo "$HTTPS_PROXY" | grep -q "Enabled: Yes" || ! echo "$HTTPS_PROXY" | grep -q "Server: 127.0.0.1" || ! echo "$HTTPS_PROXY" | grep -q "Port: 8118"; then
+        DO_HTTPS="true"
+    fi
+
+    if [ "$DO_HTTP" == "true" ]; then
+        execute_sudo "Set HTTP Proxy" networksetup -setwebproxy "Wi-Fi" 127.0.0.1 8118
+    else
+        info "HTTP Proxy already set correctly."
+    fi
+    
+    if [ "$DO_HTTPS" == "true" ]; then
+        execute_sudo "Set HTTPS Proxy" networksetup -setsecurewebproxy "Wi-Fi" 127.0.0.1 8118
+    else
+        info "HTTPS Proxy already set correctly."
+    fi
 }
 
 install_tor() {
