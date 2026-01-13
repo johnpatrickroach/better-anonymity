@@ -162,7 +162,7 @@ case "$COMMAND" in
                     load_module "installers"
                     install_gpg 
                     ;;
-                dnscrypt) 
+                dnscrypt|dnscrypt-proxy) 
                     load_module "installers"
                     install_dnscrypt 
                     ;;

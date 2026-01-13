@@ -52,7 +52,15 @@ install_privoxy() {
         fi
     done
 
-    if [ "$RESTART_NEEDED" == "true" ] || ! brew services list | grep "privoxy" | grep -q "started"; then
+    # Check if running
+    local is_running=false
+    if brew services list | grep "privoxy" | grep -q "started"; then
+        is_running=true
+    elif pgrep -x "privoxy" >/dev/null; then
+        is_running=true
+    fi
+
+    if [ "$RESTART_NEEDED" == "true" ] || [ "$is_running" = false ]; then
         info "Restarting Privoxy..."
         brew services restart privoxy
     else
@@ -217,18 +225,37 @@ install_dnscrypt() {
         die "Configuration file not found: $CONF_SRC"
     fi
 
-    info "Applying configuration to $CONF_DEST..."
+    # Check for config difference
+    local config_changed=false
     if [ -f "$CONF_DEST" ]; then
-        cp "$CONF_DEST" "${CONF_DEST}.bak"
+        if cmp -s "$CONF_SRC" "$CONF_DEST"; then
+            info "DNSCrypt config is up to date."
+        else
+            info "Configuration changed. Updating $CONF_DEST..."
+            cp "$CONF_DEST" "${CONF_DEST}.bak"
+            cp "$CONF_SRC" "$CONF_DEST"
+            config_changed=true
+        fi
+    else
+        info "Installing configuration to $CONF_DEST..."
+        cp "$CONF_SRC" "$CONF_DEST"
+        config_changed=true
     fi
     
-    cp "$CONF_SRC" "$CONF_DEST"
-    
-    # Check if we need to adjust anything for ARM vs Intel? 
-    # The TOML format is generic, listening on localhost. Should be fine.
-    
-    info "Restarting DNSCrypt-Proxy (requires sudo)..."
-    execute_sudo "Restart dnscrypt-proxy" brew services restart dnscrypt-proxy
+    # Check if running
+    local is_running=false
+    if brew services list | grep "dnscrypt-proxy" | grep -q "started"; then
+        is_running=true
+    elif pgrep -x "dnscrypt-proxy" >/dev/null; then
+        is_running=true
+    fi
+
+    if [ "$config_changed" = true ] || [ "$is_running" = false ]; then
+        info "Restarting DNSCrypt-Proxy (requires sudo)..."
+        execute_sudo "Restart dnscrypt-proxy" brew services restart dnscrypt-proxy
+    else
+        info "DNSCrypt-Proxy is already running with latest config. Skipping restart."
+    fi
     
     info "DNSCrypt-Proxy started on port 5355."
     info "Verify with: sudo lsof +c 15 -Pni UDP:5355"
@@ -343,15 +370,35 @@ install_unbound() {
     if [ ! -f "$CONF_SRC" ]; then
         die "Configuration file not found: $CONF_SRC"
     fi
-     
-    # We must copy with permissions, so probably sudo is needed if /etc/unbound is root owned (it usually is)
-    execute_sudo "Copy Config" cp "$CONF_SRC" "$CONF_DEST"
 
-    # Patch configuration for ARM Macs (replace /usr/local with /opt/homebrew if needed)
+    # Prepare temp config for comparison (handling ARM patch)
+    local TEMP_CONF=$(mktemp /tmp/unbound_conf.XXXXXX)
+    cp "$CONF_SRC" "$TEMP_CONF"
+    
+    # Patch configuration for ARM Macs in temp file
     if [[ "$BREW_PREFIX" != "/usr/local" ]]; then
-        info "Patching Unbound config for ARM/Alternative Homebrew path..."
-        execute_sudo "Patch Config" sed -i '' "s|/usr/local|$BREW_PREFIX|g" "$CONF_DEST"
+        sed -i '' "s|/usr/local|$BREW_PREFIX|g" "$TEMP_CONF"
     fi
+    
+    local config_changed=false
+    
+    # Check vs Destination
+    # Use sudo cmp because destination might be root-owned
+    if [ -f "$CONF_DEST" ]; then
+        if sudo cmp -s "$TEMP_CONF" "$CONF_DEST"; then
+            info "Unbound configuration is up to date."
+        else
+            info "Configuration changed. Updating $CONF_DEST..."
+            execute_sudo "Backup Config" cp "$CONF_DEST" "${CONF_DEST}.bak"
+            execute_sudo "Update Config" cp "$TEMP_CONF" "$CONF_DEST"
+            config_changed=true
+        fi
+    else
+        info "Installing configuration to $CONF_DEST..."
+        execute_sudo "Install Config" cp "$TEMP_CONF" "$CONF_DEST"
+        config_changed=true
+    fi
+    rm -f "$TEMP_CONF"
 
     info "Verifying configuration..."
     if ! execute_sudo "Check Config" unbound-checkconf "$CONF_DEST"; then
@@ -362,8 +409,21 @@ install_unbound() {
     execute_sudo "Chown Unbound" chown -R _unbound:staff "$BREW_PREFIX/etc/unbound"
     execute_sudo "Chmod Unbound" chmod 640 "$BREW_PREFIX/etc/unbound"/*
 
+    # Check if running
+    local is_running=false
+    if brew services list | grep "unbound" | grep -q "started"; then
+        is_running=true
+    elif pgrep -x "unbound" >/dev/null; then
+        is_running=true
+    fi
+
     info "Directing Unbound (Brew) to start on boot..."
-    execute_sudo "Start Service" brew services start unbound
+    if [ "$config_changed" = true ] || [ "$is_running" = false ]; then
+        info "Restarting Unbound (requires sudo)..."
+        execute_sudo "Start Unbound" brew services restart unbound
+    else
+        info "Unbound is already running with latest config. Skipping restart."
+    fi
 
     info "Unbound installed and configured."
     info "Test DNSSEC with: dig org. SOA +dnssec @127.0.0.1 | grep -E 'NOERROR|ad'"
