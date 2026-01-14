@@ -2164,7 +2164,7 @@ assert_contains "$OUTPUT" "BREW: services stop dnscrypt-proxy" "Should stop dnsc
 assert_contains "$OUTPUT" "BREW: services stop unbound" "Should stop unbound"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setwebproxystate Wi-Fi off" "Should disable HTTP proxy"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setsecurewebproxystate Wi-Fi off" "Should disable HTTPS proxy"
-assert_contains "$OUTPUT" "NET_DNS: cloudflare" "Should set Cloudflare DNS"
+assert_contains "$OUTPUT" "NET_DNS: default" "Should reset to Default DNS"
 
 # Test Anonymize
 OUTPUT=$(network_enable_anonymity)

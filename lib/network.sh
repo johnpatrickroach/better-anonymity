@@ -24,6 +24,10 @@ network_set_dns() {
             dns_servers="1.1.1.1 1.0.0.1"
             info "Setting DNS to Cloudflare..."
             ;;
+        "default"|"dhcp"|"empty"|"system")
+            dns_servers="Empty"
+            info "Resetting DNS to System Default (DHCP)..."
+            ;;
         *)
             error "Unknown provider: $provider"
             return 1
@@ -55,6 +59,30 @@ network_set_dns() {
     execute_sudo "Flush DNS cache" dscacheutil -flushcache
     execute_sudo "Kill mDNSResponder" killall -HUP mDNSResponder
     info "DNS updated and cache flushed."
+}
+
+# Helper to manage services quietly and without sudo if possible
+manage_service() {
+    local action="$1"
+    local service="$2"
+    
+    local action_pretty="$(tr '[:lower:]' '[:upper:]' <<< ${action:0:1})${action:1}"
+    info "$action_pretty $service"
+    
+    local output
+    output=$(brew services "$action" "$service" 2>&1)
+    local exit_code=$?
+    
+    if [[ "$output" == *"not started"* ]]; then
+        info "Service $service is not started (skipping)."
+    elif [[ "$output" == *"already started"* ]]; then
+        info "Service $service is already started."
+    elif [[ "$exit_code" -ne 0 ]]; then
+        warn "Output from brew services:"
+        echo "$output"
+    else
+        echo "$output"
+    fi
 }
 
 
@@ -235,18 +263,18 @@ network_restore_default() {
     
     # 1. Stop Anonymity Services
     info "Stopping privacy services..."
-    execute_sudo "Stop Privoxy" brew services stop privoxy || true
-    execute_sudo "Stop DNSCrypt-Proxy" brew services stop dnscrypt-proxy || true
-    execute_sudo "Stop Unbound" brew services stop unbound || true
+    manage_service "stop" "privoxy"
+    manage_service "stop" "dnscrypt-proxy"
+    manage_service "stop" "unbound"
 
     # 2. Disable Proxies on Wi-Fi
     info "Disabling Proxies on Wi-Fi..."
     execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate Wi-Fi off
     execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate Wi-Fi off
     
-    # 3. Restore DNS to Reliable Default (Cloudflare)
-    info "Setting DNS to Cloudflare (1.1.1.1)..."
-    network_set_dns "cloudflare"
+    # 3. Restore DNS to System Default (DHCP)
+    info "Resetting DNS to System Default (DHCP)..."
+    network_set_dns "default"
     
     success "Network restored to default settings."
 }
@@ -257,9 +285,9 @@ network_enable_anonymity() {
     
     # 1. Start Services
     info "Starting privacy services..."
-    execute_sudo "Start DNSCrypt-Proxy" brew services start dnscrypt-proxy || true
-    execute_sudo "Start Unbound" brew services start unbound || true
-    execute_sudo "Start Privoxy" brew services start privoxy || true
+    manage_service "start" "dnscrypt-proxy"
+    manage_service "start" "unbound"
+    manage_service "start" "privoxy"
     
     # 2. Set DNS to Localhost (DNSCrypt/Unbound)
     info "Setting DNS to Localhost..."
