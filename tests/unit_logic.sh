@@ -5,9 +5,11 @@
 
 source "$(dirname "$0")/test_framework.sh"
 
+
 # Resolve Project Root properly for tests running outside of root
 TEST_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export ROOT_DIR="$(dirname "$TEST_SCRIPT_DIR")"
+echo "DEBUG_ROOT_DIR: $ROOT_DIR"
 
 # Mock Constants
 SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
@@ -115,10 +117,9 @@ assert_contains "$OUTPUT" "SET_DNS: -setdnsserversWi-Fi127.0.0.1" "Should set Lo
 BREW_PREFIX="/tmp/mock_brew"
 mkdir -p "$BREW_PREFIX/etc/privoxy"
 # Create dummy source config/actions so cp works
-ROOT_DIR="."
-export ROOT_DIR
-mkdir -p config/privoxy
-touch config/privoxy/config config/privoxy/user.action
+# Use ROOT_DIR from env
+mkdir -p "$ROOT_DIR/config/privoxy"
+touch "$ROOT_DIR/config/privoxy/config" "$ROOT_DIR/config/privoxy/user.action"
 
 # Mock cmp to force update (simulating missing destination)
 cmp() { return 1; }
@@ -407,6 +408,8 @@ touch "$TEST_PROJECT_DIR/config/dnscrypt-proxy/dnscrypt-proxy.toml"
 # Switch to test project dir to make $(pwd) return the test path
 # This mocks the user running the script from their project root
 cd "$TEST_PROJECT_DIR" || exit 1
+# Save original ROOT_DIR
+OLD_ROOT_DIR="$ROOT_DIR"
 ROOT_DIR="$TEST_PROJECT_DIR"
 export ROOT_DIR
 
@@ -434,6 +437,8 @@ fi
 # Cleanup
 # Return to original dir before deleting test root
 cd - > /dev/null || exit 1
+# Restore ROOT_DIR
+export ROOT_DIR="$OLD_ROOT_DIR"
 rm -rf "$TEST_ROOT"
 # Restore trap
 trap - EXIT
@@ -982,9 +987,13 @@ command() {
     if [ "$1" == "-v" ] && [ "$2" == "gpg" ]; then return 1; fi
     builtin command "$@"
 }
-# Ensure config exists
+
+# Mock ROOT_DIR to protect real config files
+OLD_ROOT_DIR_17="$ROOT_DIR"
+ROOT_DIR="$(mktemp -d)"
 mkdir -p "$ROOT_DIR/config/gpg"
 touch "$ROOT_DIR/config/gpg/gpg.conf"
+export ROOT_DIR
 
 OUTPUT=$(setup_gpg_mocked)
 
@@ -1007,8 +1016,9 @@ assert_contains "$OUTPUT_2" "Backup created" "Should create backup"
 
 # Cleanup
 rm -rf "$TEST_HOME"
-mkdir -p "$ROOT_DIR/config/gpg"
-rm -f "$ROOT_DIR/config/gpg/gpg.conf"
+rm -rf "$ROOT_DIR"
+export ROOT_DIR="$OLD_ROOT_DIR_17"
+
 if declare -f command > /dev/null; then unset -f command; fi
 
 
@@ -1214,7 +1224,7 @@ systemsetup() { echo "Remote Login: On"; }
 ssh-keygen() { echo "SSH_KEYGEN_CALL: $*"; }
 
 # Mock variables for module
-ROOT_DIR="."
+# Logic uses ROOT_DIR from environment
 # mkdir -p "./config/ssh"
 # touch "./config/ssh/ssh_config"
 # touch "./config/ssh/sshd_config"
@@ -1236,7 +1246,7 @@ sshd() { echo "SSHD_TEST: $*"; }
 
 OUTPUT=$(ssh_harden_sshd 2>&1)
 assert_contains "$OUTPUT" "overwrite /etc/ssh/sshd_config" "Should warn"
-assert_contains "$OUTPUT" "CHECK_CALL: ./config/ssh/sshd_config /etc/ssh/sshd_config sudo" "Should check config"
+assert_contains "$OUTPUT" "CHECK_CALL: $ROOT_DIR/config/ssh/sshd_config /etc/ssh/sshd_config sudo" "Should check config"
 assert_contains "$OUTPUT" "SSHD_TEST: -t" "Should test config"
 
 # Test Hash Hosts
@@ -1306,6 +1316,11 @@ assert_contains "$OUTPUT" "DEFAULTS_CALL: write com.apple.finder AppleShowAllFil
 assert_contains "$OUTPUT" "CHFLAGS_CALL: nohidden" "Should unhide Library"
 
 
+
+
+# Create mock config files needed for hardening tests
+mkdir -p "$ROOT_DIR/config/ssh"
+touch "$ROOT_DIR/config/ssh/sshd_config" "$ROOT_DIR/config/ssh/ssh_config"
 
 
 start_suite "Tor Manager"
@@ -1488,7 +1503,6 @@ assert_contains "$OUTPUT" "CALL: tor_status" "Should check tor"
 assert_contains "$OUTPUT" "LOAD_MODULE: network" "Should load network module"
 assert_contains "$OUTPUT" "LOAD_MODULE: macos_hardening" "Should load macos_hardening module"
 assert_contains "$OUTPUT" "LOAD_MODULE: tor_manager" "Should load tor_manager module"
-
 # Test 29: Update
 # ---------------
 # Undo 'command' mock from previous test, so mkdir works
@@ -1504,6 +1518,8 @@ cd() { echo "CD_CALL: $1"; return 0; }
 # Mock ROOT_DIR and .git dir
 TEST_GIT_ROOT=$(mktemp -d)
 mkdir "$TEST_GIT_ROOT/.git"
+# Save global ROOT_DIR
+OLD_ROOT_DIR="$ROOT_DIR"
 ROOT_DIR="$TEST_GIT_ROOT"
 export ROOT_DIR
 
@@ -1519,9 +1535,14 @@ rm -rf "$TEST_GIT_ROOT/.git"
 rm -rf "$TEST_GIT_ROOT"
 
 # Test non-git repo
+OLD_ROOT_DIR_2="$ROOT_DIR"
 ROOT_DIR="/tmp/not_a_repo"
 OUTPUT=$(lifecycle_update)
 assert_contains "$OUTPUT" "Not a git repository" "Should fail if not git"
+export ROOT_DIR="$OLD_ROOT_DIR_2"
+
+# Restore global ROOT_DIR
+export ROOT_DIR="$OLD_ROOT_DIR"
 
 
 
@@ -1727,6 +1748,8 @@ MOCK_ALREADY_INSTALLED="true"
 
 
 
+
+
 # Test 34: Installer Idempotency (Privoxy & GPG)
 # -----------------------------------------------
 start_suite "Installer Idempotency"
@@ -1737,6 +1760,8 @@ source "$(dirname "$0")/../lib/installers.sh"
 
 # Mock environment
 BREW_PREFIX="/tmp/mock_brew_idempotency"
+# Save global ROOT_DIR
+OLD_ROOT_DIR="$ROOT_DIR"
 ROOT_DIR="/tmp/mock_root"
 mkdir -p "$BREW_PREFIX/etc/privoxy"
 mkdir -p "$BREW_PREFIX/bin" # For gpg pinentry path check
@@ -1932,6 +1957,15 @@ assert_contains "$OUTPUT" "Unbound is already running with latest config. Skippi
 assert_contains "$OUTPUT" "Root key already exists" "Should skip root key fetch"
 assert_contains "$OUTPUT" "Control certificates already exist" "Should skip control generation"
 if [[ "$OUTPUT" == *"EXEC: unbound-control-setup"* ]]; then fail "Should NOT generate certs"; else pass "Correctly skipped cert generation"; fi
+
+# Cleanup Safety Check
+if [[ "$ROOT_DIR" != *"/tmp/"* ]] && [[ "$ROOT_DIR" == *"better-anonymity"* ]]; then
+    echo "SAFETY GUARD: ROOT_DIR ($ROOT_DIR) appears to be project root! Skipping deletion."
+else
+    rm -rf "$BREW_PREFIX" "$ROOT_DIR" "$HOME"
+fi
+# Restore global ROOT_DIR
+export ROOT_DIR="$OLD_ROOT_DIR"
 if [[ "$OUTPUT" == *"EXEC: unbound-anchor"* ]]; then fail "Should NOT fetch root key"; else pass "Correctly skipped root key fetch"; fi
 if [[ "$OUTPUT" == *"BREW_RESTART"* ]]; then fail "Should NOT restart unbound"; else pass "Correctly skipped unbound restart"; fi
 
@@ -1945,8 +1979,7 @@ echo "----------------------------------------"
 # Ensure unrelated installers are silenced/mocked to prevent side effects
 install_unbound() { return 0; }
 export -f install_unbound
-ROOT_DIR="."
-export ROOT_DIR
+# Logic uses ROOT_DIR from environment
 
 
 # Use a temp directory for the mocked app
@@ -1981,7 +2014,7 @@ MOCK_CONFIG_RESTORE="1"
 MOCK_CONFIG_LAUNCH="1"
 mkdir -p "$PINGBAR_APP_PATH"
 
-OUTPUT=$(ROOT_DIR="." install_pingbar 2>&1)
+OUTPUT=$(install_pingbar 2>&1)
 assert_contains "$OUTPUT" "PingBar is already installed" "Should detect installed"
 assert_contains "$OUTPUT" "PingBar configuration is up to date" "Should detect config match"
 assert_contains "$OUTPUT" "PingBar is already running" "Should detect running"
@@ -1995,7 +2028,7 @@ MOCK_CONFIG_RESTORE="0"
 MOCK_CONFIG_LAUNCH="0"
 mkdir -p "$PINGBAR_APP_PATH"
 
-OUTPUT=$(ROOT_DIR="." install_pingbar 2>&1)
+OUTPUT=$(install_pingbar 2>&1)
 assert_contains "$OUTPUT" "PingBar is already installed" "Should detect installed (S2)"
 assert_contains "$OUTPUT" "PingBar configuration updated" "Should update config"
 assert_contains "$OUTPUT" "Starting PingBar..." "Should start"
@@ -2012,7 +2045,7 @@ MOCK_IS_RUNNING="false"
 MOCK_CONFIG_RESTORE="" 
 MOCK_CONFIG_LAUNCH=""
 
-OUTPUT=$(ROOT_DIR="." install_pingbar 2>&1)
+OUTPUT=$(install_pingbar 2>&1)
 assert_contains "$OUTPUT" "Cloning PingBar" "Should clone"
 assert_contains "$OUTPUT" "Building PingBar" "Should build"
 assert_contains "$OUTPUT" "Installing PingBar" "Should install"
