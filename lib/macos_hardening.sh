@@ -520,6 +520,18 @@ hardening_verify() {
         fi
     fi
 
+    # 7. Hostname Anonymity
+    info "Checking Hostname Anonymity..."
+    local computer_name
+    computer_name=$(scutil --get ComputerName)
+    if [[ "$computer_name" == "Mac" ]] || [[ "$computer_name" == "MacBook" ]]; then
+        info "[PASS] Hostname appears anonymized ($computer_name)."
+    else
+        warn "[FAIL] Hostname reveals potential identity: $computer_name"
+        all_good=false
+    fi
+
+
     if [ "$all_good" = true ]; then
         info "Security Verification Completed: ALL CHECKS PASSED."
     else
