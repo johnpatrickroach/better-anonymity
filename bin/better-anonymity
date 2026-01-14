@@ -101,6 +101,7 @@ usage() {
     echo "CLI Management:"
     echo "  install           Install global CLI aliases"
     echo "  uninstall         Remove global CLI aliases"
+    echo "  test              Run unit tests"
     echo "  --version         Show version information"
     echo ""
 }
@@ -316,6 +317,10 @@ case "$COMMAND" in
     network-anon)
         load_module "network"
         network_enable_anonymity
+        ;;
+    test)
+        echo "Running Unit Tests..."
+        "$ROOT_DIR/tests/unit_logic.sh"
         ;;
     setup)
         load_module "lifecycle"

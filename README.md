@@ -119,6 +119,7 @@ Keep your installation current:
 ```bash
 b-a check-update    # Check if updates are available
 b-a update          # Pull latest changes (git)
+b-a test            # Run unit tests
 ```
 
 ### Uninstallation
