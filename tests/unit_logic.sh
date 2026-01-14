@@ -9,7 +9,6 @@ source "$(dirname "$0")/test_framework.sh"
 # Resolve Project Root properly for tests running outside of root
 TEST_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export ROOT_DIR="$(dirname "$TEST_SCRIPT_DIR")"
-echo "DEBUG_ROOT_DIR: $ROOT_DIR"
 
 # Mock Constants
 SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
@@ -604,9 +603,9 @@ touch "$CONFIG_DIR/unbound.conf"
 
 check_unbound_integrity
 if [ $? -eq 1 ]; then
-    success "Detected missing binary"
+    pass "Detected missing binary"
 else
-    die "Failed to detect missing binary"
+    fail "Failed to detect missing binary"
 fi
 
 # Scenario 2: Missing User
@@ -615,9 +614,9 @@ MOCK_UNBOUND_USER="false"
 MOCK_UNBOUND_GROUP="true"
 check_unbound_integrity
 if [ $? -eq 1 ]; then
-    success "Detected missing user"
+    pass "Detected missing user"
 else
-    die "Failed to detect missing user"
+    fail "Failed to detect missing user"
 fi
 
 # Scenario 3: Missing Group
@@ -625,9 +624,9 @@ MOCK_UNBOUND_USER="true"
 MOCK_UNBOUND_GROUP="false"
 check_unbound_integrity
 if [ $? -eq 1 ]; then
-    success "Detected missing group"
+    pass "Detected missing group"
 else
-    die "Failed to detect missing group"
+    fail "Failed to detect missing group"
 fi
 
 # Scenario 4: Missing Config
@@ -635,18 +634,18 @@ MOCK_UNBOUND_GROUP="true"
 rm "$CONFIG_DIR/unbound.conf"
 check_unbound_integrity
 if [ $? -eq 1 ]; then
-    success "Detected missing config"
+    pass "Detected missing config"
 else
-    die "Failed to detect missing config"
+    fail "Failed to detect missing config"
 fi
 
 # Scenario 5: All Good
 touch "$CONFIG_DIR/unbound.conf"
 check_unbound_integrity
 if [ $? -eq 0 ]; then
-    success "Integrity check passed (All components present)"
+    pass "Integrity check passed (All components present)"
 else
-    die "Integrity check failed when it should pass"
+    fail "Integrity check failed when it should pass"
 fi
 
 # Cleanup
@@ -1047,9 +1046,11 @@ assert_contains "$OUTPUT" "Refer to docs/MESSENGERS.md" "Should show docs link"
 # Mock destructive commands to prevent actual deletion during test
 defaults() { echo "DEFAULTS_CALL: $*"; return 0; }
 rm() { 
-    echo "RM_CALL: $*"
+    if [[ "$*" != *"/tmp/"* ]] && [[ "$*" != *"/var/folders/"* ]]; then
+        echo "RM_CALL: $*"
+    fi
     # execute if safe path
-    if [[ "$*" == *"/tmp/"* ]]; then
+    if [[ "$*" == *"/tmp/"* ]] || [[ "$*" == *"/var/folders/"* ]]; then
         command rm "$@"
     fi
     return 0
@@ -1412,6 +1413,31 @@ defaults() { echo "0"; }
 fdesetup() { echo "FileVault is On"; }
 csrutil() { echo "enabled"; }
 spctl() { echo "assessments enabled"; }
+
+# Mock sudo keepalive to prevent background hang
+start_sudo_keepalive() { echo "CALL: start_sudo_keepalive"; }
+
+# Mock Checks
+check_installed() { return 0; }
+check_unbound_integrity() { return 0; }
+
+# Mock Modules
+load_module() { echo "LOAD_MODULE: $1"; }
+
+# Mock Installers
+install_firefox() { echo "CALL: install_firefox"; }
+harden_firefox() { echo "CALL: harden_firefox"; }
+install_keepassxc() { echo "CALL: install_keepassxc"; }
+install_privoxy() { echo "CALL: install_privoxy"; }
+i2p_install() { echo "CALL: i2p_install"; }
+
+# Mock Missing Hardening Functions
+hardening_secure_sudoers() { echo "CALL: hardening_secure_sudoers"; }
+hardening_set_umask() { echo "CALL: hardening_set_umask"; }
+hardening_disable_bonjour() { echo "CALL: hardening_disable_bonjour"; }
+hardening_disable_analytics() { echo "CALL: hardening_disable_analytics"; }
+hardening_ensure_filevault() { echo "CALL: hardening_ensure_filevault"; }
+hardening_ensure_lockdown() { echo "CALL: hardening_ensure_lockdown"; }
 
 # Mock key underlying functions we expect to be called
 hardening_enable_firewall() { echo "CALL: hardening_enable_firewall"; }
@@ -1930,7 +1956,12 @@ MOCK_SERVICE_RUNNING="true"
 if declare -f rm > /dev/null; then unset -f rm; fi
 rm -rf "$BREW_PREFIX/etc/unbound"
 # Restore mock
-rm() { echo "RM_CALL: $*"; return 0; }
+rm() { 
+    if [[ "$*" != *"/tmp/"* ]] && [[ "$*" != *"/var/folders/"* ]]; then
+        echo "RM_CALL: $*"
+    fi
+    return 0; 
+}
 
 mkdir -p "$BREW_PREFIX/etc/unbound"
 touch "$BREW_PREFIX/etc/unbound/unbound.conf"
@@ -2038,7 +2069,13 @@ assert_contains "$OUTPUT" "EXEC: open $PINGBAR_APP_PATH" "Should open app"
 # Scenario 3: Fresh Install (Not Installed)
 if declare -f rm > /dev/null; then unset -f rm; fi
 rm -rf "$PINGBAR_APP_PATH"
-rm() { echo "RM_CALL: $*"; if [[ "$*" == *"/tmp/"* ]]; then command rm "$@"; fi; return 0; }
+rm() { 
+    if [[ "$*" != *"/tmp/"* ]] && [[ "$*" != *"/var/folders/"* ]]; then
+        echo "RM_CALL: $*"
+    fi
+    if [[ "$*" == *"/tmp/"* ]]; then command rm "$@"; fi
+    return 0; 
+}
 
 MOCK_IS_RUNNING="false"
 # Defaults READ usually fails or returns empty if app never run.

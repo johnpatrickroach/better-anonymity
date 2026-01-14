@@ -518,7 +518,7 @@ install_firefox() {
     
     local download_url="https://download.mozilla.org/?product=firefox-latest-ssl&os=osx&lang=en-US"
     local dmg_path
-    dmg_path=$(mktemp /tmp/firefox-installer.XXXXXX.dmg)
+    dmg_path=$(mktemp /tmp/firefox-installer.XXXXXX)
     
     info "Downloading Firefox (dmg)..."
     if ! curl -L -o "$dmg_path" "$download_url"; then
