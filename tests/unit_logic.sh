@@ -5,6 +5,10 @@
 
 source "$(dirname "$0")/test_framework.sh"
 
+# Mock Constants
+SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
+
+
 # Mock core info/error
 info() { echo "[INFO] $*"; }
 warn() { echo "[WARN] $*"; }
@@ -1934,6 +1938,11 @@ if [[ "$OUTPUT" == *"BREW_RESTART"* ]]; then fail "Should NOT restart unbound"; 
 echo "Running Test Suite: PingBar Idempotency"
 echo "----------------------------------------"
 
+# Ensure unrelated installers are silenced/mocked to prevent side effects
+install_unbound() { return 0; }
+ROOT_DIR="."
+
+
 # Use a temp directory for the mocked app
 PINGBAR_APP_PATH="/tmp/mock_pingbar_${RANDOM}.app"
 export PINGBAR_APP_PATH
@@ -2132,3 +2141,5 @@ HOME="$ORIG_HOME"
 export HOME
 
 end_suite
+
+# Test 38: Firewall Logic (Constant Verification)

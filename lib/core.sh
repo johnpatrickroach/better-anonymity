@@ -10,6 +10,9 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# System Constants
+SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
+
 # Logging
 # Logging
 _LOADED_MODULES=""

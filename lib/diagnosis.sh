@@ -17,7 +17,6 @@ check_dir_exists() {
     [ -d "$1" ]
 }
 
-SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
 
 diagnosis_run() {
     header "System Diagnosis & Scoring"

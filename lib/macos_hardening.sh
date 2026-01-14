@@ -10,7 +10,6 @@ hardening_update_system() {
 }
 
 
-SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
 
 hardening_enable_firewall() {
     info "Enabling Firewall..."
