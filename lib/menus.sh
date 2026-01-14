@@ -82,6 +82,8 @@ menu_network() {
     echo "2. Verify DNS Configuration"
     echo "3. Wi-Fi Security Tools (Audit, Spoof MAC)"
     echo "4. Update Hosts Blocklist"
+    echo "5. Restore Network Defaults (Disable Proxies)"
+    echo "6. Enable Anonymity Mode (All Services)"
     echo "b. Back"
     echo
     echo -n "Select an option: "
@@ -121,6 +123,14 @@ menu_network() {
         4)
             load_module "network"
             network_update_hosts
+            ;;
+        5)
+            load_module "network"
+            network_restore_default
+            ;;
+        6)
+            load_module "network"
+            network_enable_anonymity
             ;;
         b|back) return ;;
         *) error "Invalid option" ;;

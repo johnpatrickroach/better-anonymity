@@ -1940,7 +1940,9 @@ echo "----------------------------------------"
 
 # Ensure unrelated installers are silenced/mocked to prevent side effects
 install_unbound() { return 0; }
+export -f install_unbound
 ROOT_DIR="."
+export ROOT_DIR
 
 
 # Use a temp directory for the mocked app
@@ -1975,7 +1977,7 @@ MOCK_CONFIG_RESTORE="1"
 MOCK_CONFIG_LAUNCH="1"
 mkdir -p "$PINGBAR_APP_PATH"
 
-OUTPUT=$(install_pingbar 2>&1)
+OUTPUT=$(ROOT_DIR="." install_pingbar 2>&1)
 assert_contains "$OUTPUT" "PingBar is already installed" "Should detect installed"
 assert_contains "$OUTPUT" "PingBar configuration is up to date" "Should detect config match"
 assert_contains "$OUTPUT" "PingBar is already running" "Should detect running"
@@ -1989,7 +1991,7 @@ MOCK_CONFIG_RESTORE="0"
 MOCK_CONFIG_LAUNCH="0"
 mkdir -p "$PINGBAR_APP_PATH"
 
-OUTPUT=$(install_pingbar 2>&1)
+OUTPUT=$(ROOT_DIR="." install_pingbar 2>&1)
 assert_contains "$OUTPUT" "PingBar is already installed" "Should detect installed (S2)"
 assert_contains "$OUTPUT" "PingBar configuration updated" "Should update config"
 assert_contains "$OUTPUT" "Starting PingBar..." "Should start"
@@ -2006,7 +2008,7 @@ MOCK_IS_RUNNING="false"
 MOCK_CONFIG_RESTORE="" 
 MOCK_CONFIG_LAUNCH=""
 
-OUTPUT=$(install_pingbar 2>&1)
+OUTPUT=$(ROOT_DIR="." install_pingbar 2>&1)
 assert_contains "$OUTPUT" "Cloning PingBar" "Should clone"
 assert_contains "$OUTPUT" "Building PingBar" "Should build"
 assert_contains "$OUTPUT" "Installing PingBar" "Should install"
@@ -2140,6 +2142,38 @@ rm -rf "$TEST_HOME"
 HOME="$ORIG_HOME"
 export HOME
 
-end_suite
 
-# Test 38: Firewall Logic (Constant Verification)
+# Test 15: Network Restore & Anonymize
+# ------------------------------------
+start_suite "Network Restore & Anonymize"
+
+# Mock networksetup for toggle tests
+networksetup() {
+    echo "NETWORKSETUP: $*"
+}
+# Mock brew services
+brew() {
+    echo "BREW: $*"
+}
+
+# Test Restore
+OUTPUT=$(network_restore_default)
+assert_contains "$OUTPUT" "Restoring Network Defaults" "Should announce restore"
+assert_contains "$OUTPUT" "BREW: services stop privoxy" "Should stop privoxy"
+assert_contains "$OUTPUT" "BREW: services stop dnscrypt-proxy" "Should stop dnscrypt-proxy"
+assert_contains "$OUTPUT" "BREW: services stop unbound" "Should stop unbound"
+assert_contains "$OUTPUT" "NETWORKSETUP: -setwebproxystate Wi-Fi off" "Should disable HTTP proxy"
+assert_contains "$OUTPUT" "NETWORKSETUP: -setsecurewebproxystate Wi-Fi off" "Should disable HTTPS proxy"
+assert_contains "$OUTPUT" "NET_DNS: cloudflare" "Should set Cloudflare DNS"
+
+# Test Anonymize
+OUTPUT=$(network_enable_anonymity)
+assert_contains "$OUTPUT" "Enabling Anonymity Mode" "Should announce enable"
+assert_contains "$OUTPUT" "BREW: services start privoxy" "Should start privoxy"
+assert_contains "$OUTPUT" "BREW: services start dnscrypt-proxy" "Should start dnscrypt-proxy"
+assert_contains "$OUTPUT" "BREW: services start unbound" "Should start unbound"
+assert_contains "$OUTPUT" "NETWORKSETUP: -setwebproxy Wi-Fi 127.0.0.1 8118" "Should enable HTTP proxy"
+assert_contains "$OUTPUT" "NETWORKSETUP: -setsecurewebproxy Wi-Fi 127.0.0.1 8118" "Should enable HTTPS proxy"
+assert_contains "$OUTPUT" "NET_DNS: localhost" "Should set Localhost DNS"
+
+end_suite

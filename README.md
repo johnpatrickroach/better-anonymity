@@ -108,6 +108,8 @@ You can use the interactive menu or individual commands. CLI aliases `better-ano
   b-a install tor
   b-a install signal
   b-a dns quad9
+  b-a network-open  # Restore network defaults
+  b-a network-anon  # Enable all anonymity services
   ```
 
 ### Updates

@@ -228,3 +228,47 @@ network_verify_dns() {
         echo "$digging_fail" | grep "status:"
     fi
 }
+
+# Unset Proxies and Restore Defaults
+network_restore_default() {
+    header "Restoring Network Defaults"
+    
+    # 1. Stop Anonymity Services
+    info "Stopping privacy services..."
+    execute_sudo "Stop Privoxy" brew services stop privoxy || true
+    execute_sudo "Stop DNSCrypt-Proxy" brew services stop dnscrypt-proxy || true
+    execute_sudo "Stop Unbound" brew services stop unbound || true
+
+    # 2. Disable Proxies on Wi-Fi
+    info "Disabling Proxies on Wi-Fi..."
+    execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate Wi-Fi off
+    execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate Wi-Fi off
+    
+    # 3. Restore DNS to Reliable Default (Cloudflare)
+    info "Setting DNS to Cloudflare (1.1.1.1)..."
+    network_set_dns "cloudflare"
+    
+    success "Network restored to default settings."
+}
+
+# Enable Anonymity Services
+network_enable_anonymity() {
+    header "Enabling Anonymity Mode"
+    
+    # 1. Start Services
+    info "Starting privacy services..."
+    execute_sudo "Start DNSCrypt-Proxy" brew services start dnscrypt-proxy || true
+    execute_sudo "Start Unbound" brew services start unbound || true
+    execute_sudo "Start Privoxy" brew services start privoxy || true
+    
+    # 2. Set DNS to Localhost (DNSCrypt/Unbound)
+    info "Setting DNS to Localhost..."
+    network_set_dns "localhost"
+    
+    # 3. Enable Proxies (Privoxy)
+    info "Enabling Privoxy on Wi-Fi (127.0.0.1:8118)..."
+    execute_sudo "Set HTTP Proxy" networksetup -setwebproxy Wi-Fi 127.0.0.1 8118
+    execute_sudo "Set HTTPS Proxy" networksetup -setsecurewebproxy Wi-Fi 127.0.0.1 8118
+    
+    success "Anonymity mode enabled."
+}

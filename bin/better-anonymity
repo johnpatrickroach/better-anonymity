@@ -87,6 +87,8 @@ usage() {
     echo "  update-hosts      Update StevenBlack hosts blocklist"
     echo "  wifi [cmd]        Wi-Fi tools (audit, spoof-mac)"
     echo "  ssh [cmd]         SSH tools (audit-sshd, harden-client)"
+    echo "  network-open      Restore network defaults (disable proxy, resetting services)"
+    echo "  network-anon      Enable anonymity mode (start services, enable proxy)"
     echo ""
     echo "Tools & Services:"
     echo "  install [tool]    Install tools (tor, i2p, privoxy, gpg, signal, etc.)"
@@ -306,6 +308,14 @@ case "$COMMAND" in
     update-hosts)
         load_module "network"
         network_update_hosts
+        ;;
+    network-open)
+        load_module "network"
+        network_restore_default
+        ;;
+    network-anon)
+        load_module "network"
+        network_enable_anonymity
         ;;
     setup)
         load_module "lifecycle"
