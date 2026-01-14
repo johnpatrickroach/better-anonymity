@@ -115,10 +115,138 @@ get_version() {
 }
 
 # Handle global flags
+# Scan all arguments for --explain
+EXPLAIN_MODE=0
+for arg in "$@"; do
+    if [[ "$arg" == "--explain" ]]; then
+        EXPLAIN_MODE=1
+        break
+    fi
+done
+
 if [[ "$1" == "--version" ]] || [[ "$1" == "-v" ]]; then
     echo "better-anonymity $(get_version)"
     exit 0
 fi
+
+show_explanation() {
+    local cmd="$1"
+    local subcmd="$2"
+    
+    echo "Explanation for command: '$cmd' ${subcmd:+($subcmd)}"
+    echo "---------------------------------------------------"
+    
+    case "$cmd" in
+        menu|"" )
+            echo "Launches the interactive menu system."
+            echo "Allows navigation through all features via arrow keys."
+            ;;
+        harden)
+            echo "Runs the complete macOS hardening suite."
+            echo "Applying settings for Firewall, Privacy, Finder, and System preferences."
+            ;;
+        dns)
+            echo "Configures the system DNS servers."
+            echo "Valid providers: quad9, mullvad, cloudflare."
+            echo "This changes network settings to route DNS queries through the chosen encrypted provider."
+            ;;
+        install)
+            echo "Installs specified privacy tools/services."
+            echo "Tools: tor, privoxy, gpg, dnscrypt, unbound, etc."
+            echo "This will download binaries/recipes and configure them."
+            ;;
+        verify-dns)
+            echo "Verifies the current DNS configuration."
+            echo "Checks for DNS leaks and confirms DNSSEC validation."
+            ;;
+        verify-security)
+            echo "Verifies the system security posture."
+            echo "Audit checks for: SIP, FileVault, Firewall, Stealth Mode, etc."
+            ;;
+        cleanup|cleanup-metadata)
+            echo "Performs system and privacy cleanup to remove tracking metadata."
+            echo "Clears: QuickLook cache, browser artifacts, and logs."
+            ;;
+        network-open)
+            echo "Restores standard network connectivity."
+            echo "Disables local proxies (Privoxy/DNSCrypt) and resets DNS to system default."
+            ;;
+        network-anon)
+            echo "Enables the Anonymity Network Stack."
+            echo "Starts Tor/Privoxy/DNSCrypt and routes traffic through them."
+            ;;
+        test)
+            echo "Runs the internal Unit Test Suite."
+            echo "Verifies that all functions of the CLI are working correctly."
+            ;;
+        setup)
+            echo "Runs the First-Time Setup Wizard."
+            echo "Interactive guide to apply the security baseline."
+            ;;
+        auto)
+            echo "Runs the First-Time Setup in non-interactive (automatic) mode."
+            echo "Applies defaults for all prompts."
+            ;;
+        daily)
+            echo "Runs the Daily Health Check."
+            echo "Verifies security status, updates blocklists, and checks service health."
+            ;;
+        update)
+            echo "Updates the 'better-anonymity' codebase from git."
+            ;;
+        check-update)
+            echo "Checks if a new version is available without installing it."
+            ;;
+        uninstall)
+            echo "Removes the global CLI aliases (b-a, better-anonymity)."
+            ;;
+        diagnose)
+            echo "Runs system diagnostics to identify issues with the environment."
+            ;;
+        wifi)
+            echo "Wi-Fi Privacy Tools."
+            echo "Can audit current security or spoof the MAC address."
+            ;;
+        ssh)
+            echo "SSH Hardening Tools."
+            echo "Can audit sshd config or harden client/server configurations."
+            ;;
+        tor)
+            echo "Tor Service Management."
+            echo "Manage the background Tor service (start/stop) or toggle system-wide proxying."
+            ;;
+        i2p)
+            echo "I2P Service Management."
+            echo "Manage the generic Invisible Internet Project router (start/stop/console)."
+            ;;
+        vault)
+            echo "Secure Password Vault."
+            ;;
+        backup)
+            echo "Encrypted Backup Tools."
+            ;;
+        misc-harden)
+            echo "Runs miscellaneous hardening checks."
+            echo "Tweaks Finder, sudoers, umask, and removes Guest account."
+            ;;
+        generate-password)
+            echo "Generates a cryptographically secure passphrase."
+            echo "Checks strength against dictionary attacks."
+            ;;
+        update-hosts)
+            echo "Updates the StevenBlack hosts file."
+            echo "Used for system-wide ad and tracker blocking."
+            ;;
+        help|--help|-h)
+            echo "Displays the help menu and usage information."
+            ;;
+        *)
+            echo "Command: $cmd"
+            echo "Run 'better-anonymity help' for usage details."
+            ;;
+    esac
+    exit 0
+}
 
 # Main Command Dispatch
 COMMAND="$1"
@@ -128,6 +256,11 @@ if [[ -n "$COMMAND" ]]; then
     COMMAND=$(echo "$COMMAND" | tr -d '\240' | xargs)
 fi
 shift
+
+# Handle Explain Mode
+if [ "$EXPLAIN_MODE" -eq 1 ]; then
+    show_explanation "$COMMAND" "$1"
+fi
 
 case "$COMMAND" in
     menu|"" )

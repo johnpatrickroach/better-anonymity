@@ -97,6 +97,13 @@ You can use the interactive menu or individual commands. CLI aliases `better-ano
   b-a --version
   ```
 
+- **Explaining Commands**:
+  Use the `--explain` flag with any command to see what it does without running it.
+  ```bash
+  b-a setup --explain
+  b-a network-anon --explain
+  ```
+
 - **Hardening**:
   ```bash
   b-a harden    # Apply macOS hardening
