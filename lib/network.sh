@@ -61,16 +61,22 @@ network_set_dns() {
     info "DNS updated and cache flushed."
 }
 
-# Helper to manage services quietly and without sudo if possible
+# Helper to manage services quietly.
+# Usage: manage_service action service [as_root]
 manage_service() {
     local action="$1"
     local service="$2"
+    local as_root="$3"
     
     local action_pretty="$(tr '[:lower:]' '[:upper:]' <<< ${action:0:1})${action:1}"
     info "$action_pretty $service"
     
     local output
-    output=$(brew services "$action" "$service" 2>&1)
+    if [ "$as_root" == "true" ]; then
+        output=$(sudo brew services "$action" "$service" 2>&1)
+    else
+        output=$(brew services "$action" "$service" 2>&1)
+    fi
     local exit_code=$?
     
     if [[ "$output" == *"not started"* ]]; then
@@ -264,8 +270,8 @@ network_restore_default() {
     # 1. Stop Anonymity Services
     info "Stopping privacy services..."
     manage_service "stop" "privoxy"
-    manage_service "stop" "dnscrypt-proxy"
-    manage_service "stop" "unbound"
+    manage_service "stop" "dnscrypt-proxy" "true"
+    manage_service "stop" "unbound" "true"
 
     # 2. Disable Proxies on Wi-Fi
     info "Disabling Proxies on Wi-Fi..."
@@ -285,8 +291,8 @@ network_enable_anonymity() {
     
     # 1. Start Services
     info "Starting privacy services..."
-    manage_service "start" "dnscrypt-proxy"
-    manage_service "start" "unbound"
+    manage_service "start" "dnscrypt-proxy" "true"
+    manage_service "start" "unbound" "true"
     manage_service "start" "privoxy"
     
     # 2. Set DNS to Localhost (DNSCrypt/Unbound)
