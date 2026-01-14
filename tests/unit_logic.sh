@@ -5,6 +5,10 @@
 
 source "$(dirname "$0")/test_framework.sh"
 
+# Resolve Project Root properly for tests running outside of root
+TEST_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export ROOT_DIR="$(dirname "$TEST_SCRIPT_DIR")"
+
 # Mock Constants
 SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
 
