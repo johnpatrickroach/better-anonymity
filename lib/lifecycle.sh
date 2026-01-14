@@ -175,7 +175,6 @@ lifecycle_setup() {
     if ask_confirmation "Install GPG (Encryption)?"; then
         load_module "installers"
         install_gpg
-        setup_gpg
     fi
     if ask_confirmation "Install Signal (Secure Messenger)?"; then
         load_module "installers"

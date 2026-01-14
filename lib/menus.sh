@@ -185,7 +185,7 @@ menu_installers() {
             read -p "Select: " gchoice
             case $gchoice in
                 1) install_gpg ;;
-                2) setup_gpg ;;
+                2) configure_gpg ;;
             esac
             ;;
         8)

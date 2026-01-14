@@ -5,7 +5,7 @@
 
 install_privoxy() {
     require_brew
-    require_brew
+
     install_brew_package "privoxy"
 
     info "Applying configuration..."
@@ -102,27 +102,58 @@ install_tor() {
 }
 
 install_gpg() {
+    # Check for Homebrew
     require_brew
-    execute_with_spinner "Installing GnuPG..." install_brew_package "gnupg"
+    
+    # Install
+    if ! command -v gpg >/dev/null; then
+         info "Installing GnuPG..."
+         execute_with_spinner "Installing GnuPG..." install_brew_package "gnupg"
+    else
+         info "GnuPG is already installed."
+    fi
     execute_with_spinner "Installing Pinentry..." install_brew_package "pinentry-mac"
 
+    # Configure
+    configure_gpg
+}
+
+configure_gpg() {
+    info "Configuring GPG..."
     local GPG_HOME="$HOME/.gnupg"
-    mkdir -p "$GPG_HOME"
-    chmod 700 "$GPG_HOME"
+    if [ ! -d "$GPG_HOME" ]; then
+         info "Creating $GPG_HOME..."
+         mkdir -p "$GPG_HOME"
+         chmod 700 "$GPG_HOME"
+    fi
 
     local SRC_CONF="$ROOT_DIR/config/gpg/gpg.conf"
     local DEST_CONF="$GPG_HOME/gpg.conf"
     local CHANGED="false"
 
     if [ -f "$SRC_CONF" ]; then
-        if [ ! -f "$DEST_CONF" ] || ! cmp -s "$SRC_CONF" "$DEST_CONF"; then
-             info "Updating gpg.conf..."
+        if [ -f "$DEST_CONF" ]; then
+             if ! cmp -s "$SRC_CONF" "$DEST_CONF"; then
+                 info "Updating gpg.conf..."
+                 # Create backup
+                 local backup="$DEST_CONF.backup.$(date +%s)"
+                 cp "$DEST_CONF" "$backup"
+                 info "Backup created at $backup"
+                 
+                 cp "$SRC_CONF" "$DEST_CONF"
+                 chmod 600 "$DEST_CONF"
+                 CHANGED="true"
+             else
+                 info "gpg.conf is up to date."
+             fi
+        else
+             info "Installing gpg.conf..."
              cp "$SRC_CONF" "$DEST_CONF"
              chmod 600 "$DEST_CONF"
              CHANGED="true"
-        else
-             info "gpg.conf is up to date."
         fi
+    else
+        warn "Source configuration file not found at $SRC_CONF"
     fi
 
     local AGENT_CONF="$GPG_HOME/gpg-agent.conf"
@@ -142,58 +173,15 @@ install_gpg() {
     else
         info "GPG configuration unchanged. Skipping agent reload."
     fi
+    
+    info "Please refer to docs/GPG.md for usage and YubiKey setup."
 }
 
 
 
 # ... (firefox/harden/tor_browser remain custom) ...
 
-setup_gpg() {
-    info "Setting up GPG..."
 
-    # Check for Homebrew
-    require_brew
-
-    # Install GPG if missing
-    if ! command -v gpg >/dev/null; then
-        info "Installing GnuPG..."
-        execute_with_spinner "Installing GnuPG..." brew install gnupg
-    else
-        info "GnuPG is already installed."
-    fi
-
-    # Create ~/.gnupg directory
-    local gpg_dir="$HOME/.gnupg"
-    if [ ! -d "$gpg_dir" ]; then
-        info "Creating $gpg_dir..."
-        mkdir -p "$gpg_dir"
-        chmod 700 "$gpg_dir"
-    fi
-
-    # Configure hardened gpg.conf
-    local config_src="$ROOT_DIR/config/gpg/gpg.conf"
-    local config_dest="$gpg_dir/gpg.conf"
-
-    if [ -f "$config_src" ]; then
-        if [ -f "$config_dest" ]; then
-            warn "Existing gpg.conf found at $config_dest."
-            # Create backup
-            local backup="$config_dest.backup.$(date +%s)"
-            cp "$config_dest" "$backup"
-            info "Backup created at $backup"
-        fi
-
-        info "Copying hardened configuration to $config_dest..."
-        cp "$config_src" "$config_dest"
-        chmod 600 "$config_dest"
-        info "GPG configured successfully."
-    else
-        error "Source configuration file not found at $config_src"
-        return 1
-    fi
-    
-    info "Please refer to docs/GPG.md for usage and YubiKey setup."
-}
 
 install_signal() {
     info "Installing Signal Desktop..."
@@ -587,35 +575,26 @@ install_firefox() {
 harden_firefox() {
     info "Hardening Firefox (Arkenfox)..."
     
-    local FIREFOX_DIR="$HOME/Library/Application Support/Firefox/Profiles"
-    if [ ! -d "$FIREFOX_DIR" ]; then
-        die "Firefox profiles directory not found at $FIREFOX_DIR. Is Firefox installed and run at least once?"
-    fi
-    
-    # Locate profile
-    local profile_path=""
-    # Prefer default-release
-    local dr_profile
-    dr_profile=$(find "$FIREFOX_DIR" -maxdepth 1 -name "*.default-release" | head -n 1)
-    
-    if [ -n "$dr_profile" ]; then
-        profile_path="$dr_profile"
-    else
-        # Fallback to default
-        local d_profile
-        d_profile=$(find "$FIREFOX_DIR" -maxdepth 1 -name "*.default" -print | head -n 1)
-        if [ -n "$d_profile" ]; then
-            profile_path="$d_profile"
-        fi
-    fi
-    
-    if [ -z "$profile_path" ]; then
-        die "No suitable Firefox profile found (*.default-release or *.default)."
+    local profile_path
+    if ! profile_path=$(get_firefox_profile); then
+        die "Firefox profiles directory not found or no suitable profile found. Is Firefox installed and run at least once?"
     fi
     
     info "Target Profile: $(basename "$profile_path")"
     
-    # Backup
+    # Idempotency Check
+    if [ -f "$profile_path/user.js" ]; then
+        if grep -i -q "arkenfox" "$profile_path/user.js" 2>/dev/null; then
+            info "Arkenfox user.js verified present. Skipping download."
+            verify_firefox
+            return 0
+        fi
+        info "Existing user.js found but does not appear to be Arkenfox. Overwriting..."
+        # Backup existing non-arkenfox user.js
+        cp "$profile_path/user.js" "$profile_path/user.js.backup.$(date +%Y%m%d%H%M%S)"
+    fi
+    
+    # Backup prefs.js logic remains...
     info "Backing up prefs.js..."
     if [ -f "$profile_path/prefs.js" ]; then
         cp "$profile_path/prefs.js" "$profile_path/prefs.js.backup.$(date +%Y%m%d%H%M%S)"
@@ -647,7 +626,74 @@ harden_firefox() {
     # Cleanup
     rm -f "$temp_user_js" "$overrides_file"
     
+    verify_firefox
     info "Firefox hardening complete. Please restart Firefox."
+}
+
+get_firefox_profile() {
+    local FIREFOX_DIR="$HOME/Library/Application Support/Firefox/Profiles"
+    if [ ! -d "$FIREFOX_DIR" ]; then
+        return 1
+    fi
+    
+    local profile_path=""
+    local dr_profile
+    dr_profile=$(find "$FIREFOX_DIR" -maxdepth 1 -name "*.default-release" | head -n 1)
+    
+    if [ -n "$dr_profile" ]; then
+        profile_path="$dr_profile"
+    else
+        local d_profile
+        d_profile=$(find "$FIREFOX_DIR" -maxdepth 1 -name "*.default" -print | head -n 1)
+        if [ -n "$d_profile" ]; then
+            profile_path="$d_profile"
+        fi
+    fi
+    
+    if [ -z "$profile_path" ]; then
+        return 1
+    fi
+    
+    echo "$profile_path"
+    return 0
+}
+
+verify_firefox() {
+    info "Verifying Firefox Hardening..."
+    
+    local profile_path
+    if ! profile_path=$(get_firefox_profile); then
+         warn "Firefox profile not found. Cannot verify."
+         return 1
+    fi
+    
+    info "Checking profile: $(basename "$profile_path")"
+    
+    # Check 1: user.js exists
+    if [ -f "$profile_path/user.js" ]; then
+        info "[PASS] user.js exists."
+    else
+        warn "[FAIL] user.js does NOT exist."
+    fi
+    
+    # Check 2: Arkenfox content in user.js
+    # We look for "arkenfox" or "user_pref" generally if generic, but Arkenfox usually mentions it.
+    if grep -i -q "arkenfox" "$profile_path/user.js" 2>/dev/null; then
+         info "[PASS] user.js contains Arkenfox signatures."
+    else
+         warn "[FAIL] user.js does NOT appear to be based on Arkenfox."
+    fi
+    
+    # Check 3: Active Preference (prefs.js)
+    # privacy.resistFingerprinting is a hallmark of hardening.
+    # Note: prefs.js is written by Firefox, usually user_pref("key", value);
+    # Using grep -E to allow for variable whitespace
+    if grep -E -q "user_pref\(\"privacy.resistFingerprinting\",[[:space:]]*true\);" "$profile_path/prefs.js" 2>/dev/null; then
+         info "[PASS] privacy.resistFingerprinting is ENABLED in prefs.js."
+    else
+         warn "[FAIL] privacy.resistFingerprinting is NOT enabled in prefs.js."
+         warn "If you just ran the hardening script, please RESTART Firefox for changes to apply."
+    fi
 }
 
 install_tor_browser() {
@@ -803,52 +849,7 @@ install_tor_browser() {
     info "See docs/TOR.md for instructions on configuring Pluggable Transports."
 }
 
-setup_gpg() {
-    info "Setting up GPG..."
 
-    # Check for Homebrew
-    require_brew
-
-    # Install GPG if missing
-    if ! command -v gpg >/dev/null; then
-        info "Installing GnuPG..."
-        brew install gnupg
-    else
-        info "GnuPG is already installed."
-    fi
-
-    # Create ~/.gnupg directory
-    local gpg_dir="$HOME/.gnupg"
-    if [ ! -d "$gpg_dir" ]; then
-        info "Creating $gpg_dir..."
-        mkdir -p "$gpg_dir"
-        chmod 700 "$gpg_dir"
-    fi
-
-    # Configure hardened gpg.conf
-    local config_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config/gpg/gpg.conf"
-    local config_dest="$gpg_dir/gpg.conf"
-
-    if [ -f "$config_src" ]; then
-        if [ -f "$config_dest" ]; then
-            warn "Existing gpg.conf found at $config_dest."
-            # Create backup
-            local backup="$config_dest.backup.$(date +%s)"
-            cp "$config_dest" "$backup"
-            info "Backup created at $backup"
-        fi
-
-        info "Copying hardened configuration to $config_dest..."
-        cp "$config_src" "$config_dest"
-        chmod 600 "$config_dest"
-        info "GPG configured successfully."
-    else
-        error "Source configuration file not found at $config_src"
-        return 1
-    fi
-    
-    info "Please refer to docs/GPG.md for usage and YubiKey setup."
-}
 
 
 

@@ -962,19 +962,27 @@ unset -f gpg curl hdiutil codesign spctl
 TEST_HOME="$(mktemp -d /tmp/test_gpg.XXXXXX)"
 # Mock Home for this function
 setup_gpg_mocked() {
-    HOME="$TEST_HOME" setup_gpg
+    HOME="$TEST_HOME" install_gpg
 }
 # Mock brew
 brew() {
     echo "BREW_CALL: $*"
     return 0
 }
+# Mock command to force install
+command() {
+    if [ "$1" == "-v" ] && [ "$2" == "gpg" ]; then return 1; fi
+    builtin command "$@"
+}
+# Ensure config exists
+mkdir -p "$ROOT_DIR/config/gpg"
+touch "$ROOT_DIR/config/gpg/gpg.conf"
 
 OUTPUT=$(setup_gpg_mocked)
 
-assert_contains "$OUTPUT" "Setting up GPG..." "Should start setup"
+assert_contains "$OUTPUT" "Installing GnuPG..." "Should start setup"
 assert_contains "$OUTPUT" "Creating $TEST_HOME/.gnupg" "Should create dir"
-assert_contains "$OUTPUT" "Copying hardened configuration" "Should copy config"
+assert_contains "$OUTPUT" "Installing gpg.conf..." "Should copy config"
 
 if [ -f "$TEST_HOME/.gnupg/gpg.conf" ]; then
     assert_equals "true" "true" "gpg.conf should exist"
@@ -983,16 +991,17 @@ else
 fi
 
 # Verify backup logic by running again
-touch "$TEST_HOME/.gnupg/gpg.conf" # Ensure it exists timestamped
-# Wait a sec to ensure backup name differs if we used seconds?
-# The function uses $(date +%s), so running immediately might collide if fast. 
-# But we just want to see "Existing gpg.conf found" msg.
+# Force a change to trigger backup/update
+echo "# change" >> "$TEST_HOME/.gnupg/gpg.conf"
 OUTPUT_2=$(setup_gpg_mocked)
-assert_contains "$OUTPUT_2" "Existing gpg.conf found" "Should detect existing config"
+assert_contains "$OUTPUT_2" "Updating gpg.conf..." "Should detect existing config"
 assert_contains "$OUTPUT_2" "Backup created" "Should create backup"
 
 # Cleanup
 rm -rf "$TEST_HOME"
+mkdir -p "$ROOT_DIR/config/gpg"
+rm -f "$ROOT_DIR/config/gpg/gpg.conf"
+if declare -f command > /dev/null; then unset -f command; fi
 
 
 rm -rf "$TEST_ROOT_UNBOUND"
@@ -1434,7 +1443,7 @@ assert_contains "$OUTPUT" "CALL: hardening_reset_tcc" "Should reset TCC"
 assert_contains "$OUTPUT" "CALL: tor_install" "Should install tor service"
 assert_contains "$OUTPUT" "CALL: install_tor_browser" "Should install tor browser"
 assert_contains "$OUTPUT" "CALL: install_gpg" "Should install gpg"
-assert_contains "$OUTPUT" "CALL: setup_gpg" "Should setup gpg"
+
 assert_contains "$OUTPUT" "CALL: install_signal" "Should install signal"
 assert_contains "$OUTPUT" "CALL: cleanup_metadata" "Should cleanup"
 
@@ -1979,7 +1988,10 @@ assert_contains "$OUTPUT" "EXEC: open $PINGBAR_APP_PATH" "Should open app"
 
 
 # Scenario 3: Fresh Install (Not Installed)
+if declare -f rm > /dev/null; then unset -f rm; fi
 rm -rf "$PINGBAR_APP_PATH"
+rm() { echo "RM_CALL: $*"; if [[ "$*" == *"/tmp/"* ]]; then command rm "$@"; fi; return 0; }
+
 MOCK_IS_RUNNING="false"
 # Defaults READ usually fails or returns empty if app never run.
 MOCK_CONFIG_RESTORE="" 
@@ -1995,5 +2007,128 @@ assert_contains "$OUTPUT" "Starting PingBar..." "Should start (S3)"
 rm -rf "$PINGBAR_APP_PATH"
 unset PINGBAR_APP_PATH
 unset -f swift git make pkill killall open pgrep defaults
+
+
+
+# Test 36: Firefox Verification
+# -----------------------------
+echo "Running Test Suite: Firefox Verification"
+echo "----------------------------------------"
+
+# Mock HOME to safely control profile discovery
+ORIG_HOME="$HOME"
+TEST_HOME="/tmp/mock_home_firefox_${RANDOM}"
+mkdir -p "$TEST_HOME/Library/Application Support/Firefox/Profiles"
+HOME="$TEST_HOME"
+export HOME
+
+# Helper to create profile
+create_mock_profile() {
+    local name="$1"
+    local path="$TEST_HOME/Library/Application Support/Firefox/Profiles/$name"
+    mkdir -p "$path"
+    echo "$path"
+}
+
+# Scenario 1: No Profiles
+OUTPUT=$(verify_firefox 2>&1)
+if [[ "$OUTPUT" == *"Firefox profile not found"* ]]; then pass "Correctly handled missing profile"; else fail "Should fail if no profile"; fi
+
+# Scenario 2: Profile Exists, Files Missing
+PROF_PATH=$(create_mock_profile "test.default-release")
+OUTPUT=$(verify_firefox 2>&1)
+assert_contains "$OUTPUT" "Checking profile: test.default-release" "Should find profile"
+assert_contains "$OUTPUT" "user.js does NOT exist" "Should fail user.js check"
+assert_contains "$OUTPUT" "privacy.resistFingerprinting is NOT enabled" "Should fail prefs check"
+
+# Scenario 3: Profile Exists, Files Present but Invalid
+touch "$PROF_PATH/user.js"
+touch "$PROF_PATH/prefs.js"
+OUTPUT=$(verify_firefox 2>&1)
+assert_contains "$OUTPUT" "user.js exists" "Should find user.js"
+assert_contains "$OUTPUT" "user.js does NOT appear to be based on Arkenfox" "Should fail arkenfox content"
+assert_contains "$OUTPUT" "privacy.resistFingerprinting is NOT enabled" "Should fail prefs setting"
+
+# Scenario 4: Profile Exists, Files Valid
+echo "// Arkenfox user.js" > "$PROF_PATH/user.js"
+echo 'user_pref("privacy.resistFingerprinting", true);' > "$PROF_PATH/prefs.js"
+OUTPUT=$(verify_firefox 2>&1)
+assert_contains "$OUTPUT" "Checking profile: test.default-release" "Should verify profile"
+assert_contains "$OUTPUT" "user.js contains Arkenfox signatures" "Should verify arkenfox"
+assert_contains "$OUTPUT" "privacy.resistFingerprinting is ENABLED" "Should verify prefs"
+
+# Scenario 5: Valid with Whitespace
+echo 'user_pref("privacy.resistFingerprinting",  true);' > "$PROF_PATH/prefs.js"
+OUTPUT=$(verify_firefox 2>&1)
+assert_contains "$OUTPUT" "privacy.resistFingerprinting is ENABLED" "Should verify prefs with whitespace"
+
+# Scenario 6: Invalid Prefs (Restart hint check)
+echo 'user_pref("privacy.resistFingerprinting", false);' > "$PROF_PATH/prefs.js"
+OUTPUT=$(verify_firefox 2>&1)
+assert_contains "$OUTPUT" "privacy.resistFingerprinting is NOT enabled" "Should detect disabled"
+assert_contains "$OUTPUT" "RESTART Firefox" "Should suggest restart"
+
+# Cleanup
+rm -rf "$TEST_HOME"
+HOME="$ORIG_HOME"
+export HOME
+
+
+
+# Test 37: Firefox Hardening Idempotency
+# --------------------------------------
+echo "Running Test Suite: Firefox Hardening"
+echo "----------------------------------------"
+
+ORIG_HOME="$HOME"
+TEST_HOME="/tmp/mock_home_firefox_harden_${RANDOM}"
+mkdir -p "$TEST_HOME/Library/Application Support/Firefox/Profiles/test.default-release"
+HOME="$TEST_HOME"
+export HOME
+
+PROF_PATH="$TEST_HOME/Library/Application Support/Firefox/Profiles/test.default-release"
+
+# Mock curl to avoid network and just touch file
+curl() {
+    echo "CURL_CALL: $*"
+    if [[ "$*" == *"-o"* ]]; then
+        # Last arg is url, before that is path
+        # Simple extraction: iterate args
+        local output_file=""
+        local prev=""
+        for arg in "$@"; do
+            if [ "$prev" == "-o" ]; then output_file="$arg"; fi
+            prev="$arg"
+        done
+        touch "$output_file"
+        echo "// arkenfox user.js" > "$output_file"
+    fi
+    return 0
+}
+
+# Scenario 1: Fresh Hardening (No user.js)
+echo "SCENARIO 1: Fresh Hardening"
+# Mock prefs.js for verification pass
+touch "$PROF_PATH/prefs.js"
+echo 'user_pref("privacy.resistFingerprinting", true);' > "$PROF_PATH/prefs.js"
+
+OUTPUT=$(harden_firefox 2>&1)
+assert_contains "$OUTPUT" "Downloading Arkenfox user.js..." "Should download"
+assert_contains "$OUTPUT" "Verifying Firefox Hardening..." "Should verify"
+assert_contains "$OUTPUT" "user.js contains Arkenfox signatures" "Verify should pass"
+
+# Scenario 2: Already Hardened (Arkenfox user.js exists)
+echo "SCENARIO 2: Already Hardened"
+echo "// arkenfox user.js" > "$PROF_PATH/user.js"
+
+OUTPUT=$(harden_firefox 2>&1)
+assert_contains "$OUTPUT" "Arkenfox user.js verified present. Skipping download." "Should skip download"
+if [[ "$OUTPUT" == *"Downloading Arkenfox user.js"* ]]; then fail "Should NOT download"; else pass "Correctly skipped download"; fi
+assert_contains "$OUTPUT" "Verifying Firefox Hardening..." "Should still verify"
+
+# Cleanup
+rm -rf "$TEST_HOME"
+HOME="$ORIG_HOME"
+export HOME
 
 end_suite
