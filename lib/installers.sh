@@ -630,6 +630,38 @@ harden_firefox() {
     info "Firefox hardening complete. Please restart Firefox."
 }
 
+install_firefox_extensions() {
+    info "Installing Firefox Extensions..."
+    
+    local profile_path
+    if ! profile_path=$(get_firefox_profile); then
+         warn "Firefox profile not found. Cannot install extensions."
+         return 1
+    fi
+    
+    local extensions_dir="$profile_path/extensions"
+    if [ ! -d "$extensions_dir" ]; then
+        mkdir -p "$extensions_dir"
+    fi
+    
+    # 1. uBlock Origin
+    local ublock_id="uBlock0@raymondhill.net"
+    local ublock_xpi="$extensions_dir/${ublock_id}.xpi"
+    
+    if [ -f "$ublock_xpi" ]; then
+        info "uBlock Origin extension found. Skipping download."
+    else
+        info "Downloading uBlock Origin..."
+        local url="https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi"
+        if ! curl -L -o "$ublock_xpi" "$url"; then
+            warn "Failed to download uBlock Origin."
+        else
+            info "uBlock Origin placed in extensions folder."
+            info "Note: You must approve the extension in Firefox upon next launch."
+        fi
+    fi
+}
+
 get_firefox_profile() {
     local FIREFOX_DIR="$HOME/Library/Application Support/Firefox/Profiles"
     if [ ! -d "$FIREFOX_DIR" ]; then

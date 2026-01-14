@@ -23,3 +23,12 @@ Our `config/firefox/user.js` is a "setup and forget" base based on project like 
 ### Trade-offs
 - **Resist Fingerprinting** sets the timezone to UTC.
 - Some sites may break if they rely on specific WebGL or canvas features.
+
+## Automated Extensions
+The `setup` and `harden` commands now automatically install essential privacy extensions:
+
+### uBlock Origin
+- **Id**: `uBlock0@raymondhill.net`
+- **Action**: Automatically downloaded to your Firefox Profile's `extensions/` directory.
+- **Verification**: On the next Firefox launch, you will be prompted to approve the new extension. This is a security feature to prevent silent installations.
+

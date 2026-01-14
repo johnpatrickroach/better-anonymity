@@ -1426,6 +1426,7 @@ load_module() { echo "LOAD_MODULE: $1"; }
 
 # Mock Installers
 install_firefox() { echo "CALL: install_firefox"; }
+install_firefox_extensions() { echo "CALL: install_firefox_extensions"; }
 harden_firefox() { echo "CALL: harden_firefox"; }
 install_keepassxc() { echo "CALL: install_keepassxc"; }
 install_privoxy() { echo "CALL: install_privoxy"; }
@@ -1490,6 +1491,9 @@ assert_contains "$OUTPUT" "CALL: hardening_secure_homebrew" "Should secure homeb
 assert_contains "$OUTPUT" "CALL: hardening_disable_captive_portal" "Should disable captive portal"
 assert_contains "$OUTPUT" "CALL: hardening_remove_guest" "Should remove guest"
 assert_contains "$OUTPUT" "CALL: hardening_reset_tcc" "Should reset TCC"
+assert_contains "$OUTPUT" "CALL: install_firefox" "Should install firefox"
+assert_contains "$OUTPUT" "CALL: harden_firefox" "Should harden firefox"
+assert_contains "$OUTPUT" "CALL: install_firefox_extensions" "Should install firefox extensions"
 assert_contains "$OUTPUT" "CALL: tor_install" "Should install tor service"
 assert_contains "$OUTPUT" "CALL: install_tor_browser" "Should install tor browser"
 assert_contains "$OUTPUT" "CALL: install_gpg" "Should install gpg"
@@ -1507,12 +1511,65 @@ assert_contains "$OUTPUT" "HEADER: Better Anonymity - First Time Setup" "Should 
 assert_contains "$OUTPUT" "DNSCrypt-Proxy setup successful" "Should auto-setup DNSCrypt"
 assert_contains "$OUTPUT" "Setting System DNS to 127.0.0.1" "Should auto-select Localhost"
 assert_contains "$OUTPUT" "CALL: install_pingbar" "Should auto-install pingbar"
+assert_contains "$OUTPUT" "CALL: install_firefox_extensions" "Should auto-install firefox extensions"
 assert_contains "$OUTPUT" "CALL: cleanup_metadata" "Should cleanup in auto mode"
 
 # Test 28: Daily Check
 # --------------------
 # Mock verify functions
 hardening_verify() { echo "CALL: hardening_verify"; }
+
+# Test 37: Firefox Extensions Logic
+# ---------------------------------
+start_suite "Firefox Extensions Logic"
+
+(
+    # Source real implementation to override global mock
+    # shellcheck source=/dev/null
+    source "$ROOT_DIR/lib/installers.sh"
+
+    # Re-Mock dependencies for this specific function scope
+    get_firefox_profile() { echo "/tmp/mock_profile"; }
+    curl() { echo "CURL: $*"; return 0; }
+    # We mock mkdir/info/warn locally if needed, but the script has them.
+    # We need to ensure info/warn match standard output format we expect or use existing mocks.
+    # Existing mocks in unit_logic.sh:
+    # info() { echo "[INFO] $1"; } (assuming)
+    # Let's redefine to be sure for this subshell.
+    info() { echo "[INFO] $1"; }
+    warn() { echo "[WARN] $1"; }
+    
+    # Mock return
+    return() { return "$1"; }
+
+    # 1. Test Install
+    rm -rf /tmp/mock_profile
+    mkdir -p /tmp/mock_profile # Pre-create profile dir logic?
+    # Function does: local extensions_dir="$profile_path/extensions" -> mkdir -p
+    
+    OUTPUT=$(install_firefox_extensions 2>&1)
+    
+    # Check output variables (can't use assert_contains easily inside subshell unless we echo and capture? 
+    # Actually, we can just echo the output and let the parent capture? 
+    # No, start_suite is running commands. 
+    # We are inside a subshell. We can run assertions here if assert_contains is available.
+    # assertions are functions in unit_logic.sh, so they are available.
+    
+    assert_contains "$OUTPUT" "Installing Firefox Extensions..."
+    assert_contains "$OUTPUT" "Downloading uBlock Origin..."
+    assert_contains "$OUTPUT" "uBlock Origin placed in extensions folder"
+
+    # 2. Test Idempotency
+    mkdir -p /tmp/mock_profile/extensions
+    touch "/tmp/mock_profile/extensions/uBlock0@raymondhill.net.xpi"
+    
+    OUTPUT_IDEMP=$(install_firefox_extensions 2>&1)
+    assert_contains "$OUTPUT_IDEMP" "uBlock Origin extension found. Skipping download."
+
+    rm -rf /tmp/mock_profile
+)
+
+
 network_verify_dns() { echo "CALL: network_verify_dns"; }
 tor_status() { echo "CALL: tor_status"; }
 # Mock brew existence

@@ -171,6 +171,7 @@ lifecycle_setup() {
         load_module "installers"
         install_firefox
         harden_firefox
+        install_firefox_extensions
     fi
 
     # 5. Essential Tools

@@ -163,6 +163,10 @@ show_explanation() {
             echo "Verifies the system security posture."
             echo "Audit checks for: SIP, FileVault, Firewall, Stealth Mode, etc."
             ;;
+        install-firefox-extensions)
+            echo "Installs privacy extensions (e.g. uBlock Origin) for Firefox."
+            echo "Downloads .xpi files directly to the profile extensions folder."
+            ;;
         cleanup|cleanup-metadata)
             echo "Performs system and privacy cleanup to remove tracking metadata."
             echo "Clears: QuickLook cache, browser artifacts, and logs."
@@ -325,6 +329,10 @@ case "$COMMAND" in
     install-firefox)
          load_module "installers"
          install_firefox
+         ;;
+    install-firefox-extensions)
+         load_module "installers"
+         install_firefox_extensions
          ;;
     install-keepassxc)
          load_module "installers"
