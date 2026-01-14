@@ -82,7 +82,7 @@ usage() {
     echo "  generate-password Generate a secure passphrase"
     echo ""
     echo "Network & Connectivity:"
-    echo "  dns [provider]    Set DNS (quad9, mullvad, cloudflare)"
+    echo "  dns [provider]    Set DNS (dnscrypt-proxy, quad9, mullvad, cloudflare, system default)"
     echo "  verify-dns        Verify DNS configuration"
     echo "  update-hosts      Update StevenBlack hosts blocklist"
     echo "  wifi [cmd]        Wi-Fi tools (audit, spoof-mac)"
@@ -147,7 +147,7 @@ show_explanation() {
             ;;
         dns)
             echo "Configures the system DNS servers."
-            echo "Valid providers: quad9, mullvad, cloudflare."
+            echo "Valid providers: dnscrypt-proxy, quad9, mullvad, cloudflare, system default."
             echo "This changes network settings to route DNS queries through the chosen encrypted provider."
             ;;
         install)

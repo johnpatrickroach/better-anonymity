@@ -143,6 +143,20 @@ lifecycle_setup() {
         fi
     fi
 
+    # 2.5 Menu Bar Tools (PingBar)
+    # Check if we are in auto mode or should ask
+    if [ "${BETTER_ANONYMITY_AUTO_YES:-0}" -eq 1 ]; then
+        info "Auto-Install: PingBar..."
+        load_module "installers"
+        install_pingbar
+    else
+        echo ""
+        if ask_confirmation "Install PingBar? (Menu bar tool for quick network status)?"; then
+             load_module "installers"
+             install_pingbar
+        fi
+    fi
+
     # 3. Hosts Blocklist
     echo ""
     if ask_confirmation "Step 3: Install StevenBlack Hosts Blocklist (Ad-blocking)?"; then

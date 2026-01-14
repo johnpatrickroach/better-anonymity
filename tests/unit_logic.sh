@@ -1430,6 +1430,7 @@ harden_firefox() { echo "CALL: harden_firefox"; }
 install_keepassxc() { echo "CALL: install_keepassxc"; }
 install_privoxy() { echo "CALL: install_privoxy"; }
 i2p_install() { echo "CALL: i2p_install"; }
+install_pingbar() { echo "CALL: install_pingbar"; }
 
 # Mock Missing Hardening Functions
 hardening_secure_sudoers() { echo "CALL: hardening_secure_sudoers"; }
@@ -1494,6 +1495,7 @@ assert_contains "$OUTPUT" "CALL: install_tor_browser" "Should install tor browse
 assert_contains "$OUTPUT" "CALL: install_gpg" "Should install gpg"
 
 assert_contains "$OUTPUT" "CALL: install_signal" "Should install signal"
+assert_contains "$OUTPUT" "CALL: install_pingbar" "Should install pingbar"
 assert_contains "$OUTPUT" "CALL: cleanup_metadata" "Should cleanup"
 
 # Test 27b: Setup Wizard (Auto Mode)
@@ -1504,6 +1506,7 @@ assert_contains "$OUTPUT" "HEADER: Better Anonymity - First Time Setup" "Should 
 # assert_contains "$OUTPUT" "(Auto-Yes)" "Should show auto-yes logs"
 assert_contains "$OUTPUT" "DNSCrypt-Proxy setup successful" "Should auto-setup DNSCrypt"
 assert_contains "$OUTPUT" "Setting System DNS to 127.0.0.1" "Should auto-select Localhost"
+assert_contains "$OUTPUT" "CALL: install_pingbar" "Should auto-install pingbar"
 assert_contains "$OUTPUT" "CALL: cleanup_metadata" "Should cleanup in auto mode"
 
 # Test 28: Daily Check
