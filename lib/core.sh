@@ -15,13 +15,13 @@ SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
 
 # Logging
 # Logging
-_LOADED_MODULES=""
+_LOADED_MODULES=":"
 load_module() {
     local name="$1"
-    if [[ "$_LOADED_MODULES" != *" $name "* ]]; then
+    if [[ "$_LOADED_MODULES" != *":$name:"* ]]; then
         if [ -f "$LIB_DIR/$name.sh" ]; then
             source "$LIB_DIR/$name.sh"
-            _LOADED_MODULES="$_LOADED_MODULES $name "
+            _LOADED_MODULES="${_LOADED_MODULES}${name}:"
         else
             error "Module library $name.sh not found in $LIB_DIR"
             exit 1
