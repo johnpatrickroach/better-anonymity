@@ -289,6 +289,7 @@ lifecycle_restore_state() {
 
 lifecycle_setup() {
     clear
+    show_banner
     
     # Capture state before any changes
     lifecycle_capture_state

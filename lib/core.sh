@@ -57,6 +57,13 @@ header() {
     echo -e "${BLUE}======================================================================${NC}"
 }
 
+# Banner
+show_banner() {
+    if [ -f "$LIB_DIR/banner.txt" ]; then
+        cat "$LIB_DIR/banner.txt"
+    fi
+}
+
 # User Interaction
 ask_confirmation() {
     local prompt="$1"
@@ -401,4 +408,3 @@ check_internet() {
         warn "No internet connection detected. Network-dependent steps may fail."
     fi
 }
-
