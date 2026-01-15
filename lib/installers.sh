@@ -688,6 +688,13 @@ install_onionshare() {
     install_cask_package "onionshare" "OnionShare.app"
 }
 
+install_telegram() {
+    info "Installing Telegram..."
+    require_brew
+    install_cask_package "telegram" "Telegram.app"
+    info "Refer to docs/MESSENGERS.md for usage and security notes."
+}
+
 
 
 

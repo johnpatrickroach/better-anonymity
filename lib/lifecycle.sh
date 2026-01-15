@@ -453,6 +453,10 @@ lifecycle_setup() {
         load_module "installers"
         install_signal
     fi
+    if ask_confirmation "Install Telegram (Cloud-based Messenger)?"; then
+        load_module "installers"
+        install_telegram
+    fi
     if ask_confirmation "Install KeePassXC (Password Manager)?"; then
         load_module "installers"
         install_keepassxc

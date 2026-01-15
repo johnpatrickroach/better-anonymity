@@ -41,3 +41,26 @@ Since iMessage is built-in, adhere to these practices:
     - Go to **Settings** -> **[Your Name]** -> **iCloud** -> **Advanced Data Protection**.
     - This moves the decryption keys to your trusted devices *only*, restoring true E2EE for backups.
     - **Alternative**: Completely disable Messages in iCloud / iCloud Backup.
+
+## Telegram
+**Protocol**: MTProto (Custom).
+**Installation**: Run `better-anonymity install telegram`.
+**Type**: Cloud-based messenger (Synced across devices).
+
+### Security Warning
+Unlike Signal or XMPP+OMEMO, **Telegram usage is NOT End-to-End Encrypted (E2EE) by default**.
+-   **Cloud Chats**: Stored on Telegram's servers. Telegram holds the keys.
+-   **Secret Chats**: Uses E2EE (Client-device to Client-device). **You MUST specifically use "Start Secret Chat" for private conversations.**
+
+### Recommended Configuration
+1.  **Privacy Settings**:
+    -   **Phone Number**: Set "Who can see my phone number" to **Nobody** and "Who can find me by my number" to **My Contacts**.
+    -   **Last Seen**: Set to **Nobody**.
+    -   **Forwarded Messages**: Set "Who can link to my account when forwarding my messages" to **Nobody**.
+2.  **Two-Step Verification (2FA)**:
+    -   Go to **Settings** -> **Privacy and Security** -> **Two-Step Verification**.
+    -   Enable a strong cloud password. This protects your account from SIM swapping or SMS interception attacks.
+3.  **Use Secret Chats**:
+    -   For any sensitive communication, always create a **Secret Chat**.
+    -   Verify the encryption key image with your contact.
+
