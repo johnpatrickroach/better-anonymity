@@ -43,8 +43,20 @@ generate_password() {
     fi
     
     for (( i=0; i<num_words; i++ )); do
-        # Get random index
-        local rand_idx=$(( RANDOM % count ))
+        # Get random index (CSPRNG)
+        local rand_idx
+        if command -v openssl >/dev/null 2>&1; then
+             # Use OpenSSL (standard on macOS)
+             local hex
+             hex=$(openssl rand -hex 4)
+             rand_idx=$(( 0x$hex % count ))
+        else
+             # Fallback to /dev/urandom via od
+             # Read 4 bytes as unsigned integer
+             local rand_int
+             rand_int=$(od -An -N4 -tu4 /dev/urandom | awk '{print $1}')
+             rand_idx=$(( rand_int % count ))
+        fi
         local selected_word="${words[$rand_idx]}"
         
         # Capitalize first letter? The prompt says "without a hint" but usually capitalization helps strength slightly
