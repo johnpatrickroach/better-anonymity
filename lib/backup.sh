@@ -50,6 +50,7 @@ backup_encrypt_dir() {
 # Decrypt backup
 backup_decrypt_dir() {
     local source_file="$1"
+    local dest_path="$2"
     
     if [ -z "$source_file" ]; then
         echo -n "Enter backup file to decrypt: "
@@ -61,15 +62,18 @@ backup_decrypt_dir() {
         return 1
     fi
     
-    local dest_name="decrypted-$(date +%s).tar.gz"
+    # Default filename if not provided
+    if [ -z "$dest_path" ]; then
+        dest_path="decrypted-$(date +%s).tar.gz"
+    fi
     
     info "Decrypting '$source_file'..."
-    gpg -o "$dest_name" -d "$source_file"
+    gpg -o "$dest_path" -d "$source_file"
     
     if [ $? -eq 0 ]; then
-        info "Decrypted to $dest_name"
+        info "Decrypted to $dest_path"
         if ask_confirmation "Extract now?"; then
-             tar zxvf "$dest_name"
+             tar zxvf "$dest_path"
              success "Extracted."
         fi
     else

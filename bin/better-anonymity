@@ -396,8 +396,8 @@ case "$COMMAND" in
                 if [ -z "$2" ]; then error "Usage: better-anonymity backup encrypt <source_dir> [dest_file]"; exit 1; fi
                 backup_encrypt_dir "$2" "$3" ;;
             decrypt) 
-                if [ -z "$2" ]; then error "Usage: better-anonymity backup decrypt <file>"; exit 1; fi
-                backup_decrypt_dir "$2" ;;
+                if [ -z "$2" ]; then error "Usage: better-anonymity backup decrypt <file> [dest_file]"; exit 1; fi
+                backup_decrypt_dir "$2" "$3" ;;
             volume|create-volume) 
                 if [ -z "$2" ] || [ -z "$3" ]; then error "Usage: better-anonymity backup volume <name> <size>"; exit 1; fi
                 backup_create_volume "$2" "$3" ;;
