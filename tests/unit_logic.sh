@@ -126,6 +126,15 @@ cmp() { return 1; }
 
 PLATFORM_ARCH="arm64"
 
+# Mock networksetup for Privoxy test to simulate disabled state
+networksetup() {
+    if [[ "$1" == "-getwebproxy" ]] || [[ "$1" == "-getsecurewebproxy" ]]; then
+        echo "Enabled: No"
+    else
+        echo "SET_DNS: $*"
+    fi
+}
+
 OUTPUT=$(install_privoxy)
 assert_contains "$OUTPUT" "brew called with: install privoxy" "Should call brew install privoxy"
 assert_contains "$OUTPUT" "brew called with: services restart privoxy" "Should restart privoxy"
