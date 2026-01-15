@@ -232,7 +232,8 @@ install_dnscrypt() {
     
     # Check if running
     local is_running=false
-    if brew services list | grep "dnscrypt-proxy" | grep -q "started"; then
+    # User requested sudo check for brew services
+    if execute_sudo "Check if running" brew services list | grep "dnscrypt-proxy" | grep -q "started"; then
         is_running=true
     elif pgrep -x "dnscrypt-proxy" >/dev/null; then
         is_running=true

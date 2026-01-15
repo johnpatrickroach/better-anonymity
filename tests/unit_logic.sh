@@ -414,6 +414,9 @@ export ROOT_DIR
 
 # Mock brew for this test
 brew() {
+    if [ "$1" == "services" ] && [ "$2" == "list" ]; then
+        echo "dnscrypt-proxy started" # Simulate running
+    fi
     echo "EXEC: brew $*"
 }
 
