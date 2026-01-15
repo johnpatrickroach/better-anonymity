@@ -370,6 +370,15 @@ require_root() {
 }
 
 require_brew() {
+    # Ensure BREW_PREFIX is set if not already
+    if [ -z "$BREW_PREFIX" ]; then
+        if [[ "$(uname -m)" == "arm64" ]]; then
+            BREW_PREFIX="/opt/homebrew"
+        else
+            BREW_PREFIX="/usr/local"
+        fi
+    fi
+
     if ! command -v brew &> /dev/null; then
         warn "Homebrew not found. Attempting to locate based on architecture..."
         if [ -x "$BREW_PREFIX/bin/brew" ]; then
