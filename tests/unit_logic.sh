@@ -1489,6 +1489,9 @@ assert_contains "$OUTPUT" "brew called with: install torsocks" "Should track tor
 
 
 start_suite "Lifecycle Managers"
+
+# Mock show_banner
+show_banner() { echo "BANNER: Better Anonymity"; }
 source "$(dirname "$0")/../lib/lifecycle.sh"
 
 # Test 27: Setup Wizard
