@@ -120,9 +120,25 @@ hardening_disable_analytics() {
     export DOTNET_CLI_TELEMETRY_OPTOUT=1
     export POWERSHELL_TELEMETRY_OPTOUT=1
     # Persistence
-    local zshrc="$HOME/.zshrc"
-    if ! grep -q "DOTNET_CLI_TELEMETRY_OPTOUT" "$zshrc"; then echo "export DOTNET_CLI_TELEMETRY_OPTOUT=1" >> "$zshrc"; fi
-    if ! grep -q "POWERSHELL_TELEMETRY_OPTOUT" "$zshrc"; then echo "export POWERSHELL_TELEMETRY_OPTOUT=1" >> "$zshrc"; fi
+    local profiles=("$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc")
+    for profile in "${profiles[@]}"; do
+        # Only modify if exists or is the default shell profile
+        if [ -f "$profile" ] || { [ "$SHELL" = "/bin/zsh" ] && [ "$profile" = "$HOME/.zshrc" ]; } || { [ "$SHELL" = "/bin/bash" ] && [ "$profile" = "$HOME/.bash_profile" ]; }; then
+            if [ ! -f "$profile" ]; then touch "$profile"; fi
+            
+            # DOTNET
+            if ! grep -q "^\s*export DOTNET_CLI_TELEMETRY_OPTOUT=" "$profile"; then
+                echo "export DOTNET_CLI_TELEMETRY_OPTOUT=1" >> "$profile"
+                info "Added DOTNET_CLI_TELEMETRY_OPTOUT to $profile"
+            fi
+            
+            # POWERSHELL
+            if ! grep -q "^\s*export POWERSHELL_TELEMETRY_OPTOUT=" "$profile"; then
+                 echo "export POWERSHELL_TELEMETRY_OPTOUT=1" >> "$profile"
+                 info "Added POWERSHELL_TELEMETRY_OPTOUT to $profile"
+            fi
+        fi
+    done
 }
 
 hardening_disable_parallels() {
