@@ -41,19 +41,37 @@ detect_model() {
     local model_id=$(sysctl -n hw.model | tr -d '[:space:]')
     export PLATFORM_MODEL="$model_id"
     
+    # Generic "Mac" identifiers (M2/M3+) confuse the name-based check.
+    # Reliable fallback: Check for battery.
+    has_battery() {
+        ioreg -c AppleSmartBattery -r | grep -q "BatteryInstalled"
+    }
+
     if [[ "$model_id" == *"MacBook"* ]]; then
         export PLATFORM_TYPE="Laptop"
         info "Detected Model: $model_id (Laptop)"
     elif [[ "$model_id" == *"Macmini"* ]] || [[ "$model_id" == *"iMac"* ]] || [[ "$model_id" == *"MacPro"* ]] || [[ "$model_id" == *"Mac1"* ]]; then
-        # 'Mac1,x' are usually desktop Studios/minis, but could be laptops too on newer generic identifiers.
-        export PLATFORM_TYPE="Desktop"
-        info "Detected Model: $model_id (Desktop)"
+        # 'Mac1,x' or generic 'Mac' identifiers could be anything.
+        # Check battery to disambiguate.
+        if has_battery; then
+            export PLATFORM_TYPE="Laptop"
+            info "Detected Model: $model_id (Laptop - Battery Detected)"
+        else
+            export PLATFORM_TYPE="Desktop"
+            info "Detected Model: $model_id (Desktop)"
+        fi
     elif [[ "$model_id" == *"Virtual"* ]] || [[ "$model_id" == *"VMware"* ]] || [[ "$model_id" == *"Parallels"* ]]; then
         export PLATFORM_TYPE="Virtual"
         info "Detected Model: $model_id (Virtual Machine)"
     else
-        export PLATFORM_TYPE="Unknown"
-        warn "Could not determine platform type from model: $model_id"
+        # Fallback for completely unknown strings
+        if has_battery; then
+             export PLATFORM_TYPE="Laptop"
+             info "Detected Model: $model_id (Laptop - Fallback)"
+        else
+             export PLATFORM_TYPE="Unknown"
+             warn "Could not determine platform type from model: $model_id"
+        fi
     fi
 }
 
