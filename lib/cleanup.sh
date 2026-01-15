@@ -135,6 +135,7 @@ cleanup_dev_tools() {
     info "Cleaning Developer Tools..."
     
     # Xcode
+    close_app "Xcode"
     rm -rf ~/Library/Developer/Xcode/DerivedData/* 2>/dev/null
     rm -rf ~/Library/Developer/Xcode/Archives/* 2>/dev/null
     rm -rf ~/Library/Developer/Xcode/iOS\ Device\ Logs/* 2>/dev/null
@@ -183,7 +184,7 @@ cleanup_ios_data() {
     
     # Simulators
     if command -v xcrun &>/dev/null; then
-        killall "Simulator" 2>/dev/null || true
+        close_app "Simulator"
         xcrun simctl shutdown all 2>/dev/null
         xcrun simctl erase all 2>/dev/null
     fi
@@ -246,12 +247,12 @@ cleanup_quarantine() {
     find "$HOME/Downloads" -type f -exec xattr -d com.apple.quarantine {} 2>/dev/null \; || true
 }
 
-close_browser() {
+close_app() {
     local proc_name="$1"
     local nice_name="${2:-$proc_name}"
 
     if pgrep -q "$proc_name"; then
-        info "Closing $nice_name to safely clean databases..."
+        info "Closing $nice_name to safely clean data..."
         # Try standard kill (SIGTERM) first which allows cleanup
         killall "$proc_name" 2>/dev/null
         
@@ -274,7 +275,7 @@ cleanup_browsers() {
     
     # Chrome
     # Process name is "Google Chrome" on macOS
-    close_browser "Google Chrome"
+    close_app "Google Chrome"
     
     local chrome_dir="$HOME/Library/Application Support/Google/Chrome/Default"
     if [ -d "$chrome_dir" ]; then
@@ -284,7 +285,7 @@ cleanup_browsers() {
     
     # Safari
     # Process name is "Safari"
-    close_browser "Safari"
+    close_app "Safari"
     
     info "Cleaning Safari Data..."
     rm -f "$HOME/Library/Safari/History.db"* 2>/dev/null
@@ -299,7 +300,7 @@ cleanup_browsers() {
     # Firefox
     # Process name is "firefox" or "Firefox" depending on version/launch, usually "Firefox" match
     # pgrep -f might be safer or just pgrep -x Firefox
-    close_browser "firefox" "Firefox"
+    close_app "firefox" "Firefox"
     
     local firefox_dir="$HOME/Library/Application Support/Firefox/Profiles"
     if [ -d "$firefox_dir" ]; then
