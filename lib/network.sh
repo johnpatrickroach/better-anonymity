@@ -202,7 +202,7 @@ network_verify_anonymity() {
          # Only verify Tor if SOCKS proxy is set to Tor (127.0.0.1:9050)
          if command -v networksetup &> /dev/null; then
              local socks_state
-             socks_state=$(networksetup -getsocksfirewallproxy "Wi-Fi")
+             socks_state=$(networksetup -getsocksfirewallproxy "${PLATFORM_WIFI_SERVICE:-Wi-Fi}")
              if echo "$socks_state" | grep -q "Enabled: Yes" && \
                 echo "$socks_state" | grep -q "Server: 127.0.0.1" && \
                 echo "$socks_state" | grep -q "Port: 9050"; then

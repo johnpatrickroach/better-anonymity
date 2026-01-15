@@ -83,3 +83,50 @@ detect_os_version() {
     export PLATFORM_OS_VER_MAJOR=$(echo "$ver" | cut -d. -f1)
     info "Detected macOS Version: $ver (Major: $PLATFORM_OS_VER_MAJOR)"
 }
+
+# Hardware Detection Helpers
+
+get_wifi_device() {
+    # Returns the device ID (e.g., en0) for the Wi-Fi interface.
+    if [ -n "$PLATFORM_WIFI_DEVICE" ]; then echo "$PLATFORM_WIFI_DEVICE"; return; fi
+
+    local dev
+    # Added WLAN/AirPort for localization support
+    dev=$(networksetup -listallhardwareports | grep -A 1 -E "Hardware Port: (Wi-Fi|AirPort|WLAN)" | grep "Device:" | awk '{print $2}')
+    
+    if [ -z "$dev" ]; then
+        # Fallback for some systems: check for en0 if explicitly wireless??
+        # Safe default fallback
+        dev="en0" 
+    fi
+    echo "$dev"
+}
+
+get_wifi_service() {
+    if [ -n "$PLATFORM_WIFI_SERVICE" ]; then echo "$PLATFORM_WIFI_SERVICE"; return; fi
+    # Returns the Service Name (e.g., "Wi-Fi") associated with the Wi-Fi device.
+    local dev
+    dev=$(get_wifi_device)
+    
+    local sname
+    # Map Device -> Service Name using networkserviceorder
+    sname=$(networksetup -listnetworkserviceorder | grep -B 1 "Device: $dev)" | head -n 1 | sed -E 's/^\([0-9]+\) //')
+    
+    if [ -z "$sname" ]; then
+        # Check common names
+        if networksetup -listallnetworkservices | grep -q "^Wi-Fi$"; then
+            sname="Wi-Fi"
+        elif networksetup -listallnetworkservices | grep -q "^WLAN$"; then
+            sname="WLAN"
+        else
+            sname="Wi-Fi"
+        fi
+    fi
+    echo "$sname"
+}
+
+detect_wifi_network() {
+    export PLATFORM_WIFI_DEVICE=$(get_wifi_device)
+    export PLATFORM_WIFI_SERVICE=$(get_wifi_service)
+    info "Detected Wi-Fi: $PLATFORM_WIFI_SERVICE ($PLATFORM_WIFI_DEVICE)"
+}

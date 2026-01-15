@@ -15,7 +15,7 @@ fi
 # wifi_get_interface
 # Returns the name of the primary Wi-Fi interface (e.g., en0).
 wifi_get_interface() {
-    networksetup -listallhardwareports | awk '/Wi-Fi|AirPort/{getline; print $2}'
+    networksetup -listallhardwareports | awk '/Wi-Fi|AirPort|WLAN/{getline; print $2}'
 }
 
 # wifi_generate_mac

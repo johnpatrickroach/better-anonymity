@@ -70,29 +70,23 @@ install_privoxy() {
     info "Configuring System Proxy (HTTP/HTTPS)..."
     
     # Check current state to avoid redundant sudo
-    local DO_HTTP="false"
-    local DO_HTTPS="false"
+    info "Configuring Privoxy..."
+    local HTTP_PROXY
+    HTTP_PROXY=$(networksetup -getwebproxy "${PLATFORM_WIFI_SERVICE:-Wi-Fi}")
     
-    local HTTP_PROXY=$(networksetup -getwebproxy "Wi-Fi")
-    if ! echo "$HTTP_PROXY" | grep -q "Enabled: Yes" || ! echo "$HTTP_PROXY" | grep -q "Server: 127.0.0.1" || ! echo "$HTTP_PROXY" | grep -q "Port: 8118"; then
-        DO_HTTP="true"
+    local HTTPS_PROXY
+    HTTPS_PROXY=$(networksetup -getsecurewebproxy "${PLATFORM_WIFI_SERVICE:-Wi-Fi}")
+    
+    # Set HTTP/HTTPS Proxy to 127.0.0.1:8118 (Privoxy default)
+    if [[ "$HTTP_PROXY" == *"Enabled: No"* ]]; then
+        execute_sudo "Set HTTP Proxy" networksetup -setwebproxy "${PLATFORM_WIFI_SERVICE:-Wi-Fi}" 127.0.0.1 8118
+        # Toggle on
+        execute_sudo "Enable HTTP Proxy" networksetup -setwebproxystate "${PLATFORM_WIFI_SERVICE:-Wi-Fi}" on
     fi
     
-    local HTTPS_PROXY=$(networksetup -getsecurewebproxy "Wi-Fi")
-    if ! echo "$HTTPS_PROXY" | grep -q "Enabled: Yes" || ! echo "$HTTPS_PROXY" | grep -q "Server: 127.0.0.1" || ! echo "$HTTPS_PROXY" | grep -q "Port: 8118"; then
-        DO_HTTPS="true"
-    fi
-
-    if [ "$DO_HTTP" == "true" ]; then
-        execute_sudo "Set HTTP Proxy" networksetup -setwebproxy "Wi-Fi" 127.0.0.1 8118
-    else
-        info "HTTP Proxy already set correctly."
-    fi
-    
-    if [ "$DO_HTTPS" == "true" ]; then
-        execute_sudo "Set HTTPS Proxy" networksetup -setsecurewebproxy "Wi-Fi" 127.0.0.1 8118
-    else
-        info "HTTPS Proxy already set correctly."
+    if [[ "$HTTPS_PROXY" == *"Enabled: No"* ]]; then
+        execute_sudo "Set HTTPS Proxy" networksetup -setsecurewebproxy "${PLATFORM_WIFI_SERVICE:-Wi-Fi}" 127.0.0.1 8118
+        execute_sudo "Enable HTTPS Proxy" networksetup -setsecurewebproxystate "${PLATFORM_WIFI_SERVICE:-Wi-Fi}" on
     fi
 }
 

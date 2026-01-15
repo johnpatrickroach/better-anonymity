@@ -86,7 +86,7 @@ tor_status() {
     # Check Proxy Status
     local proxy_state
     # Check Wi-Fi interface
-    proxy_state=$(networksetup -getsocksfirewallproxy Wi-Fi)
+    proxy_state=$(networksetup -getsocksfirewallproxy "${PLATFORM_WIFI_SERVICE:-Wi-Fi}")
     if echo "$proxy_state" | grep -q "Enabled: Yes"; then
         info "[ENABLED] System SOCKS Proxy is ON (127.0.0.1:9050)."
     else
@@ -95,13 +95,13 @@ tor_status() {
 }
 
 tor_enable_system_proxy() {
-    warn "Enabling System SOCKS Proxy for 'Wi-Fi'..."
+    warn "Enabling System SOCKS Proxy for '${PLATFORM_WIFI_SERVICE:-Wi-Fi}'..."
     warn "This will route SOCKS-capable traffic through Tor (127.0.0.1:9050)."
     warn "Note: This does NOT force all traffic (like UDP/ping) through Tor."
     
     # Check current state
     local state
-    state=$(networksetup -getsocksfirewallproxy Wi-Fi)
+    state=$(networksetup -getsocksfirewallproxy "${PLATFORM_WIFI_SERVICE:-Wi-Fi}")
     if echo "$state" | grep -q "Enabled: Yes"; then
         if echo "$state" | grep -q "Server: 127.0.0.1" && echo "$state" | grep -q "Port: 9050"; then
              info "System SOCKS Proxy is already enabled and correct."
@@ -109,15 +109,15 @@ tor_enable_system_proxy() {
         fi
     fi
 
-    execute_sudo "Set SOCKS Proxy" networksetup -setsocksfirewallproxy Wi-Fi 127.0.0.1 9050
-    execute_sudo "Enable SOCKS Proxy" networksetup -setsocksfirewallproxystate Wi-Fi on
+    execute_sudo "Enable Tor SOCKS" networksetup -setsocksfirewallproxy "${PLATFORM_WIFI_SERVICE:-Wi-Fi}" 127.0.0.1 9050
+    execute_sudo "Enable Tor State" networksetup -setsocksfirewallproxystate "${PLATFORM_WIFI_SERVICE:-Wi-Fi}" on
     
     success "System Proxy Enabled."
 }
 
 tor_disable_system_proxy() {
-    info "Disabling System SOCKS Proxy for 'Wi-Fi'..."
-    execute_sudo "Disable SOCKS Proxy" networksetup -setsocksfirewallproxystate Wi-Fi off
+    info "Disabling System SOCKS Proxy for '${PLATFORM_WIFI_SERVICE:-Wi-Fi}'..."
+    execute_sudo "Disable SOCKS Proxy" networksetup -setsocksfirewallproxystate "${PLATFORM_WIFI_SERVICE:-Wi-Fi}" off
     success "System Proxy Disabled."
 }
 
