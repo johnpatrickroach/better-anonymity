@@ -87,16 +87,16 @@ function i2p_stop() {
     fi
     
     # Fallback: Kill java process if runplain was used
-    # Identify by process arguments? usually 'net.i2p.router.Router'
+    # Identify by main java class 'net.i2p.router.Router'
     warn "Standard stop failed. Checking for fallback process..."
     local pids
-    pids=$(pgrep -f "i2p.jar")
+    pids=$(pgrep -f "net.i2p.router.Router")
     
     if [ -n "$pids" ]; then
         info "Found I2P java process(es): $pids. Killing..."
         kill $pids
         sleep 1
-        if pgrep -f "i2p.jar" >/dev/null; then
+        if pgrep -f "net.i2p.router.Router" >/dev/null; then
             kill -9 $pids 2>/dev/null
         fi
         success "I2P process stopped manually."
@@ -130,9 +130,11 @@ function i2p_status() {
     
     # Check fallback process if wrapper says not running
     if echo "$status_out" | grep -q "not running"; then
-         if pgrep -f "i2p.jar" >/dev/null; then
+         if pgrep -f "net.i2p.router.Router" >/dev/null; then
+             local pids
+             pids=$(pgrep -f "net.i2p.router.Router" | tr '\n' ',' | sed 's/,$//')
              echo "NOTE: I2P appears to be running via fallback (Java process found)."
-             echo "PID: $(pgrep -f i2p.jar | tr '\n' ' ')"
+             echo "PID: $pids"
          fi
     fi
 }
