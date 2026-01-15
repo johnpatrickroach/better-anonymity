@@ -419,12 +419,22 @@ hardening_disable_bonjour() {
 
 hardening_secure_sudoers() {
     info "Auditing sudoers for env_keep..."
-    # Warning: greedy match
-    if sudo grep -q "env_keep += \"HOME MAIL\"" /etc/sudoers 2>/dev/null; then
-        warn "Sudoers contains 'env_keep += HOME MAIL'. This is a potential risk."
-        warn "Consider editing /etc/sudoers (via visudo) to comment out this line."
+    # Check for any env_keep directives in sudoers or included files
+    local matches
+    matches=$(sudo grep -rE "^\s*Defaults.*env_keep" /etc/sudoers /etc/sudoers.d 2>/dev/null)
+    
+    if [ -n "$matches" ]; then
+        warn "Found 'env_keep' directives which preserve environment variables:"
+        echo "$matches" | awk '{$1=$1};1' | while read -r line; do
+            warn "  $line"
+        done
+        
+        if echo "$matches" | grep -qE "HOME|MAIL"; then
+             warn "Risk: HOME or MAIL variables are preserved. This is common on macOS but reduces isolation."
+             warn "Consider using 'visudo' to remove or comment out these lines."
+        fi
     else
-        info "Sudoers looks clean."
+        info "Sudoers looks clean (no obvious env_keep exceptions)."
     fi
 }
 
