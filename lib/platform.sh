@@ -128,5 +128,39 @@ get_wifi_service() {
 detect_wifi_network() {
     export PLATFORM_WIFI_DEVICE=$(get_wifi_device)
     export PLATFORM_WIFI_SERVICE=$(get_wifi_service)
-    info "Detected Wi-Fi: $PLATFORM_WIFI_SERVICE ($PLATFORM_WIFI_DEVICE)"
+}
+
+detect_active_network() {
+    # 1. Find active interface via default route
+    local active_dev
+    active_dev=$(route get default 2>/dev/null | grep interface: | awk '{print $2}')
+    
+    if [ -z "$active_dev" ]; then
+        warn "No default route found (offline?). Defaulting to primary Wi-Fi."
+        detect_wifi_network
+        export PLATFORM_ACTIVE_DEVICE="$PLATFORM_WIFI_DEVICE"
+        export PLATFORM_ACTIVE_SERVICE="$PLATFORM_WIFI_SERVICE"
+        return
+    fi
+    
+    export PLATFORM_ACTIVE_DEVICE="$active_dev"
+    
+    # 2. Map Device -> Service Name
+    local sname
+    sname=$(networksetup -listnetworkserviceorder | grep -B 1 "Device: $active_dev)" | head -n 1 | sed -E 's/^\([0-9]+\) //')
+    
+    if [ -z "$sname" ]; then
+        warn "Could not map device $active_dev to Service Name. Trying fallback..."
+        # If active device is en0/en1, it might be Wi-Fi without service name match?
+        if [ "$active_dev" == "$(get_wifi_device)" ]; then
+             sname=$(get_wifi_service)
+        else
+             # Assume "Ethernet" or use device name as fallback?
+             # Networksetup commands usually NEED the Service Name, not device.
+             # If we can't find it, we might be in trouble for changing settings.
+             sname="Ethernet"
+        fi
+    fi
+    export PLATFORM_ACTIVE_SERVICE="$sname"
+    info "Active Network: $PLATFORM_ACTIVE_SERVICE ($PLATFORM_ACTIVE_DEVICE)"
 }

@@ -146,10 +146,10 @@ lifecycle_capture_state() {
 
     # 2. DNS
     if command -v networksetup &>/dev/null; then
-        # Detect Wifi Service (using platform var if available, else literal fallback)
-        local wifi_svc="${PLATFORM_WIFI_SERVICE:-Wi-Fi}"
+        # Detect Active Service (using platform var if available, else literal fallback)
+        local net_svc="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
         local dns
-        dns=$(networksetup -getdnsservers "$wifi_svc")
+        dns=$(networksetup -getdnsservers "$net_svc")
         save_state_var "STATE_DNS" "$dns"
     fi
 
@@ -220,23 +220,23 @@ lifecycle_restore_state() {
     fi
 
     # 2. DNS
-    local wifi_svc="${PLATFORM_WIFI_SERVICE:-Wi-Fi}"
+    local net_svc="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
     
     if [ -n "$STATE_DNS" ]; then
         if [[ "$STATE_DNS" == *"There aren't any DNS Servers set"* ]] || [[ -z "$STATE_DNS" ]]; then
-             execute_sudo "Reset DNS to Empty" networksetup -setdnsservers "$wifi_svc" "Empty"
+             execute_sudo "Reset DNS to Empty" networksetup -setdnsservers "$net_svc" "Empty"
         else
              local clean_dns
              clean_dns=$(echo "$STATE_DNS" | tr '\n' ' ' | xargs)
-             execute_sudo "Restore DNS" networksetup -setdnsservers "$wifi_svc" $clean_dns
+             execute_sudo "Restore DNS" networksetup -setdnsservers "$net_svc" $clean_dns
         fi
     fi
     
     # 2.5 Proxies (Always disable on restore to ensure connectivity)
     info "Resetting Network Proxies..."
-    execute_sudo "Disable SOCKS Proxy" networksetup -setsocksfirewallproxystate "$wifi_svc" off 2>/dev/null || true
-    execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate "$wifi_svc" off 2>/dev/null || true
-    execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate "$wifi_svc" off 2>/dev/null || true
+    execute_sudo "Disable SOCKS Proxy" networksetup -setsocksfirewallproxystate "$net_svc" off 2>/dev/null || true
+    execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate "$net_svc" off 2>/dev/null || true
+    execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate "$net_svc" off 2>/dev/null || true
 
     # 3. Firewall
     if [ -n "$STATE_FIREWALL" ]; then

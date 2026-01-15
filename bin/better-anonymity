@@ -59,6 +59,7 @@ detect_os_version
 detect_model
 check_macos
 detect_wifi_network
+detect_active_network
 
 usage() {
     if [ -f "$LIB_DIR/banner.txt" ]; then
