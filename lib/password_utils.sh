@@ -89,6 +89,26 @@ check_strength() {
         else
              ((score+=1)) # Weakish passphrase
         fi
+        
+        # Check predictability via average word length
+        # Simple sentences like "I am a cat" have low avg length (2.5) vs diceware "correct horse battery staple" (~6)
+        local total_chars
+        # Count non-space chars
+        total_chars=$(echo "$pwd" | tr -d ' ' | wc -c | xargs)
+        # wc -c counts newline, so subtract 1 or rely on trimming. Bash string length is safer.
+        local content_len=${#pwd}
+        # Subtract spaces count roughly? simpler to just use stripped length
+        local stripped="${pwd// /}"
+        local stripped_len=${#stripped}
+        
+        # Bash doesn't do floating point, so multiply by 10
+        local avg_len_x10=$(( (stripped_len * 10) / word_count ))
+        
+        if [ "$avg_len_x10" -lt 35 ]; then
+             # Avg length < 3.5 characters
+             ((score-=1))
+             warn "Passphrase uses very short words. Avoid predictable sentences (e.g. 'I am a cat')."
+        fi
     else
         # Normal password complexity
         if [[ "$pwd" =~ [A-Z] ]]; then ((score++)); fi
