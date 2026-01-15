@@ -78,7 +78,10 @@ tor_status_check() {
 tor_status() {
     info "Checking Tor Status..."
     if tor_status_check; then
-        info "[RUNNING] Tor Service is active (PID: $(pgrep -x tor))."
+        local pids
+        # Capture all PIDs, replace newlines with commas, remove trailing comma
+        pids=$(pgrep -x tor | tr '\n' ',' | sed 's/,$//')
+        info "[RUNNING] Tor Service is active (PID: $pids)."
     else
         warn "[STOPPED] Tor Service is NOT running."
     fi
