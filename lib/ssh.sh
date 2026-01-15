@@ -44,11 +44,7 @@ ssh_harden_sshd() {
     
     # Use helper from core.sh
     if check_config_and_backup "$SSHD_CONFIG_SRC" "$target" "sudo"; then
-        # If check_config_and_backup returned 0, it might mean it copied OR it verified identical.
-        # We need to set permissions regardless if we touched it, or assume helper did it? 
-        # Helper does cp. We need to set perms.
-        execute_sudo "Set permissions" chmod 644 "$target"
-        execute_sudo "Set ownership" chown root:wheel "$target"
+        # Check_config_and_backup handles the copy.
         
         success "Configuration applied."
         info "You must restart Remote Login for changes to take effect:"
