@@ -151,22 +151,29 @@ network_verify_dns() {
          # But we want to capture the output for grep.
          # So we'll use 'sudo brew services list' directly or via a wrapper if we want to be consistent?
          # Consistent approach:
-         services_out=$(sudo brew services list 2>/dev/null)
-         echo "$services_out"
+         # Split checks: Root services (DNS) vs User services (Privoxy)
          
-         if echo "$services_out" | grep -q "dnscrypt-proxy.*started" || pgrep -x "dnscrypt-proxy" >/dev/null; then
+         # 1. Root Services (DNSCrypt, Unbound) - Check with Sudo
+         local root_services
+         root_services=$(execute_sudo "Check Root Services" brew services list 2>/dev/null)
+         
+         if echo "$root_services" | grep -q "dnscrypt-proxy.*started" || pgrep -x "dnscrypt-proxy" >/dev/null; then
              info "[PASS] dnscrypt-proxy is running."
          else
              warn "[FAIL] dnscrypt-proxy is NOT running or has errors."
          fi
          
-         if echo "$services_out" | grep -q "unbound.*started" || pgrep -x "unbound" >/dev/null; then
+         if echo "$root_services" | grep -q "unbound.*started" || pgrep -x "unbound" >/dev/null; then
              info "[PASS] unbound is running."
          else
              warn "[FAIL] unbound is NOT running or has errors."
          fi
 
-         if echo "$services_out" | grep -q "privoxy.*started" || pgrep -x "privoxy" >/dev/null; then
+         # 2. User Services (Privoxy) - Check as User
+         local user_services
+         user_services=$(brew services list 2>/dev/null)
+         
+         if echo "$user_services" | grep -q "privoxy.*started" || pgrep -x "privoxy" >/dev/null; then
              info "[PASS] privoxy is running."
          else
              warn "[FAIL] privoxy is NOT running or has errors."

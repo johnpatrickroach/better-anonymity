@@ -718,6 +718,20 @@ assert_contains "$OUTPUT" "Invalid DNSSEC rejected" "Should PASS invalid DNSSEC"
 # ----------------------------------------------
 # Simulate brew services NOT showing started, but pgrep finding them
 brew() {
+    # Check if called via execute_sudo wrapper (which we will mock to set IS_SUDO)
+    # But wait, execute_sudo above calls "$@".
+    # Implementation:
+    # 1. Mock execute_sudo locally for this test context? 
+    # Global mock performs: call if function.
+    # We can rely on a custom execute_sudo in this subshell if we ran in subshell, but we are not.
+    # We can override execute_sudo globally then restore it? Or just make brew smarter.
+    
+    # Actually, let's look at how we called it in network.sh:
+    # execute_sudo "Check Root Services" brew services list
+    # The brew function receives "services list". It doesn't know about sudo.
+    
+    # We need to override execute_sudo for this test.
+    
     if [[ "$*" == "services list" ]]; then
        echo "Name           Status  User File"
        echo "dnscrypt-proxy stopped root ..."
@@ -725,10 +739,52 @@ brew() {
        echo "privoxy        none    root ..."
     fi
 }
-# pgrep mock (above) defaults to return 0 (success)
+# Restore pgrep defaults
+pgrep() { return 0; }
+
 OUTPUT=$(network_verify_dns)
 assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should check dnscrypt-proxy (fallback)"
 assert_contains "$OUTPUT" "privoxy is running" "Should check privoxy (fallback)"
+
+
+# Test 12c: DNS Verification (Sudo vs User separation)
+# ----------------------------------------------------
+# We override execute_sudo to tag calls
+execute_sudo_orig() {
+    shift
+    if declare -f "$1" > /dev/null; then "$@"; else echo "EXEC: $*"; fi
+}
+execute_sudo() {
+    export IS_SUDO_CALL="true"
+    execute_sudo_orig "$@"
+    unset IS_SUDO_CALL
+}
+# Smart brew mock
+brew() {
+    if [[ "$*" == "services list" ]]; then
+        if [ "$IS_SUDO_CALL" == "true" ]; then
+            # Root services visible
+            echo "dnscrypt-proxy started"
+            echo "unbound        started"
+        else
+            # User services visible
+            echo "privoxy        started"
+        fi
+    fi
+}
+# Disable pgrep fallback to force reliance on brew check
+pgrep() { return 1; }
+
+OUTPUT=$(network_verify_dns)
+assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should find dnscrypt via sudo"
+assert_contains "$OUTPUT" "unbound is running" "Should find unbound via sudo"
+assert_contains "$OUTPUT" "privoxy is running" "Should find privoxy via user"
+
+# Restore mocks
+execute_sudo() { 
+    shift
+    if declare -f "$1" > /dev/null; then "$@"; else echo "EXEC: $*"; fi
+}
 
 
 
