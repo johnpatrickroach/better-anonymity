@@ -88,7 +88,9 @@ ensure_root() {
     if [ "$EUID" -ne 0 ]; then
         # Resolve script path for sudo
         local script_path
-        if [[ "$0" = /* ]]; then
+        if [ -n "$SOURCE" ]; then
+             script_path="$SOURCE"
+        elif [[ "$0" = /* ]]; then
             script_path="$0"
         else
             script_path="$PWD/${0#./}"
