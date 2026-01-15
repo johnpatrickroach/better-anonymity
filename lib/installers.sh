@@ -695,6 +695,13 @@ install_telegram() {
     info "Refer to docs/MESSENGERS.md for usage and security notes."
 }
 
+install_session() {
+    info "Installing Session (Private Messenger)..."
+    require_brew
+    install_cask_package "session" "Session.app"
+    info "Refer to docs/MESSENGERS.md for usage and security notes."
+}
+
 
 
 

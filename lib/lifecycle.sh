@@ -457,6 +457,10 @@ lifecycle_setup() {
         load_module "installers"
         install_telegram
     fi
+    if ask_confirmation "Install Session (No Phone Number Messenger)?"; then
+        load_module "installers"
+        install_session
+    fi
     if ask_confirmation "Install KeePassXC (Password Manager)?"; then
         load_module "installers"
         install_keepassxc

@@ -64,3 +64,18 @@ Unlike Signal or XMPP+OMEMO, **Telegram usage is NOT End-to-End Encrypted (E2EE)
     -   For any sensitive communication, always create a **Secret Chat**.
     -   Verify the encryption key image with your contact.
 
+## Session
+**Protocol**: Session Protocol (based on Signal + Lokinet onion routing).
+**Installation**: Run `better-anonymity install session`.
+**Type**: Decentralized, Anonymous Messenger.
+
+### Key Advantages
+1.  **No Phone Number Required**: You create an account by generating a Session ID (public key). No email or phone is linked.
+2.  **No Central Servers**: Messages are routed through an onion-routing network (Lokinet), ensuring your IP address is hidden from the recipient and storage servers (swarms).
+3.  **Metadata Minimization**: Session is designed to minimize metadata leakage.
+
+### Usage
+-   **Session ID**: Share your long Session ID to connect.
+-   **Recovery Phrase**: **Write down your recovery phrase!** Since there is no central server or email recovery, losing your phrase means losing your account forever.
+
+

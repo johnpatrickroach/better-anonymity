@@ -343,6 +343,10 @@ case "$COMMAND" in
                     load_module "installers"
                     install_telegram
                     ;;
+                session)
+                    load_module "installers"
+                    install_session
+                    ;;
                 onionshare)
                     load_module "installers"
                     install_onionshare
