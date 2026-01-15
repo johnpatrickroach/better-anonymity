@@ -224,20 +224,13 @@ install_dnscrypt() {
         config_changed=true
     fi
     
-    # Check if running
-    local is_running=false
-    # User requested sudo check for brew services
-    if execute_sudo "Check if running" brew services list | grep "dnscrypt-proxy" | grep -q "started"; then
-        is_running=true
-    elif pgrep -x "dnscrypt-proxy" >/dev/null; then
-        is_running=true
-    fi
-
-    if [ "$config_changed" = true ] || [ "$is_running" = false ]; then
+    # (Re)start service if needed
+    if [ "$config_changed" = true ]; then
         info "Restarting DNSCrypt-Proxy (requires sudo)..."
-        execute_sudo "Restart dnscrypt-proxy" brew services restart dnscrypt-proxy
+        manage_service "restart" "dnscrypt-proxy" "true"
     else
-        info "DNSCrypt-Proxy is already running with latest config. Skipping restart."
+        # Ensure it's running
+        manage_service "start" "dnscrypt-proxy" "true"
     fi
     
     info "DNSCrypt-Proxy started on port 5355."
@@ -451,20 +444,12 @@ install_unbound() {
     execute_sudo "Chown Unbound" chown -R _unbound:staff "$BREW_PREFIX/etc/unbound"
     execute_sudo "Chmod Unbound" chmod 640 "$BREW_PREFIX/etc/unbound"/*
 
-    # Check if running
-    local is_running=false
-    if execute_sudo "Check if running" brew services list | grep "unbound" | grep -q "started"; then
-        is_running=true
-    elif pgrep -x "unbound" >/dev/null; then
-        is_running=true
-    fi
-
     info "Directing Unbound (Brew) to start on boot..."
-    if [ "$config_changed" = true ] || [ "$is_running" = false ]; then
+    if [ "$config_changed" = true ]; then
         info "Restarting Unbound (requires sudo)..."
-        execute_sudo "Start Unbound" brew services restart unbound
+        manage_service "restart" "unbound" "true"
     else
-        info "Unbound is already running with latest config. Skipping restart."
+        manage_service "start" "unbound" "true"
     fi
 
     info "Unbound installed and configured."

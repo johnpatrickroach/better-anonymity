@@ -64,53 +64,6 @@ network_set_dns() {
     info "DNS updated and cache flushed."
 }
 
-# Helper to manage services quietly.
-# Usage: manage_service action service [as_root]
-manage_service() {
-    local action="$1"
-    local service="$2"
-    local as_root="$3"
-    
-    local action_pretty="$(tr '[:lower:]' '[:upper:]' <<< ${action:0:1})${action:1}"
-    info "$action_pretty $service..."
-    
-    local cmd_prefix=""
-    if [ "$as_root" == "true" ]; then cmd_prefix="sudo"; fi
-    
-    local output
-    # Run command and capture output
-    output=$($cmd_prefix brew services "$action" "$service" 2>&1)
-    local exit_code=$?
-    
-    if [ $exit_code -eq 0 ]; then
-        # Success - clean output and print
-        echo "$output" | while read -r line; do info "$line"; done
-        return 0
-    fi
-    
-    # If failed, verify actual state to handle idempotency robustly (ignoring fragile stdout strings)
-    local status
-    status=$($cmd_prefix brew services list | grep "^$service " | awk '{print $2}')
-    
-    if [[ "$action" == "start" || "$action" == "restart" ]]; then
-        if [ "$status" == "started" ]; then
-            info "Service $service is actually running (ignoring start error)."
-            return 0
-        fi
-    elif [ "$action" == "stop" ]; then
-        if [ "$status" != "started" ]; then
-             info "Service $service is already stopped."
-             return 0
-        fi
-    fi
-    
-    # Real error
-    warn "Failed to $action $service (Exit Code: $exit_code)"
-    echo "$output"
-    return $exit_code
-}
-
-
 network_update_hosts() {
     info "Updating /etc/hosts with StevenBlack blocklist..."
     

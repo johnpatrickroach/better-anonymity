@@ -461,3 +461,49 @@ check_internet() {
         warn "No internet connection detected. Network-dependent steps may fail."
     fi
 }
+
+# Helper to manage Homebrew services quietly and idempotently.
+# Usage: manage_service action service [as_root]
+manage_service() {
+    local action="$1"
+    local service="$2"
+    local as_root="$3"
+
+    local action_pretty
+    action_pretty="$(tr '[:lower:]' '[:upper:]' <<< "${action:0:1}")${action:1}"
+    info "$action_pretty $service..."
+
+    local cmd_prefix=""
+    if [ "$as_root" == "true" ]; then cmd_prefix="sudo"; fi
+
+    local output
+    output=$($cmd_prefix brew services "$action" "$service" 2>&1)
+    local exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
+        echo "$output" | while read -r line; do
+            [ -n "$line" ] && info "$line"
+        done
+        return 0
+    fi
+
+    # Verify actual state to handle idempotency robustly
+    local status
+    status=$($cmd_prefix brew services list 2>/dev/null | grep "^$service " | awk '{print $2}')
+
+    if [[ "$action" == "start" || "$action" == "restart" ]]; then
+        if [ "$status" == "started" ]; then
+            info "Service $service is actually running (ignoring $action error)."
+            return 0
+        fi
+    elif [ "$action" == "stop" ]; then
+        if [ "$status" != "started" ]; then
+            info "Service $service is already stopped."
+            return 0
+        fi
+    fi
+
+    warn "Failed to $action $service (Exit Code: $exit_code)"
+    echo "$output"
+    return $exit_code
+}
