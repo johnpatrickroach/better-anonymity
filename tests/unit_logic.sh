@@ -1595,7 +1595,7 @@ setup_advanced_dns_atomic() {
 }
 
 # Pipe yes to cover potential menu items (though mock confirms most)
-OUTPUT=$(yes | head -n 20 | lifecycle_setup 2>&1)
+OUTPUT=$(for i in {1..20}; do echo "y"; done | lifecycle_setup 2>&1)
 assert_contains "$OUTPUT" "HEADER: Better Anonymity - First Time Setup" "Should show setup wizard"
 
 assert_contains "$OUTPUT" "CALL: hardening_enable_firewall" "Should apply hardening"

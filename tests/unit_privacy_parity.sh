@@ -62,7 +62,7 @@ setup_browser_mocks() {
 }
 
 teardown_browser_mocks() {
-    rm -rf "$HOME"
+    command rm -rf "$HOME"
     export HOME="$USER_HOME_BACKUP" 
 }
 USER_HOME_BACKUP="$HOME"
@@ -88,7 +88,7 @@ mkdir -p "$HOME/Library/Preferences"
 touch "$HOME/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2"
 
 OUTPUT=$(cleanup_quarantine)
-rm -rf "$test_db_dir"
+command rm -rf "$test_db_dir"
 export HOME="$USER_HOME_BACKUP"
 
 assert_contains "$OUTPUT" "Clearing File Quarantine Logs" "Should start quarantine cleanup"
@@ -133,7 +133,7 @@ assert_contains "$OUTPUT" "DEFAULTS_CALL: write com.microsoft.office.telemetry Z
 ZSHRC_CONTENT=$(cat "$HOME/.zshrc")
 assert_contains "$ZSHRC_CONTENT" "DOTNET_CLI_TELEMETRY_OPTOUT" "Should export DOTNET var"
 
-rm -rf "$test_home_tel"
+command rm -rf "$test_home_tel"
 export HOME="$USER_HOME_BACKUP"
 
 end_suite

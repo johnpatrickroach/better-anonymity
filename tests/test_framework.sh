@@ -3,6 +3,9 @@
 # tests/test_framework.sh
 # Minimal bash testing framework
 
+# Export TERM to prevent "TERM environment variable not set" errors in CI
+export TERM="${TERM:-xterm-256color}"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
