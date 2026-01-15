@@ -22,26 +22,21 @@ wifi_get_interface() {
 # Generates a random MAC address with the locally administered bit set
 # and the unicast bit set (second hex char: 2, 6, A, or E).
 wifi_generate_mac() {
-    openssl rand -hex 6 | sed 's/\(..\)/\1:/g; s/.$//' | \
-    awk -F: '{
-        # Modify the first octet to ensure it is locally administered (unset bit 0, set bit 1)
-        # To do this simply, we can just replace the first byte"s second nibble.
-        # But a simpler way for bash generation:
-        # standard patterns: x2:xx:xx:xx:xx:xx, x6, xA, xE
-        v=$1;
-        # Get the second char of the first octet
-        second_char = substr(v, 2, 1);
-        
-        # We need a random valid second char.
-        # Let"s just overwrite the first octet entirely to be safe and simple.
-        # 02, 06, 0a, 0e are valid starts.
-        # Let"s just pick one randomly using bash $RANDOM outside awk? 
-        # Actually proper way:
-        # We"ll just output the rest of the generated string and prepend a valid prefix in the caller
-        # or do it here.
-        print $0 
-    }'
-    # Re-impl below for simplicity
+    # Generate a random valid prefix: 02, 06, 0a, 0e (locally administered containing bit, unicast)
+    # This ensures the MAC is widely accepted by APs rejecting improper random MACs.
+    local prefix
+    local r=$((RANDOM % 4))
+    case $r in
+        0) prefix="02" ;;
+        1) prefix="06" ;;
+        2) prefix="0a" ;;
+        3) prefix="0e" ;;
+    esac
+
+    # Generate 5 random bytes
+    local suffix
+    suffix=$(openssl rand -hex 5 | sed 's/\(..\)/:\1/g')
+    echo "${prefix}${suffix}"
 }
 
 # wifi_spoof_mac
@@ -62,21 +57,8 @@ wifi_spoof_mac() {
     current_mac=$(ifconfig "$iface" | awk '/ether/{print $2}')
     info "Current MAC: $current_mac"
 
-    # Generate a random valid prefix: 02, 06, 0a, 0e (locally administered, unicast)
-    local prefix
-    # simple random pick
-    local r=$((RANDOM % 4))
-    case $r in
-        0) prefix="02" ;;
-        1) prefix="06" ;;
-        2) prefix="0a" ;;
-        3) prefix="0e" ;;
-    esac
-
-    # Generate 5 random bytes
-    local suffix
-    suffix=$(openssl rand -hex 5 | sed 's/\(..\)/:\1/g')
-    local new_mac="${prefix}${suffix}"
+    local new_mac
+    new_mac=$(wifi_generate_mac)
 
     warn "This will disassociate you from the current Wi-Fi network."
     # We don't ask for confirmation here if called from a script that already asked, 
