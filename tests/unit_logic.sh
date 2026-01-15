@@ -1941,10 +1941,48 @@ assert_contains "$OUTPUT" "I2P_CALL: status" "Should check status"
 OUTPUT=$(i2p_console)
 assert_contains "$OUTPUT" "OPEN_CALL: http://127.0.0.1:7657/home" "Should open console"
 
-# end_suite removed to continue testing
+# Test 31: I2P Fallback (Wrapper Failure)
+# ---------------------------------------
+# Mock i2prouter to fail
+i2prouter() {
+    echo "Starting I2P Service..."
+    echo "WARNING: I2P Service may have failed to start."
+    echo "**Failed to load the wrapper**"
+    return 1
+}
+# Mock brew prefix with explicit path to avoid scope issues
+MOCK_PREFIX="/tmp/mock_i2p_$$"
+brew() {
+    if [ "$1" == "--prefix" ]; then
+        echo "$MOCK_PREFIX"
+        return 0
+    fi
+     echo "BREW_CALL: $*"
+}
+# Mock nohup
+nohup() {
+    echo "NOHUP_CALL: $*"
+    return 0
+}
+
+# Create dummy runplain (explicit path)
+/bin/mkdir -p "$MOCK_PREFIX/libexec"
+/usr/bin/touch "$MOCK_PREFIX/libexec/runplain.sh"
+# No chmod needed as we use 'sh' fallback now
+
+OUTPUT=$(i2p_start)
+assert_contains "$OUTPUT" "detected wrapper failure" "Should detect wrapper failure"
+assert_contains "$OUTPUT" "Attempting fallback to 'runplain.sh'" "Should attempt fallback"
+assert_contains "$OUTPUT" "Found runner:" "Should find runner"
+assert_contains "$OUTPUT" "I2P started via runplain.sh" "Should report success"
+
+# Cleanup fallback mocks
+/bin/rm -rf "$MOCK_PREFIX"
+
+end_suite
 
 
-# Test 31: KeePassXC Installer
+# Test 32: KeePassXC Installer
 # ----------------------------
 start_suite "KeePassXC Installer"
 source "$(dirname "$0")/../lib/installers.sh"
