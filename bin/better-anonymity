@@ -376,8 +376,12 @@ case "$COMMAND" in
          load_module "vault"
          shift
          case "$1" in
-            write|w) vault_write "$2" ;;
-            read|r)  vault_read "$2" ;;
+            write|w) 
+                if [ -z "$2" ]; then error "Usage: better-anonymity vault write <key_name>"; exit 1; fi
+                vault_write "$2" ;;
+            read|r)  
+                if [ -z "$2" ]; then error "Usage: better-anonymity vault read <key_name>"; exit 1; fi
+                vault_read "$2" ;;
             list|l)  vault_list ;;
             *) echo "Usage: better-anonymity vault [write|read|list]" ;;
          esac
@@ -386,9 +390,15 @@ case "$COMMAND" in
          load_module "backup"
          shift
          case "$1" in
-            encrypt) backup_encrypt_dir "$2" "$3" ;;
-            decrypt) backup_decrypt_dir "$2" ;;
-            volume|create-volume) backup_create_volume "$2" "$3" ;;
+            encrypt) 
+                if [ -z "$2" ]; then error "Usage: better-anonymity backup encrypt <source_dir> [dest_file]"; exit 1; fi
+                backup_encrypt_dir "$2" "$3" ;;
+            decrypt) 
+                if [ -z "$2" ]; then error "Usage: better-anonymity backup decrypt <file>"; exit 1; fi
+                backup_decrypt_dir "$2" ;;
+            volume|create-volume) 
+                if [ -z "$2" ] || [ -z "$3" ]; then error "Usage: better-anonymity backup volume <name> <size>"; exit 1; fi
+                backup_create_volume "$2" "$3" ;;
             audit|audit-tm) backup_audit_timemachine ;;
             *) echo "Usage: better-anonymity backup [encrypt|decrypt|volume|audit]" ;;
          esac
