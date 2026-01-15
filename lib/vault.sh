@@ -46,7 +46,16 @@ vault_write() {
              # Failover simple generator
              password=$(openssl rand -base64 24)
         fi
-        echo "Generated Password: $password"
+        
+        if command -v pbcopy >/dev/null 2>&1; then
+             echo -n "$password" | pbcopy
+             info "Generated password copied to clipboard."
+        else
+             # Fallback only if no clipboard (e.g. strict headless)
+             # But unsafe to print.
+             warn "Clipboard not available. Password generated but not displayed to prevent logs."
+             warn "You can view it after encryption via 'vault read $name'."
+        fi
     else
         echo -n "Enter Password: "
         read -rs password
