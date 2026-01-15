@@ -912,48 +912,12 @@ assert_contains "$OUTPUT" "Homebrew Analytics are disabled" "Should check Brew A
 
 # Test 14: Firefox Installation
 # -----------------------------
-# Mock curl
-curl() {
-    echo "CURL: $*"
-    # Create the dummy file so hdiutil attach works if it checks
-    if [[ "$*" == *"-o"* ]]; then
-        # Last arg should be URL, 2nd to last key (after -o) is path
-        # Simple parsing for mock:
-        # We know the script does curl -L -o "$dmg_path" "$url"
-        # So $3 is path
-        touch "$3"
-    fi
-}
-# Mock hdiutil
-hdiutil() {
-    if [[ "$*" == *"attach"* ]]; then
-        # Output typical hdiutil attach line
-        echo "/dev/disk2s1  Apple_HFS   /Volumes/Firefox"
-    elif [[ "$*" == *"detach"* ]]; then
-         echo "CURL: hdiutil detach called"
-    fi
-}
-# Mock codesign
-codesign() {
-    echo "Identifier=org.mozilla.firefox"
-    echo "Authority=Mozilla Corporation"
-}
-
-# Mock cp to avoid real I/O failure
-cp() {
-    echo "CP: $*"
-}
+# Implementation uses install_cask_package, which defaults to brew --cask
+# The mock for install_cask_package prints "brew called with: cask install <name>"
 
 OUTPUT=$(install_firefox)
-assert_contains "$OUTPUT" "Downloading Firefox" "Should download"
-assert_contains "$OUTPUT" "Mounting DMG" "Should mount"
-assert_contains "$OUTPUT" "Mounted at: /Volumes/Firefox" "Should parse mount point"
-assert_contains "$OUTPUT" "Copying Firefox to /Applications" "Should copy"
-assert_contains "$OUTPUT" "Verifying Code Signature" "Should verify signature"
-assert_contains "$OUTPUT" "Firefox signature verified" "Should PASS signature check"
-
-# Cleanup mocks
-unset -f curl hdiutil codesign cp
+assert_contains "$OUTPUT" "Installing Firefox..." "Should announce install"
+assert_contains "$OUTPUT" "brew called with: cask install firefox" "Should call brew cask install"
 
 
 # Test 15: Firefox Hardening
