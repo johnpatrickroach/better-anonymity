@@ -63,6 +63,33 @@ sed_in_place() {
     sed -i '' "$expression" "$file"
 }
 
+# Helper: Check if a TCP port is open (Robust: nc -> bash /dev/tcp)
+check_port() {
+    local host="$1"
+    local port="$2"
+    local timeout="${3:-1}"
+    
+    # Method 1: Netcat (nc)
+    if command -v nc &>/dev/null; then
+        # -z: zero-I/O mode (scanning)
+        # -G: timeout (macOS/BSD), -w (GNU)? macOS nc uses -G for connection timeout usually, or -w.
+        # -w 1 is generally portable for 1 second timeout.
+        if nc -z -w "$timeout" "$host" "$port" &>/dev/null; then
+            return 0
+        fi
+        return 1
+    fi
+    
+    # Method 2: Bash /dev/tcp (Fallback)
+    # Note: /dev/tcp is a bash feature, not a real file.
+    # We use a subshell with timeout to prevent hanging.
+    if timeout "$timeout" bash -c "echo > /dev/tcp/$host/$port" 2>/dev/null; then
+        return 0
+    fi
+    
+    return 1
+}
+
 header() {
     echo -e "${BLUE}======================================================================${NC}"
     echo -e "${BLUE}   $1${NC}"

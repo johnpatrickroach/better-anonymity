@@ -25,7 +25,7 @@ setup_advanced_dns_atomic() {
     
     # Check DNSCrypt (Port 5355)
     for i in {1..10}; do
-        if nc -z 127.0.0.1 5355 &>/dev/null; then
+        if check_port 127.0.0.1 5355; then
             dnscrypt_ready=true
             break
         fi
@@ -35,7 +35,7 @@ setup_advanced_dns_atomic() {
     # Check Unbound (Port 53 typically, or configured port if different? assuming 53 as per unbound.conf)
     # Note: Unbound might take a moment to bind
     for i in {1..10}; do
-        if nc -z 127.0.0.1 53 &>/dev/null; then
+        if check_port 127.0.0.1 53; then
             unbound_ready=true
             break
         fi
