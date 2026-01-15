@@ -5,15 +5,29 @@
 
 detect_arch() {
     ARCH=$(uname -m)
-    if [ "$ARCH" == "arm64" ]; then
-        export PLATFORM_ARCH="arm64"
-        export BREW_PREFIX="/opt/homebrew"
-        info "Detected Apple Silicon (ARM64). Using Homebrew prefix: $BREW_PREFIX"
-    else
-        export PLATFORM_ARCH="x86_64"
-        export BREW_PREFIX="/usr/local"
-        info "Detected Intel (x86_64). Using Homebrew prefix: $BREW_PREFIX"
-    fi
+    case "$ARCH" in
+        arm64)
+            export PLATFORM_ARCH="arm64"
+            export BREW_PREFIX="/opt/homebrew"
+            info "Detected Apple Silicon (ARM64). Using Homebrew prefix: $BREW_PREFIX"
+            ;;
+        x86_64|x86_64h)
+            export PLATFORM_ARCH="x86_64"
+            export BREW_PREFIX="/usr/local"
+            info "Detected Intel ($ARCH). Using Homebrew prefix: $BREW_PREFIX"
+            ;;
+        i386)
+            export PLATFORM_ARCH="i386"
+            export BREW_PREFIX="/usr/local"
+            warn "Detected i386. Homebrew support may be limited."
+            ;;
+        *)
+            export PLATFORM_ARCH="$ARCH"
+            # Fallback to usr/local for unknowns common on macOS
+            export BREW_PREFIX="/usr/local"
+            warn "Unknown architecture: $ARCH. Defaulting to /usr/local"
+            ;;
+    esac
 }
 
 check_macos() {
