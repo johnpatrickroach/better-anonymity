@@ -258,7 +258,15 @@ install_brew_package() {
     fi
 
     # 3. Install
-    execute_with_spinner "Installing $package (this may take a while)..." brew install "$package"
+    if execute_with_spinner "Installing $package (this may take a while)..." brew install "$package"; then
+        # Log successful installation for undo/restore
+        local state_dir="$HOME/.better-anonymity/state"
+        mkdir -p "$state_dir"
+        echo "$package" >> "$state_dir/installed_tools.log"
+        return 0
+    else
+        return 1
+    fi
 }
 
 # Generic Cask Installer
@@ -279,7 +287,15 @@ install_cask_package() {
         return 0
     fi
 
-    execute_with_spinner "Installing $cask (this may take a while)..." brew install --cask "$cask"
+    if execute_with_spinner "Installing $cask (this may take a while)..." brew install --cask "$cask"; then
+         # Log successful installation for undo/restore
+        local state_dir="$HOME/.better-anonymity/state"
+        mkdir -p "$state_dir"
+        echo "$cask" >> "$state_dir/installed_tools.log"
+        return 0
+    else
+        return 1
+    fi
 }
 
 # Smart Config Copy

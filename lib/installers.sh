@@ -623,6 +623,12 @@ harden_firefox() {
     # Install
     cp "$temp_user_js" "$profile_path/user.js"
     
+    # Log for restore
+    local state_dir="$HOME/.better-anonymity/state"
+    mkdir -p "$state_dir"
+    echo "$profile_path/user.js" >> "$state_dir/installed_files.log"
+    echo "$profile_path/prefs.js.backup.*" >> "$state_dir/installed_files.log" # Wildcard to flag manual cleanup or just best effort
+    
     # Cleanup
     rm -f "$temp_user_js" "$overrides_file"
     
@@ -658,6 +664,10 @@ install_firefox_extensions() {
         else
             info "uBlock Origin placed in extensions folder."
             info "Note: You must approve the extension in Firefox upon next launch."
+            # Log for restore
+            local state_dir="$HOME/.better-anonymity/state"
+            mkdir -p "$state_dir"
+            echo "$ublock_xpi" >> "$state_dir/installed_files.log"
         fi
     fi
 }

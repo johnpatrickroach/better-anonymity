@@ -129,7 +129,7 @@ b-a update          # Pull latest changes (git)
 b-a test            # Run unit tests
 ```
 
-### Uninstallation
+### Uninstallation & Restore
 
 To remove the CLI aliases (`b-a`, `better-anon`) from your system:
 
@@ -137,7 +137,11 @@ To remove the CLI aliases (`b-a`, `better-anon`) from your system:
 better-anonymity uninstall
 ```
 
-*Note: This does not remove installed tools (like Tor or Privoxy) or configuration files to prevent accidental data loss. You will need to remove those manually if desired.*
+**New**: You will be prompted to:
+1.  **Restore System State**: Revert Hostname, DNS, and Firewall to their original values (captured during setup).
+2.  **Uninstall Tools**: Automatically remove tools installed by `better-anonymity` (e.g., Tor, Privoxy).
+
+*Note: Manual verification is recommended after uninstallation to ensure all desired changes are reverted.*
 
 ### Documentation
 For detailed information on each module, please refer to the specific documentation:

@@ -61,6 +61,20 @@ assert_contains() {
     fi
 }
 
+assert_file_exists() {
+    local file="$1"
+    local message="${2:-File should exist: $file}"
+    
+    if [ -f "$file" ]; then
+        echo -e "${GREEN}[PASS]${NC} $message"
+        ((PASSED++))
+    else
+        echo -e "${RED}[FAIL]${NC} $message"
+        echo "       File not found: $file"
+        ((FAILED++))
+    fi
+}
+
 
 pass() {
     echo -e "${GREEN}[PASS]${NC} $1"

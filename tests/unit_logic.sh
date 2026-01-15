@@ -1539,9 +1539,6 @@ start_suite "Firefox Extensions Logic"
     info() { echo "[INFO] $1"; }
     warn() { echo "[WARN] $1"; }
     
-    # Mock return
-    return() { return "$1"; }
-
     # 1. Test Install
     rm -rf /tmp/mock_profile
     mkdir -p /tmp/mock_profile # Pre-create profile dir logic?
@@ -1555,18 +1552,154 @@ start_suite "Firefox Extensions Logic"
     # We are inside a subshell. We can run assertions here if assert_contains is available.
     # assertions are functions in unit_logic.sh, so they are available.
     
-    assert_contains "$OUTPUT" "Installing Firefox Extensions..."
-    assert_contains "$OUTPUT" "Downloading uBlock Origin..."
-    assert_contains "$OUTPUT" "uBlock Origin placed in extensions folder"
+    assert_contains "$OUTPUT" "Installing Firefox Extensions..." "Should announce install"
+    assert_contains "$OUTPUT" "Downloading uBlock Origin..." "Should download uBlock"
+    assert_contains "$OUTPUT" "uBlock Origin placed in extensions folder" "Should place extension"
 
     # 2. Test Idempotency
     mkdir -p /tmp/mock_profile/extensions
     touch "/tmp/mock_profile/extensions/uBlock0@raymondhill.net.xpi"
     
     OUTPUT_IDEMP=$(install_firefox_extensions 2>&1)
-    assert_contains "$OUTPUT_IDEMP" "uBlock Origin extension found. Skipping download."
+    assert_contains "$OUTPUT_IDEMP" "uBlock Origin extension found. Skipping download." "Should skip download if exists"
 
     rm -rf /tmp/mock_profile
+)
+
+# Test 38: System State Restore Logic
+# -----------------------------------
+start_suite "System State Restore"
+
+(
+    # Source lifecycle.sh to get state functions (without running main)
+    # We rely on previous sourcing or re-source
+    # shellcheck source=/dev/null
+    source "$ROOT_DIR/lib/lifecycle.sh"
+    
+    # Mock Global Vars & commands
+    export HOME="/tmp/mock_home_restore"
+    mkdir -p "$HOME/.better-anonymity/state"
+    
+    # Mock socketfilterfw as executable file
+    SOCKETFILTERFW_CMD="/tmp/mock_socketfilterfw"
+    echo "#!/bin/bash" > "$SOCKETFILTERFW_CMD"
+    echo "echo 'Firewall is enabled. (State = 1)'" >> "$SOCKETFILTERFW_CMD"
+    /bin/chmod +x "$SOCKETFILTERFW_CMD"
+    
+    # Mock Output / Commands
+    info() { echo "[INFO] $1"; }
+    warn() { echo "[WARN] $1"; }
+    success() { echo "[SUCCESS] $1"; }
+    execute_sudo() { echo "SUDO_EXEC: $*"; }
+    
+    # 1. Test Capture
+    # ---------------
+    # Mock Scutil/Networksetup/Firewall getters
+    scutil() { echo "OriginalMac"; }
+    networksetup() { echo "8.8.8.8 8.8.4.4"; }
+    socketfilterfw() { echo "Firewall is enabled. (State = 1)"; }
+    
+    # Mock defaults read for capture
+    defaults() {
+        if [ "$1" == "read" ]; then
+             echo "1" # Return "1" for all reads to simulate set value
+             return 0
+        fi
+        # For restore
+        echo "DEFAULTS_WRITE: $*"
+    }
+    
+    systemsetup() { 
+        if [ "$1" == "-getremotelogin" ]; then echo "Remote Login: On"; fi
+        echo "SYSTEMSETUP: $*"
+    }
+    
+    command() { return 0; } # for check_command
+    
+    # Mock brew for analytics
+    brew() {
+        if [ "$1" == "analytics" ]; then
+            if [ -z "$2" ]; then echo "Analytics are enabled."; return 0; fi # get
+            echo "BREW_CALL: analytics $2" # set
+        else
+            echo "BREW_CALL: $*"
+        fi
+    }
+    
+    # Use real sed for file editing verification
+    unset -f sed
+    
+    OUTPUT_CAPTURE=$(lifecycle_capture_state 2>&1)
+    # assert_contains "$OUTPUT_CAPTURE" "System state snapshot saved." "Should log success"
+    
+    # Verify files created
+    assert_file_exists "$HOME/.better-anonymity/state/hostname.original" "Should capture hostname"
+    assert_file_exists "$HOME/.better-anonymity/state/dns.original" "Should capture dns"
+    assert_file_exists "$HOME/.better-anonymity/state/firewall.original" "Should capture firewall"
+    assert_file_exists "$HOME/.better-anonymity/state/defaults.finder.showall" "Should capture defaults"
+    assert_file_exists "$HOME/.better-anonymity/state/ssh.original" "Should capture ssh"
+    
+    # Verify content
+    assert_contains "$(cat "$HOME/.better-anonymity/state/hostname.original")" "OriginalMac" "Hostname content verification"
+    assert_contains "$(cat "$HOME/.better-anonymity/state/defaults.finder.showall")" "1" "Finder default verification"
+    
+    # 2. Test Restore
+    # ---------------
+    # We mocked execute_sudo and defaults to print output
+    # Mock .zshrc
+    touch "$HOME/.zshrc"
+    echo "export HOMEBREW_NO_ANALYTICS=1" >> "$HOME/.zshrc"
+    
+    OUTPUT_RESTORE=$(lifecycle_restore_state 2>&1)
+    
+    assert_contains "$OUTPUT_RESTORE" "Restoring Hostname to 'OriginalMac'" "Should announce hostname restore"
+    assert_contains "$OUTPUT_RESTORE" "SUDO_EXEC: Restore Hostname scutil --set ComputerName OriginalMac" "Should restore hostname"
+    assert_contains "$OUTPUT_RESTORE" "SUDO_EXEC: Restore Default defaults write com.apple.finder AppleShowAllFiles -bool 1" "Should restore finder default"
+    assert_contains "$OUTPUT_RESTORE" "SUDO_EXEC: Restore Default defaults write com.apple.screensaver askForPasswordDelay -int 1" "Should restore screensaver delay"
+    assert_contains "$OUTPUT_RESTORE" "SUDO_EXEC: Enable Firewall $SOCKETFILTERFW_CMD --setglobalstate on" "Should restore firewall"
+    assert_contains "$OUTPUT_RESTORE" "Restoring Homebrew Analytics (Enabling)..." "Should announce brew analytics"
+    assert_contains "$OUTPUT_RESTORE" "BREW_CALL: analytics on" "Should enable brew analytics"
+
+    # Verify zshrc sed
+    # Note: unit test environment might not have sed (BSD vs GNU issue if mocking?)
+    # But usually macos has sed.
+    if grep -q "HOMEBREW_NO_ANALYTICS=1" "$HOME/.zshrc"; then
+         fail "zshrc should NOT contain HOMEBREW_NO_ANALYTICS"
+    else
+         pass "zshrc successfully cleaned"
+    fi
+     
+    # 3. Test Uninstall Tools & Files
+    # -----------------------
+    # Create fake installed log
+    echo "test-tool" > "$HOME/.better-anonymity/state/installed_tools.log"
+    echo "another-tool" >> "$HOME/.better-anonymity/state/installed_tools.log"
+    
+    # Fake file log
+    echo "/tmp/mock_file" > "$HOME/.better-anonymity/state/installed_files.log"
+    touch "/tmp/mock_file"
+    
+    # Mock brew uninstall
+    brew() { echo "BREW_CALL: $*"; }
+    # Mock confirmation to yes
+    ask_confirmation() { return 0; }
+    
+    # We call the chunk of uninstall logic that triggers tool removal.
+    # Actually, let's call lifecycle_uninstall directly and check flow.
+    # We need to mock 'rm' to avoid deleting our test dir too early if it calls rm -rf home/.b-a
+    # But files removal calls rm. We need to distinguish.
+    # We can mock rm to echo "RM: $*" usually, or use real rm for files and mock for folder.
+    # Let's mock rm globally but make it mostly harmless
+    rm() { echo "RM_CALL: $*"; }
+    
+    OUTPUT_UNINSTALL=$(lifecycle_uninstall 2>&1)
+    
+    assert_contains "$OUTPUT_UNINSTALL" "Found tracked installed tools" "Should detect installed tools"
+    assert_contains "$OUTPUT_UNINSTALL" "BREW_CALL: uninstall test-tool" "Should call brew uninstall"
+    assert_contains "$OUTPUT_UNINSTALL" "RM_CALL: -f /tmp/mock_file" "Should run rm on tracked file"
+    
+    # Cleanup
+    /bin/rm -rf "$HOME"
 )
 
 

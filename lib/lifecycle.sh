@@ -58,8 +58,235 @@ setup_advanced_dns_atomic() {
     fi
 }
 
+
+
+# State Management for Restore/Undo
+# ---------------------------------
+
+# Helper: Capture a 'defaults read' value
+# Usage: capture_default "domain" "key" "file_suffix"
+capture_default() {
+    local domain="$1"
+    local key="$2"
+    local suffix="$3"
+    local state_dir="$HOME/.better-anonymity/state"
+    
+    local val
+    if val=$(defaults read "$domain" "$key" 2>/dev/null); then
+        echo "$val" > "$state_dir/defaults.$suffix"
+    else
+        echo "__MISSING__" > "$state_dir/defaults.$suffix"
+    fi
+}
+
+# Helper: Capture Brew Analytics state
+capture_brew_analytics() {
+    local state_dir="$HOME/.better-anonymity/state"
+    if command -v brew &>/dev/null; then
+        if brew analytics | grep -q "disabled"; then
+            echo "disabled" > "$state_dir/brew.analytics.original"
+        else
+            echo "enabled" > "$state_dir/brew.analytics.original"
+        fi
+    fi
+}
+
+# Helper: Restore a 'defaults write' value
+# Usage: restore_default "domain" "key" "type" "file_suffix"
+# Type can be: -bool, -int, -string, etc.
+restore_default() {
+    local domain="$1"
+    local key="$2"
+    local type="$3"
+    local suffix="$4"
+    local state_dir="$HOME/.better-anonymity/state"
+    local file="$state_dir/defaults.$suffix"
+    
+    if [ -f "$file" ]; then
+        local val
+        val=$(cat "$file")
+        if [ "$val" == "__MISSING__" ]; then
+            # Check if currently exists, if so delete?
+            # Safer to just defaults delete if it didn't exist, or ignore.
+            # Usually 'defaults delete domain key' restores properly if it was missing.
+            execute_sudo "Reset Default (Delete)" defaults delete "$domain" "$key" 2>/dev/null || true
+        else
+            execute_sudo "Restore Default" defaults write "$domain" "$key" $type "$val"
+        fi
+    fi
+}
+
+lifecycle_capture_state() {
+    local state_dir="$HOME/.better-anonymity/state"
+    mkdir -p "$state_dir"
+    
+    info "Capturing extended system state..."
+
+    # 1. Hostname
+    if [ ! -f "$state_dir/hostname.original" ]; then
+        scutil --get ComputerName > "$state_dir/hostname.original"
+    fi
+
+    # 2. DNS
+    if [ ! -f "$state_dir/dns.original" ]; then
+        if command -v networksetup &>/dev/null; then
+            networksetup -getdnsservers Wi-Fi > "$state_dir/dns.original"
+        fi
+    fi
+
+    # 3. Firewall
+    if [ ! -f "$state_dir/firewall.original" ]; then
+        if [ -x "$SOCKETFILTERFW_CMD" ]; then
+             "$SOCKETFILTERFW_CMD" --getglobalstate > "$state_dir/firewall.original"
+        fi
+    fi
+    
+    # 4. Defaults (Finder, Dock, Privacy)
+    capture_default "com.apple.finder" "AppleShowAllFiles" "finder.showall"
+    capture_default "com.apple.finder" "FXEnableExtensionChangeWarning" "finder.extwarn"
+    capture_default "com.apple.dock" "show-recents" "dock.recents"
+    capture_default "com.apple.screensaver" "askForPassword" "screensaver.ask"
+    capture_default "/Library/Preferences/com.apple.loginwindow" "GuestEnabled" "guest.enabled"
+    capture_default "/Library/Preferences/com.apple.loginwindow" "AutoSubmit" "analytics.autosubmit"
+    capture_default "com.apple.AdLib" "forceLimitAdTracking" "adlib.limit"
+    capture_default "com.apple.AdLib" "allowIdentifierForAdvertising" "adlib.id"
+    capture_default "com.apple.AdLib" "allowApplePersonalizedAdvertising" "adlib.personal"
+    capture_default "com.apple.screensaver" "askForPasswordDelay" "screensaver.delay"
+    capture_default "com.apple.assistant.support" "Siri Data Sharing Opt-In Status" "siri.optin"
+    capture_default "com.apple.CrashReporter" "DialogType" "crashreporter.dialog"
+    
+    # 4b. More Finder/Global
+    capture_default "NSGlobalDomain" "AppleShowAllExtensions" "global.extensions"
+    capture_default "NSGlobalDomain" "NSDocumentSaveNewDocumentsToCloud" "global.icloud"
+    capture_default "com.apple.NetworkBrowser" "DisableAirDrop" "network.airdrop"
+
+    # 4c. System Configuration (Captive Portal)
+    capture_default "/Library/Preferences/SystemConfiguration/com.apple.captive.control" "Active" "captive.active"
+    
+    # 4d. Bonjour
+    capture_default "/Library/Preferences/com.apple.mDNSResponder" "NoMulticastAdvertisements" "bonjour.multicast"
+
+    # 5. Homebrew Analytics
+    capture_brew_analytics
+    
+    # 5. Remote Login / Events
+    if [ ! -f "$state_dir/ssh.original" ]; then
+        systemsetup -getremotelogin > "$state_dir/ssh.original" 2>/dev/null || true
+    fi
+    
+    info "System state snapshot saved."
+}
+
+lifecycle_restore_state() {
+    local state_dir="$HOME/.better-anonymity/state"
+    
+    info "Restoring System Settings..."
+    
+    # 1. Hostname
+    if [ -f "$state_dir/hostname.original" ]; then
+        local orig_name
+        orig_name=$(cat "$state_dir/hostname.original")
+        if [ -n "$orig_name" ]; then
+            info "Restoring Hostname to '$orig_name'..."
+            execute_sudo "Restore Hostname" scutil --set ComputerName "$orig_name"
+            execute_sudo "Restore LocalHostName" scutil --set LocalHostName "$orig_name"
+            execute_sudo "Restore HostName" scutil --set HostName "$orig_name"
+        fi
+    fi
+
+    # 2. DNS
+    if [ -f "$state_dir/dns.original" ]; then
+        local orig_dns
+        orig_dns=$(cat "$state_dir/dns.original")
+        if [[ "$orig_dns" == *"There aren't any DNS Servers set"* ]] || [[ -z "$orig_dns" ]]; then
+             execute_sudo "Reset DNS to Empty" networksetup -setdnsservers Wi-Fi "Empty"
+        else
+             local clean_dns
+             clean_dns=$(echo "$orig_dns" | tr '\n' ' ' | xargs)
+             execute_sudo "Restore DNS" networksetup -setdnsservers Wi-Fi $clean_dns
+        fi
+    fi
+
+    # 3. Firewall
+    if [ -f "$state_dir/firewall.original" ]; then
+        if grep -q "enabled" "$state_dir/firewall.original"; then
+             execute_sudo "Enable Firewall" "$SOCKETFILTERFW_CMD" --setglobalstate on
+        else
+             execute_sudo "Disable Firewall" "$SOCKETFILTERFW_CMD" --setglobalstate off
+        fi
+    fi
+    
+    # 4. Defaults
+    restore_default "com.apple.finder" "AppleShowAllFiles" "-bool" "finder.showall"
+    restore_default "com.apple.finder" "FXEnableExtensionChangeWarning" "-bool" "finder.extwarn"
+    restore_default "com.apple.dock" "show-recents" "-bool" "dock.recents"
+    restore_default "com.apple.screensaver" "askForPassword" "-int" "screensaver.ask"
+    restore_default "/Library/Preferences/com.apple.loginwindow" "GuestEnabled" "-bool" "guest.enabled"
+    restore_default "/Library/Preferences/com.apple.loginwindow" "AutoSubmit" "-bool" "analytics.autosubmit"
+    restore_default "com.apple.AdLib" "forceLimitAdTracking" "-bool" "adlib.limit"
+    restore_default "com.apple.AdLib" "allowIdentifierForAdvertising" "-bool" "adlib.id"
+    restore_default "com.apple.AdLib" "allowApplePersonalizedAdvertising" "-bool" "adlib.personal"
+    restore_default "com.apple.screensaver" "askForPasswordDelay" "-int" "screensaver.delay"
+    restore_default "com.apple.assistant.support" "Siri Data Sharing Opt-In Status" "-int" "siri.optin"
+    restore_default "com.apple.CrashReporter" "DialogType" "-string" "crashreporter.dialog"
+    
+    restore_default "NSGlobalDomain" "AppleShowAllExtensions" "-bool" "global.extensions"
+    restore_default "NSGlobalDomain" "NSDocumentSaveNewDocumentsToCloud" "-bool" "global.icloud"
+    restore_default "com.apple.NetworkBrowser" "DisableAirDrop" "-bool" "network.airdrop"
+    
+    restore_default "/Library/Preferences/SystemConfiguration/com.apple.captive.control" "Active" "-bool" "captive.active"
+    restore_default "/Library/Preferences/com.apple.mDNSResponder" "NoMulticastAdvertisements" "-bool" "bonjour.multicast"
+
+    # Restore Homebrew Analytics
+    local brew_state_file="$state_dir/brew.analytics.original"
+    if [ -f "$brew_state_file" ]; then
+        local bstate
+        bstate=$(cat "$brew_state_file")
+        if [ "$bstate" == "enabled" ]; then
+            if command -v brew &>/dev/null; then
+                 info "Restoring Homebrew Analytics (Enabling)..."
+                 brew analytics on
+            fi
+        fi
+    fi
+    
+    # Reload Finder/Dock to apply defaults
+    killall Finder 2>/dev/null || true
+    killall Dock 2>/dev/null || true
+    
+    # 5. Remote Login
+    if [ -f "$state_dir/ssh.original" ]; then
+        if grep -q "On" "$state_dir/ssh.original"; then
+            execute_sudo "Enable Remote Login" systemsetup -setremotelogin on
+        else
+            execute_sudo "Disable Remote Login" systemsetup -setremotelogin off
+        fi
+    fi
+
+    # 6. Restore Hosts
+    if [ -f "/etc/hosts-base" ]; then
+        execute_sudo "Restore Hosts" sh -c "cat /etc/hosts-base > /etc/hosts"
+        dscacheutil -flushcache
+    fi
+    
+    # 7. Clean Zshrc
+    if [ -f "$HOME/.zshrc" ]; then
+        info "Cleaning .zshrc of better-anonymity exports..."
+        # Remove known exports
+        sed -i '' '/HOMEBREW_NO_ANALYTICS=1/d' "$HOME/.zshrc"
+        sed -i '' '/HOMEBREW_NO_INSECURE_REDIRECT=1/d' "$HOME/.zshrc"
+        sed -i '' '/DOTNET_CLI_TELEMETRY_OPTOUT=1/d' "$HOME/.zshrc"
+        sed -i '' '/POWERSHELL_TELEMETRY_OPTOUT=1/d' "$HOME/.zshrc"
+        # Also remove completion block if present (harder to regex, usually manually added by user per README)
+    fi
+}
+
 lifecycle_setup() {
     clear
+    
+    # Capture state before any changes
+    lifecycle_capture_state
+    
     header "Better Anonymity - First Time Setup"
     echo "Welcome! This wizard will guide you through the recommended security baseline."
     echo "You can skip any step you prefer not to apply."
@@ -374,4 +601,52 @@ lifecycle_uninstall() {
     
     warn "This command does NOT remove installed tools (Tor, Privoxy) or configuration files (~/.better-anonymity)."
     info "To remove those, manual deletion is required to prevent data loss."
+    
+    echo ""
+    if ask_confirmation "Do you want to attempting to RESTORE system state (Hostname, DNS, Firewall)?"; then
+        lifecycle_restore_state
+        success "System state restoration attempted."
+    fi
+    
+    local installed_log="$HOME/.better-anonymity/state/installed_tools.log"
+    if [ -f "$installed_log" ]; then
+        echo ""
+        warn "Found tracked installed tools in $installed_log."
+        if ask_confirmation "Uninstall tools installed by better-anonymity (brew uninstall)?"; then
+             # Sort and unique to avoid duplicates
+             sort -u "$installed_log" | while read -r tool; do
+                 if [ -n "$tool" ]; then
+                     info "Uninstalling $tool..."
+                     # We use 'brew uninstall' (ignoring dependencies? or just normall)
+                     brew uninstall "$tool" || warn "Failed to uninstall $tool"
+                 fi
+             done
+             
+             # Clean up log -- Actually we keep it until final rm, but okay to remove now if successful
+             rm -f "$installed_log"
+             success "Tools uninstalled."
+        fi
+    fi
+    
+    # New: Remove manual files
+    local files_log="$HOME/.better-anonymity/state/installed_files.log"
+    if [ -f "$files_log" ]; then
+        echo ""
+        warn "Found tracked manual files (extensions, configs)."
+        if ask_confirmation "Delete tracked files (e.g. Firefox extensions)?"; then
+            sort -u "$files_log" | while read -r filepath; do
+                if [ -f "$filepath" ]; then
+                    info "Removing $filepath..."
+                    rm -f "$filepath"
+                fi
+            done
+            rm -f "$files_log"
+        fi
+    fi
+    
+    echo ""
+    if ask_confirmation "Remove state data and logs (~/.better-anonymity)?"; then
+        rm -rf "$HOME/.better-anonymity"
+        success "Configuration directory removed."
+    fi
 }
