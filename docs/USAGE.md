@@ -53,6 +53,20 @@ b-a dns localhost   # Set DNS to Localhost (127.0.0.1) [Recommended if running D
 b-a dns quad9       # Set DNS to Quad9 (9.9.9.9)
 b-a dns mullvad     # Set DNS to Mullvad
 b-a dns cloudflare  # Set DNS to Cloudflare
+b-a dns cloudflare  # Set DNS to Cloudflare
+```
+
+### Network Toggles
+Quickly switch between open and anonymous networking modes.
+```bash
+b-a network-anon    # Enable Anonymity Mode
+                    # - Starts: DNSCrypt, Privoxy, Tor, I2P (if installed)
+                    # - Sets: Localhost DNS, HTTP/HTTPS Proxy (Privoxy), SOCKS Proxy (Tor)
+
+b-a network-open    # Restore Open Mode
+                    # - Stops: DNSCrypt, Privoxy, Tor
+                    # - Clears: All proxy settings (Direct connection)
+                    # - Resets: DNS to system default (DHCP)
 ```
 
 ### Tool Installation

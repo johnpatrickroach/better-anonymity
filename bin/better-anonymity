@@ -88,7 +88,7 @@ usage() {
     echo "  wifi [cmd]        Wi-Fi tools (audit, spoof-mac)"
     echo "  ssh [cmd]         SSH tools (audit-sshd, harden-client)"
     echo "  network-open      Restore network defaults (disable proxy, resetting services)"
-    echo "  network-anon      Enable anonymity mode (start services, enable proxy)"
+    echo "  network-anon      Enable anonymity mode (starts DNSCrypt, Privoxy, Tor, I2P; sets System/SOCKS proxies)"
     echo ""
     echo "Tools & Services:"
     echo "  install [tool]    Install tools (tor, i2p, privoxy, gpg, signal, etc.)"

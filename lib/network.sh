@@ -315,11 +315,21 @@ network_restore_default() {
     manage_service "stop" "privoxy"
     manage_service "stop" "dnscrypt-proxy" "true"
     manage_service "stop" "unbound" "true"
+    manage_service "stop" "tor" # Stop Tor if running
+    # We do not forcibly stop I2P as it's often a long-running router, but could.
+    # User requested 'network-open' which implies clearing anonymity routing.
+    # Stopping services is consistent.
+    if is_brew_installed "i2p"; then
+         # Check if running first to avoid noise? manage_service handles it mostly for brew services
+         # functionality for i2p is custom commands though.
+         if command -v i2prouter &>/dev/null; then i2prouter stop; fi
+    fi
 
     # 2. Disable Proxies on Wi-Fi
     info "Disabling Proxies on Wi-Fi..."
     execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate Wi-Fi off
     execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate Wi-Fi off
+    execute_sudo "Disable SOCKS Proxy" networksetup -setsocksfirewallproxystate Wi-Fi off
     
     # 3. Restore DNS to System Default (DHCP)
     info "Resetting DNS to System Default (DHCP)..."
@@ -337,6 +347,12 @@ network_enable_anonymity() {
     manage_service "start" "dnscrypt-proxy" "true"
     manage_service "start" "unbound" "true"
     manage_service "start" "privoxy"
+    if is_brew_installed "tor"; then
+        manage_service "start" "tor"
+    fi
+    if is_brew_installed "i2p"; then
+        if command -v i2prouter &>/dev/null; then i2prouter start; fi
+    fi
     
     # 2. Set DNS to Localhost (DNSCrypt/Unbound)
     info "Setting DNS to Localhost..."
@@ -346,6 +362,15 @@ network_enable_anonymity() {
     info "Enabling Privoxy on Wi-Fi (127.0.0.1:8118)..."
     execute_sudo "Set HTTP Proxy" networksetup -setwebproxy Wi-Fi 127.0.0.1 8118
     execute_sudo "Set HTTPS Proxy" networksetup -setsecurewebproxy Wi-Fi 127.0.0.1 8118
+    
+    # 4. Enable SOCKS Proxy (Tor)
+    if is_brew_installed "tor"; then
+        info "Enabling Tor SOCKS Proxy on Wi-Fi (127.0.0.1:9050)..."
+        execute_sudo "Set SOCKS Proxy" networksetup -setsocksfirewallproxy Wi-Fi 127.0.0.1 9050
+        execute_sudo "Enable SOCKS Proxy" networksetup -setsocksfirewallproxystate Wi-Fi on
+    fi
+    # Note: We do NOT set system proxy for I2P (4444/4445) to avoid conflict with Privoxy (8118).
+    # I2P should be used via browser config or 'i2pify' alias.
     
     success "Anonymity mode enabled."
 }

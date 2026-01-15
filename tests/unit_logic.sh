@@ -2546,6 +2546,14 @@ networksetup() {
 brew() {
     echo "BREW: $*"
 }
+# Mock is_brew_installed to ensure logic paths run
+is_brew_installed() {
+    # Simulate tor installed
+    if [ "$1" == "tor" ]; then return 0; fi
+    # Simulate i2p NOT installed (for now) or installed?
+    # Logic: if i2p installed, it checks for command. Mock command?
+    return 1
+}
 
 # Test Restore
 OUTPUT=$(network_restore_default)
@@ -2553,8 +2561,10 @@ assert_contains "$OUTPUT" "Restoring Network Defaults" "Should announce restore"
 assert_contains "$OUTPUT" "BREW: services stop privoxy" "Should stop privoxy"
 assert_contains "$OUTPUT" "BREW: services stop dnscrypt-proxy" "Should stop dnscrypt-proxy"
 assert_contains "$OUTPUT" "BREW: services stop unbound" "Should stop unbound"
+assert_contains "$OUTPUT" "BREW: services stop tor" "Should stop tor"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setwebproxystate Wi-Fi off" "Should disable HTTP proxy"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setsecurewebproxystate Wi-Fi off" "Should disable HTTPS proxy"
+assert_contains "$OUTPUT" "NETWORKSETUP: -setsocksfirewallproxystate Wi-Fi off" "Should disable SOCKS proxy"
 assert_contains "$OUTPUT" "NET_DNS: default" "Should reset to Default DNS"
 
 # Test Anonymize
@@ -2563,8 +2573,10 @@ assert_contains "$OUTPUT" "Enabling Anonymity Mode" "Should announce enable"
 assert_contains "$OUTPUT" "BREW: services start privoxy" "Should start privoxy"
 assert_contains "$OUTPUT" "BREW: services start dnscrypt-proxy" "Should start dnscrypt-proxy"
 assert_contains "$OUTPUT" "BREW: services start unbound" "Should start unbound"
+assert_contains "$OUTPUT" "BREW: services start tor" "Should start tor"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setwebproxy Wi-Fi 127.0.0.1 8118" "Should enable HTTP proxy"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setsecurewebproxy Wi-Fi 127.0.0.1 8118" "Should enable HTTPS proxy"
+assert_contains "$OUTPUT" "NETWORKSETUP: -setsocksfirewallproxy Wi-Fi 127.0.0.1 9050" "Should enable SOCKS proxy"
 assert_contains "$OUTPUT" "NET_DNS: localhost" "Should set Localhost DNS"
 
 
