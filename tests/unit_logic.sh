@@ -1041,19 +1041,8 @@ spctl() {
 
 OUTPUT=$(install_tor_browser 2>&1)
 
-assert_contains "$OUTPUT" "Latest Version detected: 15.0.3" "Should detect latest version"
-# Expect new filename format
-assert_contains "$OUTPUT" "Downloading tor-browser-macos-15.0.3.dmg" "Should download dmg"
-assert_contains "$OUTPUT" "Downloading signature" "Should download signature"
-
-# Check GPG calls from log
-GPG_LOG=$(cat "$TEST_HOME/gpg_calls.log")
-assert_contains "$GPG_LOG" "--list-keys 0xEF6E" "Should check for key"
-assert_contains "$OUTPUT" "Importing Tor Browser Developers key" "Should import key"
-# Verify signature on the NEW filename path
-assert_contains "$GPG_LOG" "--verify /tmp/tor-browser-macos-15.0.3.dmg.asc /tmp/tor-browser-macos-15.0.3.dmg" "Should verify signature"
-assert_contains "$OUTPUT" "PGP Signature Verified" "Should PASS signature verify"
-assert_contains "$OUTPUT" "Code Signature matches The Tor Project (MADPSAYN6T)" "Should verify code signature"
+assert_contains "$OUTPUT" "Installing Tor Browser..." "Should announce install"
+assert_contains "$OUTPUT" "brew called with: cask install tor-browser" "Should call brew cask install"
 
 # Cleanup
 unset -f gpg curl hdiutil codesign spctl
