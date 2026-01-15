@@ -246,10 +246,36 @@ cleanup_quarantine() {
     find "$HOME/Downloads" -type f -exec xattr -d com.apple.quarantine {} 2>/dev/null \; || true
 }
 
+close_browser() {
+    local proc_name="$1"
+    local nice_name="${2:-$proc_name}"
+
+    if pgrep -q "$proc_name"; then
+        info "Closing $nice_name to safely clean databases..."
+        # Try standard kill (SIGTERM) first which allows cleanup
+        killall "$proc_name" 2>/dev/null
+        
+        # Wait up to 5 seconds
+        for i in {1..5}; do
+            if ! pgrep -q "$proc_name"; then
+                return 0
+            fi
+            sleep 1
+        done
+        
+        # Force kill (SIGKILL) if stuck
+        warn "$nice_name still running. Force quitting..."
+        killall -9 "$proc_name" 2>/dev/null || true
+    fi
+}
+
 cleanup_browsers() {
     info "Cleaning Browser Data..."
     
     # Chrome
+    # Process name is "Google Chrome" on macOS
+    close_browser "Google Chrome"
+    
     local chrome_dir="$HOME/Library/Application Support/Google/Chrome/Default"
     if [ -d "$chrome_dir" ]; then
         info "Cleaning Chrome History/Cache..."
@@ -257,6 +283,9 @@ cleanup_browsers() {
     fi
     
     # Safari
+    # Process name is "Safari"
+    close_browser "Safari"
+    
     info "Cleaning Safari Data..."
     rm -f "$HOME/Library/Safari/History.db"* 2>/dev/null
     rm -f "$HOME/Library/Safari/Downloads.plist" 2>/dev/null
@@ -268,6 +297,10 @@ cleanup_browsers() {
     rm -f "$HOME/Library/Cookies/Cookies.binarycookies" 2>/dev/null
     
     # Firefox
+    # Process name is "firefox" or "Firefox" depending on version/launch, usually "Firefox" match
+    # pgrep -f might be safer or just pgrep -x Firefox
+    close_browser "firefox" "Firefox"
+    
     local firefox_dir="$HOME/Library/Application Support/Firefox/Profiles"
     if [ -d "$firefox_dir" ]; then
         info "Cleaning Firefox Data (Cookies, Form History)..."
