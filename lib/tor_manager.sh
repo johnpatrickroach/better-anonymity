@@ -84,13 +84,20 @@ tor_status() {
     fi
     
     # Check Proxy Status
+    # Check Proxy Status
+    local target_service="${PLATFORM_ACTIVE_NETWORK_SERVICE:-${PLATFORM_WIFI_SERVICE:-Wi-Fi}}"
     local proxy_state
-    # Check Wi-Fi interface
-    proxy_state=$(networksetup -getsocksfirewallproxy "${PLATFORM_WIFI_SERVICE:-Wi-Fi}")
+    
+    proxy_state=$(networksetup -getsocksfirewallproxy "$target_service")
+    
     if echo "$proxy_state" | grep -q "Enabled: Yes"; then
-        info "[ENABLED] System SOCKS Proxy is ON (127.0.0.1:9050)."
+        local server
+        local port
+        server=$(echo "$proxy_state" | grep "Server:" | awk '{print $2}')
+        port=$(echo "$proxy_state" | grep "Port:" | awk '{print $2}')
+        info "[ENABLED] System SOCKS Proxy is ON for '$target_service' ($server:$port)."
     else
-        info "[DISABLED] System SOCKS Proxy is OFF."
+        info "[DISABLED] System SOCKS Proxy is OFF for '$target_service'."
     fi
 }
 
