@@ -426,11 +426,12 @@ hardening_secure_homebrew() {
 hardening_disable_bonjour() {
     local plist="${MDNS_PLIST:-/Library/Preferences/com.apple.mDNSResponder.plist}"
     info "Disabling Bonjour/Multicast Advertisements..."
-    if [ -f "$plist" ]; then
-        execute_sudo "Disable Multicast" defaults write "$plist" NoMulticastAdvertisements -bool YES
-    else
-        warn "mDNSResponder plist not found (OK if on newer macOS where it might differ, skipping)."
-    fi
+    
+    # Write preference unconditionally (creates file if missing)
+    execute_sudo "Disable Multicast" defaults write "$plist" NoMulticastAdvertisements -bool YES
+    
+    # Reload mDNSResponder to apply changes
+    execute_sudo "Reload mDNSResponder" killall -HUP mDNSResponder 2>/dev/null || true
 }
 
 hardening_secure_sudoers() {
