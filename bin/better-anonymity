@@ -297,6 +297,10 @@ case "$COMMAND" in
                     load_module "tor_manager"
                     tor_install 
                     ;;
+                tor-browser)
+                    load_module "installers"
+                    install_tor_browser
+                    ;;
                 privoxy) 
                     load_module "installers"
                     install_privoxy 
@@ -317,7 +321,31 @@ case "$COMMAND" in
                     load_module "installers"
                     install_unbound 
                     ;;
-                *) error "Unknown tool: $TOOL" ;;
+                firefox)
+                    load_module "installers"
+                    install_firefox
+                    ;;
+                firefox-extensions)
+                    load_module "installers"
+                    install_firefox_extensions
+                    ;;
+                keepassxc)
+                    load_module "installers"
+                    install_keepassxc
+                    ;;
+                signal)
+                    load_module "installers"
+                    install_signal
+                    ;;
+                i2p)
+                    load_module "i2p_manager"
+                    i2p_install
+                    ;;
+                cli)
+                    load_module "lifecycle"
+                    lifecycle_install_cli
+                    ;;
+                *) error "Unknown tool: $TOOL. Available: tor, tor-browser, privoxy, gpg, dnscrypt, pingbar, unbound, firefox, firefox-extensions, keepassxc, signal, i2p, cli." ;;
             esac
         fi
         ;;
@@ -329,34 +357,17 @@ case "$COMMAND" in
         load_module "macos_hardening"
         hardening_verify
         ;;
-    install-firefox)
-         load_module "installers"
-         install_firefox
-         ;;
-    install-firefox-extensions)
-         load_module "installers"
-         install_firefox_extensions
-         ;;
-    install-keepassxc)
-         load_module "installers"
-         install_keepassxc
-         ;;
+
     harden-firefox)
          load_module "installers"
          harden_firefox
          ;;
-    install-tor)
-         load_module "installers"
-         install_tor_browser
-         ;;
+
     setup-gpg)
          load_module "installers"
          setup_gpg
          ;;
-    install-signal)
-         load_module "installers"
-         install_signal
-         ;;
+
     cleanup|cleanup-metadata)
          load_module "cleanup"
          cleanup_metadata
