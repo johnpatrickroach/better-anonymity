@@ -198,6 +198,22 @@ network_verify_anonymity() {
                  fi
              fi
          fi
+
+         # 4. I2P Service (Conditional Check)
+         if is_brew_installed "i2p"; then
+            info "I2P installation detected."
+            if command -v i2prouter &>/dev/null; then
+               # Check if running - status returns text, exit code might vary.
+               # 'i2prouter status' usually says "I2P Router is running: PID:xxxx" or "I2P Router is not running."
+               if i2prouter status | grep -q "running"; then
+                   info "[PASS] I2P Router is running."
+               else
+                   warn "[FAIL] I2P Router is installed but NOT running."
+               fi
+            else
+               warn "I2P found in brew but 'i2prouter' command missing."
+            fi
+         fi
     else
          warn "Homebrew not found. Skipping service check."
          # Still check processes if brew missing

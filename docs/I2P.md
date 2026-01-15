@@ -43,6 +43,38 @@ This will open `http://127.0.0.1:7657/home` in your default browser. From there 
 - Configure bandwidth limits
 - Access I2P sites (eepsites)
 - Manage tunnels
+- View I2P network graphs
+
+## Application Configuration
+
+Unlike Tor, I2P does not automatically proxy system traffic. You must configure individual applications to use the I2P tunnels.
+
+### Web Browser (for .i2p sites)
+To browse I2P eepsites:
+1.  Open your browser's **Network Proxy** settings.
+2.  Manual Proxy Configuration:
+    *   **HTTP Proxy**: `127.0.0.1` Port: `4444`
+    *   **HTTPS/SSL Proxy**: `127.0.0.1` Port: `4445`
+3.  **No Proxy for**: `localhost, 127.0.0.1` (Required to access the console).
+
+> [!TIP]
+> Use a dedicated browser (e.g., Firefox or a separate profile) for I2P to keep your activity isolated from your regular web browsing.
+
+### Terminal (CLI)
+To route CLI tools through I2P (e.g., to curl an eepsite):
+You can use the built-in alias (added to `~/.zshrc`):
+
+```bash
+i2pify
+# Now tools respecting http_proxy will use I2P
+curl -I http://i2p-projekt.i2p
+```
+
+Or manually:
+```bash
+export http_proxy=http://127.0.0.1:4444
+export https_proxy=http://127.0.0.1:4445
+```
 
 ## Verification
 

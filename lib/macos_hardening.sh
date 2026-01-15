@@ -391,6 +391,15 @@ hardening_secure_homebrew() {
          info "Added 'untorify' alias to .zshrc"
     fi
     
+    # I2P Alias (HTTP Proxy 4444)
+    if ! grep -q "alias i2pify=" "$zshrc"; then
+         # I2P HTTP Proxy is at 4444. Note: I2P is mainly for within-network browsing (.i2p).
+         # Routing all traffic via I2P outproxy is possible if configured, but default is local.
+         # This alias helps easy access to .i2p sites via CLI tools that respect http_proxy.
+         echo "alias i2pify='export http_proxy=http://127.0.0.1:4444 https_proxy=http://127.0.0.1:4445'" >> "$zshrc"
+         info "Added 'i2pify' alias to .zshrc"
+    fi
+    
     # TCC Warning
     warn "SECURITY WARNING: Homebrew requests 'App Management' or 'Full Disk Access'. Granting this is dangerous."
     warn "It allows any non-sandboxed app to execute code with Terminal's permissions."

@@ -339,6 +339,12 @@ else
     assert_equals "true" "false" "zshrc should contain untorify alias"
 fi
 
+if grep -q "alias i2pify=" "$TEST_7_HOME/.zshrc"; then
+    assert_equals "true" "true" "zshrc should contain i2pify alias"
+else
+    assert_equals "true" "false" "zshrc should contain i2pify alias"
+fi
+
 # Cleanup
 rm -rf "$TEST_7_HOME"
 
@@ -807,6 +813,28 @@ assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should find dnscrypt via 
 assert_contains "$OUTPUT" "unbound is running" "Should find unbound via sudo"
 assert_contains "$OUTPUT" "privoxy is running" "Should find privoxy via user"
 assert_contains "$OUTPUT" "tor service is running" "Should find tor via user (conditional)"
+
+# Mock I2P check for Test 12c
+is_brew_installed() {
+    if [ "$1" == "i2p" ]; then return 0; fi
+    return 1
+}
+i2prouter() {
+    if [ "$1" == "status" ]; then
+        echo "I2P Router is running: PID:1234"
+    fi
+}
+
+OUTPUT=$(network_verify_anonymity)
+assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should find dnscrypt via sudo"
+assert_contains "$OUTPUT" "unbound is running" "Should find unbound via sudo"
+assert_contains "$OUTPUT" "privoxy is running" "Should find privoxy via user"
+assert_contains "$OUTPUT" "tor service is running" "Should find tor via user (conditional)"
+assert_contains "$OUTPUT" "I2P installation detected" "Should detect I2P"
+assert_contains "$OUTPUT" "I2P Router is running" "Should verify I2P running"
+
+# Cleanup mocks
+unset -f is_brew_installed i2prouter
 
 # Restore mocks
 execute_sudo() { 
@@ -1856,6 +1884,15 @@ export ROOT_DIR="$OLD_ROOT_DIR"
 # --------------------
 start_suite "I2P Manager Tests"
 source "$(dirname "$0")/../lib/i2p_manager.sh"
+
+# Mock is_brew_installed
+is_brew_installed() {
+    if [ "$1" == "i2p" ]; then
+        if [ "$MOCK_I2P_INSTALLED" == "true" ]; then return 0; fi
+        return 1
+    fi
+    return 1
+}
 
 # Mock brew
 brew() {
