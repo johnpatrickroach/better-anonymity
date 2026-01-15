@@ -1207,7 +1207,14 @@ rm -rf "$VAULT_DIR"
 # ---------------------
 tar() { echo "TAR_CALL: $*" >&2; return 0; }
 hdiutil() { echo "HDIUTIL_CALL: $*"; return 0; }
-tmutil() { echo "TMUTIL_CALL: $*" >&2; echo "Running = 1"; return 0; }
+tmutil() {
+    echo "TMUTIL_CALL: $*" >&2
+    if [[ "$*" == *"-plist"* ]]; then
+        return 1
+    fi
+    echo "Running = 1"
+    return 0
+}
 
 # Source lib/backup.sh
 source "$(dirname "$0")/../lib/backup.sh"
@@ -1345,8 +1352,9 @@ assert_contains "$OUTPUT" "SSH_KEYGEN_CALL: -H -f" "Should hash hosts"
 # -----------------------
 # Mock sudo for grep check in sudoers
 sudo() {
-    if [ "$1" == "grep" ]; then
+    if [[ "$*" == *"grep"* ]]; then
         # Simulate finding the bad line
+        echo "Defaults    env_keep += \"HOME\""
         return 0 
     else
         execute_sudo "$@"

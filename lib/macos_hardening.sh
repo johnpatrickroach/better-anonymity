@@ -427,6 +427,11 @@ hardening_disable_bonjour() {
     local plist="${MDNS_PLIST:-/Library/Preferences/com.apple.mDNSResponder.plist}"
     info "Disabling Bonjour/Multicast Advertisements..."
     
+    if [ ! -f "$plist" ]; then
+        warn "mDNSResponder plist not found at $plist. Skipping."
+        return 0
+    fi
+    
     # Write preference unconditionally (creates file if missing)
     execute_sudo "Disable Multicast" defaults write "$plist" NoMulticastAdvertisements -bool YES
     
