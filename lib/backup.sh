@@ -36,15 +36,27 @@ backup_encrypt_dir() {
     
     # tar -> gzip -> gpg
     # Using - (stdout) for tar to pipe
+    # tar -> gzip -> gpg
+    # Using - (stdout) for tar to pipe
     tar zcvf - "$source_dir" | gpg -c > "$dest_file"
+    local statuses=(${PIPESTATUS[@]})
     
-    if [ $? -eq 0 ]; then
-        success "Backup created at $dest_file"
-        return 0
-    else
-        error "Backup failed."
+    # Check tar status (index 0)
+    if [ ${statuses[0]} -ne 0 ]; then
+        error "Archiving failed (tar exit code: ${statuses[0]})."
+        rm -f "$dest_file"
         return 1
     fi
+    
+    # Check gpg status (index 1)
+    if [ ${statuses[1]} -ne 0 ]; then
+        error "Encryption failed (gpg exit code: ${statuses[1]})."
+        rm -f "$dest_file"
+        return 1
+    fi
+    
+    success "Backup created at $dest_file"
+    return 0
 }
 
 # Decrypt backup
