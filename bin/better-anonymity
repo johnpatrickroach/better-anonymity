@@ -339,6 +339,10 @@ case "$COMMAND" in
                     load_module "installers"
                     install_signal
                     ;;
+                onionshare)
+                    load_module "installers"
+                    install_onionshare
+                    ;;
                 i2p)
                     load_module "i2p_manager"
                     i2p_install

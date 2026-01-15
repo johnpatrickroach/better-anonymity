@@ -682,6 +682,12 @@ install_tor_browser() {
     info "See docs/TOR.md for instructions on configuring Pluggable Transports."
 }
 
+install_onionshare() {
+    info "Installing OnionShare..."
+    require_brew
+    install_cask_package "onionshare" "OnionShare.app"
+}
+
 
 
 

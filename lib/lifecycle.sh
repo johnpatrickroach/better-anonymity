@@ -441,6 +441,10 @@ lifecycle_setup() {
         load_module "i2p_manager"
         i2p_install
     fi
+    if ask_confirmation "Install OnionShare (Secure File Sharing)?"; then
+        load_module "installers"
+        install_onionshare
+    fi
     if ask_confirmation "Install GPG (Encryption)?"; then
         load_module "installers"
         install_gpg
