@@ -1246,6 +1246,15 @@ assert_contains "$OUTPUT" "TMUTIL_CALL: status" "Should call tmutil status"
 check_root() { return 0; }
 
 
+# Mock networksetup for Wi-Fi audit
+networksetup() {
+    if [ "$1" == "-getairportpower" ]; then
+        echo "Wi-Fi Power (en0): On"
+    else
+        echo "EXEC: networksetup $*"
+    fi
+}
+
 # Mock airport as a script because lib checks [ -x ]
 MOCK_AIRPORT="/tmp/mock_airport_$$"
 cat <<EOF > "$MOCK_AIRPORT"
@@ -1388,8 +1397,18 @@ assert_contains "$OUTPUT" "com.apple.AdLib" "Should disable AdLib"
 OUTPUT=$(hardening_privacy_tweaks)
 assert_contains "$OUTPUT" "DisableAirDrop" "Should disable AirDrop"
 
+# Mock HOME for hardening tests that modify .zshrc
+OLD_HOME="$HOME"
+export HOME="/tmp/mock_home_hardening_$$"
+mkdir -p "$HOME"
+touch "$HOME/.zshrc"
+
 OUTPUT=$(hardening_disable_app_telemetry)
 assert_contains "$(cat "$HOME/.zshrc")" "DOTNET_CLI_TELEMETRY_OPTOUT" "Should disable Dotnet Tel"
+
+# Restore HOME
+rm -rf "$HOME"
+export HOME="$OLD_HOME"
 
 OUTPUT=$(hardening_secure_sudoers)
 assert_contains "$OUTPUT" "Auditing sudoers" "Should audit"
