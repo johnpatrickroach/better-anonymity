@@ -6,12 +6,7 @@
 # Score Weights (Total 100 per category)
 # These are arbitrary but prioritize critical items.
 
-check_airport_exists() {
-    # Check for airport utility (legacy or new) OR networksetup (sufficient for spoofing)
-    [ -x "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport" ] || \
-    [ -x "/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport" ] || \
-    command -v networksetup >/dev/null
-}
+
 
 check_dir_exists() {
     [ -d "$1" ]

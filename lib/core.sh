@@ -13,6 +13,22 @@ NC='\033[0m'
 # System Constants
 SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
 
+# Resolve airport(8) path (legacy or modern). Echo path if found, empty otherwise.
+get_airport_bin() {
+    if [ -x "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport" ]; then
+        echo "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
+    elif [ -x "/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport" ]; then
+        echo "/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport"
+    else
+        echo ""
+    fi
+}
+
+# Check if airport or a suitable network utility exists
+check_airport_exists() {
+    [ -n "$(get_airport_bin)" ] || command -v networksetup >/dev/null 2>&1
+}
+
 # Logging
 # Logging
 _LOADED_MODULES=":"

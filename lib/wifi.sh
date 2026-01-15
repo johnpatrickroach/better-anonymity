@@ -5,12 +5,8 @@
 
 # Path to the airport utility
 # Path to the airport utility (legacy or modern)
-AIRPORT_BIN=""
-if [ -x "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport" ]; then
-    AIRPORT_BIN="/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
-elif [ -x "/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport" ]; then
-    AIRPORT_BIN="/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport"
-fi
+# Path to the airport utility (legacy or modern)
+AIRPORT_BIN="$(get_airport_bin)"
 
 # wifi_get_interface
 # Returns the name of the primary Wi-Fi interface (e.g., en0).
