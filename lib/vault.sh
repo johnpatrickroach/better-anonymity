@@ -40,11 +40,16 @@ vault_write() {
     local password=""
     if ask_confirmation "Generate a secure password?"; then
         # Use existing utils if sourced, simplistic fallback if not
+        # Use existing utils if sourced, simplistic fallback if not
+        # We request 6 words for high entropy (~77 bits with EFF short list)
         if type generate_password >/dev/null 2>&1; then
-             password=$(generate_password 5)
-        else
-             # Failover simple generator
-             password=$(openssl rand -base64 24)
+             password=$(generate_password 6)
+        fi
+        
+        # Fallback if generate_password failed (empty) or wasn't found
+        if [ -z "$password" ]; then
+             # Failover simple generator (32 bytes = 256 bits approx)
+             password=$(openssl rand -base64 32)
         fi
         
         if command -v pbcopy >/dev/null 2>&1; then
