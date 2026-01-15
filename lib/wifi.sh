@@ -11,7 +11,13 @@ AIRPORT_BIN="$(get_airport_bin)"
 # wifi_get_interface
 # Returns the name of the primary Wi-Fi interface (e.g., en0).
 wifi_get_interface() {
-    networksetup -listallhardwareports | awk '/Wi-Fi|AirPort|WLAN/{getline; print $2}'
+    # Delegate to platform helper for consistency
+    if command -v get_wifi_device >/dev/null 2>&1; then
+        get_wifi_device
+    else
+        # Fallback in case platform.sh wasn't loaded for some reason
+        networksetup -listallhardwareports | awk '/Wi-Fi|AirPort|WLAN/{getline; print $2}'
+    fi
 }
 
 # wifi_generate_mac
