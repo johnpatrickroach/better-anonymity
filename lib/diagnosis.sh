@@ -22,6 +22,13 @@ diagnosis_run() {
     header "System Diagnosis & Scoring"
     info "Analyzing system configuration..."
     
+    # Detect active network service
+    local net_service="Wi-Fi"
+    if command -v detect_active_network >/dev/null; then
+        detect_active_network
+        net_service="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
+    fi
+
     # Initialize Scores
     local security_score=0
     local privacy_score=0
@@ -208,7 +215,7 @@ diagnosis_run() {
     # DNS Encrypted & Service Health (20 pts)
     ((anon_total+=20))
     local dns
-    dns=$(networksetup -getdnsservers Wi-Fi 2>/dev/null)
+    dns=$(networksetup -getdnsservers "$net_service" 2>/dev/null)
     if [[ "$dns" == *"127.0.0.1"* ]]; then
         # Check if Unbound or DNSCrypt is running
         if pgrep -x "unbound" >/dev/null || pgrep -x "dnscrypt-proxy" >/dev/null; then

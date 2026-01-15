@@ -159,6 +159,13 @@ network_update_hosts() {
 network_verify_anonymity() {
     info "Verifying Anonymity Network (DNS, Proxy, Tor)..."
     
+    # Detect active network service
+    local net_service="Wi-Fi"
+    if command -v detect_active_network >/dev/null; then
+        detect_active_network
+        net_service="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
+    fi
+
     # 0. Check Service Status
     info "Checking Service Status (brew services)..."
     # We use execute_sudo because they are likely root services
@@ -202,7 +209,7 @@ network_verify_anonymity() {
          # Only verify Tor if SOCKS proxy is set to Tor (127.0.0.1:9050)
          if command -v networksetup &> /dev/null; then
              local socks_state
-             socks_state=$(networksetup -getsocksfirewallproxy "${PLATFORM_WIFI_SERVICE:-Wi-Fi}")
+             socks_state=$(networksetup -getsocksfirewallproxy "$net_service")
              if echo "$socks_state" | grep -q "Enabled: Yes" && \
                 echo "$socks_state" | grep -q "Server: 127.0.0.1" && \
                 echo "$socks_state" | grep -q "Port: 9050"; then
@@ -258,17 +265,17 @@ network_verify_anonymity() {
     fi
 
     # 2. Check NetworkSetup
-    info "Checking Wi-Fi DNS Settings..."
+    info "Checking DNS Settings for $net_service..."
     local ns_out
     if ! command -v networksetup &> /dev/null; then
          warn "networksetup command not found. Skipping."
     else
-        ns_out=$(networksetup -getdnsservers Wi-Fi)
+        ns_out=$(networksetup -getdnsservers "$net_service")
         echo "$ns_out"
         if echo "$ns_out" | grep -q "127.0.0.1"; then
-            info "[PASS] Wi-Fi is configured to use 127.0.0.1."
+            info "[PASS] $net_service is configured to use 127.0.0.1."
         else
-            warn "[FAIL] Wi-Fi does NOT appear to use 127.0.0.1."
+            warn "[FAIL] $net_service does NOT appear to use 127.0.0.1."
         fi
 
         # 3. Check Proxy Settings (Privoxy)
@@ -276,7 +283,7 @@ network_verify_anonymity() {
         local proxy_out
         
         # Check webproxy (HTTP)
-        proxy_out=$(networksetup -getwebproxy Wi-Fi)
+        proxy_out=$(networksetup -getwebproxy "$net_service")
         echo "$proxy_out"
         if echo "$proxy_out" | grep -q "Enabled: Yes" && \
            echo "$proxy_out" | grep -q "Server: 127.0.0.1" && \
@@ -287,7 +294,7 @@ network_verify_anonymity() {
         fi
         
         # Check securewebproxy (HTTPS)
-        proxy_out=$(networksetup -getsecurewebproxy Wi-Fi)
+        proxy_out=$(networksetup -getsecurewebproxy "$net_service")
         echo "$proxy_out"
         if echo "$proxy_out" | grep -q "Enabled: Yes" && \
            echo "$proxy_out" | grep -q "Server: 127.0.0.1" && \
@@ -345,11 +352,16 @@ network_restore_default() {
          if command -v i2prouter &>/dev/null; then i2prouter stop; fi
     fi
 
-    # 2. Disable Proxies on Wi-Fi
-    info "Disabling Proxies on Wi-Fi..."
-    execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate Wi-Fi off
-    execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate Wi-Fi off
-    execute_sudo "Disable SOCKS Proxy" networksetup -setsocksfirewallproxystate Wi-Fi off
+    # 2. Disable Proxies on Active Service
+    local net_service="Wi-Fi"
+    if command -v detect_active_network >/dev/null; then
+        detect_active_network
+        net_service="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
+    fi
+    info "Disabling Proxies on $net_service..."
+    execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate "$net_service" off
+    execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate "$net_service" off
+    execute_sudo "Disable SOCKS Proxy" networksetup -setsocksfirewallproxystate "$net_service" off
     
     # 3. Restore DNS to System Default (DHCP)
     info "Resetting DNS to System Default (DHCP)..."
@@ -378,16 +390,23 @@ network_enable_anonymity() {
     info "Setting DNS to Localhost..."
     network_set_dns "localhost"
     
+    # Detect active network service for Proxy
+    local net_service="Wi-Fi"
+    if command -v detect_active_network >/dev/null; then
+        detect_active_network
+        net_service="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
+    fi
+
     # 3. Enable Proxies (Privoxy)
-    info "Enabling Privoxy on Wi-Fi (127.0.0.1:8118)..."
-    execute_sudo "Set HTTP Proxy" networksetup -setwebproxy Wi-Fi 127.0.0.1 8118
-    execute_sudo "Set HTTPS Proxy" networksetup -setsecurewebproxy Wi-Fi 127.0.0.1 8118
+    info "Enabling Privoxy on $net_service (127.0.0.1:8118)..."
+    execute_sudo "Set HTTP Proxy" networksetup -setwebproxy "$net_service" 127.0.0.1 8118
+    execute_sudo "Set HTTPS Proxy" networksetup -setsecurewebproxy "$net_service" 127.0.0.1 8118
     
     # 4. Enable SOCKS Proxy (Tor)
     if is_brew_installed "tor"; then
-        info "Enabling Tor SOCKS Proxy on Wi-Fi (127.0.0.1:9050)..."
-        execute_sudo "Set SOCKS Proxy" networksetup -setsocksfirewallproxy Wi-Fi 127.0.0.1 9050
-        execute_sudo "Enable SOCKS Proxy" networksetup -setsocksfirewallproxystate Wi-Fi on
+        info "Enabling Tor SOCKS Proxy on $net_service (127.0.0.1:9050)..."
+        execute_sudo "Set SOCKS Proxy" networksetup -setsocksfirewallproxy "$net_service" 127.0.0.1 9050
+        execute_sudo "Enable SOCKS Proxy" networksetup -setsocksfirewallproxystate "$net_service" on
     fi
     # Note: We do NOT set system proxy for I2P (4444/4445) to avoid conflict with Privoxy (8118).
     # I2P should be used via browser config or 'i2pify' alias.
