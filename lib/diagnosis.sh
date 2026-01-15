@@ -29,45 +29,45 @@ diagnosis_run() {
     
     # --- SECURITY CHECK ---
     info "1. Auditing Security..."
-    local sec_checks=0
+    local sec_total=0
     local sec_passed=0
     
     # Firewall (20 pts)
-    # Firewall (20 pts)
     # Check for "enabled" OR "on" (macOS versions differ)
+    ((sec_total+=20))
     if "$SOCKETFILTERFW_CMD" --getglobalstate 2>/dev/null | grep -E -q "enabled|on"; then
         ((sec_passed+=20))
-        sec_checks=$((sec_checks+1))
     else
         warn "  [FAIL] Firewall is DISABLED."
     fi
 
     # FileVault (20 pts)
+    ((sec_total+=20))
     if fdesetup status | grep -q "FileVault is On"; then
         ((sec_passed+=20))
-         sec_checks=$((sec_checks+1))
     else
         warn "  [FAIL] FileVault is DISABLED."
     fi
 
     # SIP (20 pts)
+    ((sec_total+=20))
     if csrutil status | grep -q "enabled"; then
         ((sec_passed+=20))
-         sec_checks=$((sec_checks+1))
     else
         warn "  [FAIL] SIP is DISABLED."
     fi
 
     # Gatekeeper (20 pts)
+    ((sec_total+=20))
     if spctl --status | grep -q "assessments enabled"; then
          ((sec_passed+=20))
-          sec_checks=$((sec_checks+1))
     else
          warn "  [FAIL] Gatekeeper is DISABLED."
     fi
     
     # Stealth Mode (10 pts)
     # Stealth Mode (10 pts)
+    ((sec_total+=10))
     if "$SOCKETFILTERFW_CMD" --getstealthmode 2>/dev/null | grep -E -q "enabled|on"; then
         ((sec_passed+=10))
     else
@@ -77,6 +77,7 @@ diagnosis_run() {
     # SSH Hardening (10 pts)
     # Check if Remote Login is Off OR if Config is hardened (e.g. PermitRootLogin no)
     # Requires sudo on newer macOS
+    ((sec_total+=10))
     local remote_login_status
     remote_login_status=$(sudo systemsetup -getremotelogin 2>/dev/null)
     
@@ -91,15 +92,21 @@ diagnosis_run() {
         fi
     fi
     
-    security_score=$sec_passed
+    if [ $sec_total -gt 0 ]; then
+        security_score=$(( (sec_passed * 100) / sec_total ))
+    else
+        security_score=0
+    fi
 
 
     # --- PRIVACY CHECK ---
     info "2. Auditing Privacy..."
+    local priv_total=0
     local priv_passed=0
     
     # Analytics (20 pts)
     # Check one key indicator
+    ((priv_total+=20))
     if [ "$(defaults read /Library/Preferences/com.apple.loginwindow AutoSubmit 2>/dev/null)" == "0" ]; then
         ((priv_passed+=20))
     else
@@ -107,6 +114,7 @@ diagnosis_run() {
     fi
     
     # Ad Tracking (20 pts)
+    ((priv_total+=20))
     if [ "$(defaults read com.apple.AdLib forceLimitAdTracking 2>/dev/null)" == "1" ]; then
         ((priv_passed+=20))
     else
@@ -115,6 +123,7 @@ diagnosis_run() {
     
     # Firefox Telemetry and Hardening (30 pts)
     # If installed, check for user.js
+    ((priv_total+=30))
     if check_dir_exists "/Applications/Firefox.app"; then
          local ff_hardened=0
          # Check Telemetry pref
@@ -143,6 +152,7 @@ diagnosis_run() {
     fi
     
     # Homebrew Analytics (10 pts)
+    ((priv_total+=10))
     if command -v brew &>/dev/null; then
         if brew analytics | grep -q "disabled"; then
             ((priv_passed+=10))
@@ -154,6 +164,7 @@ diagnosis_run() {
     fi
     
     # Messengers & Vaults (20 pts)
+    ((priv_total+=20))
     local tools_passed=0
     if is_cask_installed "signal" || is_app_installed "Signal.app"; then ((tools_passed+=10)); fi
     if is_cask_installed "keepassxc" || is_app_installed "KeePassXC.app"; then ((tools_passed+=10)); fi
@@ -167,14 +178,20 @@ diagnosis_run() {
          warn "  [FAIL] Recommended privacy tools (Signal, KeePassXC) not found."
     fi
     
-    privacy_score=$priv_passed
+    if [ $priv_total -gt 0 ]; then
+        privacy_score=$(( (priv_passed * 100) / priv_total ))
+    else
+        privacy_score=0
+    fi
 
 
     # --- ANONYMITY CHECK ---
     info "3. Auditing Anonymity..."
+    local anon_total=0
     local anon_passed=0
     
     # Tor Installed & Service (20 pts)
+    ((anon_total+=20))
     if is_brew_installed "tor"; then
         ((anon_passed+=10))
         # Check if service is running if we are supposed to be using it as service?
@@ -189,6 +206,7 @@ diagnosis_run() {
     fi
     
     # DNS Encrypted & Service Health (20 pts)
+    ((anon_total+=20))
     local dns
     dns=$(networksetup -getdnsservers Wi-Fi 2>/dev/null)
     if [[ "$dns" == *"127.0.0.1"* ]]; then
@@ -205,6 +223,7 @@ diagnosis_run() {
     fi
     
     # I2P Installed (20 pts)
+    ((anon_total+=20))
     if is_brew_installed "i2p"; then
         ((anon_passed+=20))
     else
@@ -212,6 +231,7 @@ diagnosis_run() {
     fi
     
     # Privoxy Installed (10 pts)
+    ((anon_total+=10))
     if is_brew_installed "privoxy"; then
          ((anon_passed+=10))
     else
@@ -219,6 +239,7 @@ diagnosis_run() {
     fi
     
     # GPG Installed (10 pts)
+    ((anon_total+=10))
     if command -v gpg >/dev/null; then
          ((anon_passed+=10))
     else
@@ -229,6 +250,7 @@ diagnosis_run() {
     # Check if airport util exists
     # MAC Spoofing Capable & Active (20 pts)
     # Check if airport util exists
+    ((anon_total+=20))
     if check_airport_exists; then
          ((anon_passed+=10))
          
@@ -243,7 +265,11 @@ diagnosis_run() {
          warn "  [FAIL] Airport utility missing (MAC spoofing hard)."
     fi
 
-    anonymity_score=$anon_passed
+    if [ $anon_total -gt 0 ]; then
+        anonymity_score=$(( (anon_passed * 100) / anon_total ))
+    else
+        anonymity_score=0
+    fi
     
     # Report
     echo ""
