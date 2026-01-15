@@ -496,7 +496,7 @@ hardening_run_all() {
 
 hardening_verify() {
     info "Verifying Security Configuration..."
-    local all_good=true
+    local all_good=1
 
     # 1. Firewall
     info "Checking Application Firewall..."
@@ -505,14 +505,14 @@ hardening_verify() {
         info "[PASS] Firewall is enabled."
     else
         warn "[FAIL] Firewall is DISABLED."
-        all_good=false
+        all_good=0
     fi
 
     if "$SOCKETFILTERFW_CMD" --getstealthmode | grep -E -q "enabled|on"; then
         info "[PASS] Stealth Mode is enabled."
     else
         warn "[FAIL] Stealth Mode is DISABLED."
-        all_good=false
+        all_good=0
     fi
 
     # 2. FileVault
@@ -521,7 +521,7 @@ hardening_verify() {
         info "[PASS] FileVault is enabled."
     else
         warn "[FAIL] FileVault is DISABLED."
-        all_good=false
+        all_good=0
     fi
 
     # 3. System Integrity Protection (SIP)
@@ -529,7 +529,7 @@ hardening_verify() {
         info "[PASS] SIP is enabled."
     else
         warn "[FAIL] SIP is DISABLED."
-        all_good=false
+        all_good=0
     fi
 
     # 4. Gatekeeper
@@ -538,7 +538,7 @@ hardening_verify() {
          info "[PASS] Gatekeeper is enabled."
     else
          warn "[FAIL] Gatekeeper is DISABLED."
-         all_good=false
+         all_good=0
     fi
 
     # 5. Lockdown Mode (Ventura+)
@@ -562,7 +562,7 @@ hardening_verify() {
             info "[PASS] Homebrew Analytics are disabled."
         else
             warn "[FAIL] Homebrew Analytics are ENABLED."
-            all_good=false
+            all_good=0
         fi
     fi
 
@@ -574,11 +574,11 @@ hardening_verify() {
         info "[PASS] Hostname appears anonymized ($computer_name)."
     else
         warn "[FAIL] Hostname reveals potential identity: $computer_name"
-        all_good=false
+        all_good=0
     fi
 
 
-    if [ "$all_good" = true ]; then
+    if [ "$all_good" -eq 1 ]; then
         info "Security Verification Completed: ALL CHECKS PASSED."
     else
         warn "Security Verification Completed: SOME CHECKS FAILED."
