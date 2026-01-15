@@ -129,25 +129,27 @@ fi
 
 # Test 3: SSH Config Backup
 # -------------------------
+# Test 3: SSH Config Backup
+# -------------------------
 CHECK_CONFIG_RET=1
-CHMOD_CALLED=0
+TEST_CONFIG_CALLED=0
 
 # Mock check_config_and_backup
 check_config_and_backup() {
     return "$CHECK_CONFIG_RET"
 }
 
-# Mock execute_sudo for chmod/chown
+# Mock execute_sudo for sshd -t
 execute_sudo() {
     local desc="$1"
-    if [[ "$desc" == "Set permissions"* ]]; then
-        CHMOD_CALLED=1
+    if [[ "$desc" == "Test configuration"* ]]; then
+        TEST_CONFIG_CALLED=1
     fi
 }
 
 # Scenario: Configs Identical (check_config returns 0)
 CHECK_CONFIG_RET=0
-CHMOD_CALLED=0
+TEST_CONFIG_CALLED=0
 # Mock confirm/ensure_root
 ask_confirmation() { return 0; }
 ensure_root() { return 0; }
@@ -155,25 +157,31 @@ ensure_root() { return 0; }
 sshd() { return 0; }
 
 ssh_harden_sshd >/dev/null 2>&1
-# If update happens (helper returns 0), we chmod.
-# If helper says "identical", it still returns 0 (per core.sh impl).
-# So we basically always chmod if check_config_and_backup returns 0.
-# The idempotency is inside check_config_and_backup (skipping the cp).
-# So chmod being called is fine and expected as long as check succeeds.
-if [ "$CHMOD_CALLED" -eq 1 ]; then
-    pass "Should chmod if check_config succeeds"
+# If update happens (helper returns 0), we test config.
+if [ "$TEST_CONFIG_CALLED" -eq 1 ]; then
+    pass "Should verify config if check_config succeeds"
 else
-    fail "Should chmod if check_config succeeds"
+    fail "Should verify config if check_config succeeds"
 fi
 
-# Test Failure case for check_config
+# Test Failure case for check_config (helper failure)
+# Actually check_config only returns 1 if file missing, otherwise it copies/updates.
+# If it returns 1, we exit early?
+# lib/ssh.sh: if check_config_and_backup ... then ... fi
 CHECK_CONFIG_RET=1
-CHMOD_CALLED=0
+TEST_CONFIG_CALLED=0
 ssh_harden_sshd >/dev/null 2>&1
-if [ "$CHMOD_CALLED" -eq 0 ]; then
-    pass "Should NOT chmod if check_config fails"
+# Implicitly, if check fails (returns 1), we execute_sudo "Test configuration" at the end anyway?
+# Let's check lib/ssh.sh logic. 
+# It runs execute_sudo "Test configuration" regardless of if block?
+# Line 58 is OUTSIDE the if block. So it should ALWAYS run.
+# So this "Failure case" test was originally checking that CHMOD didn't run.
+# Since we removed CHMOD check, verifying TEST_CONFIG runs isn't differentiating.
+# But checking it runs is still valid idempotency check (it always runs).
+if [ "$TEST_CONFIG_CALLED" -eq 1 ]; then
+    pass "Should verify config even if check_config fails (always validates)"
 else
-    fail "Should NOT chmod if check_config fails. Called: $CHMOD_CALLED"
+    fail "Should verify config call"
 fi
 
 end_suite
