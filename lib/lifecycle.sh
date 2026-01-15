@@ -206,6 +206,12 @@ lifecycle_restore_state() {
              execute_sudo "Restore DNS" networksetup -setdnsservers Wi-Fi $clean_dns
         fi
     fi
+    
+    # 2.5 Proxies (Always disable on restore to ensure connectivity)
+    info "Resetting Network Proxies..."
+    execute_sudo "Disable SOCKS Proxy" networksetup -setsocksfirewallproxystate Wi-Fi off 2>/dev/null || true
+    execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate Wi-Fi off 2>/dev/null || true
+    execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate Wi-Fi off 2>/dev/null || true
 
     # 3. Firewall
     if [ -f "$state_dir/firewall.original" ]; then

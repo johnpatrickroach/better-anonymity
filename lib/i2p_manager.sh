@@ -9,11 +9,8 @@ function i2p_install() {
     
     # Check java dependency manually if needed, but brew usually handles it.
     # We install the formula 'i2p'.
-    if is_brew_installed "i2p"; then
-        info "I2P is already installed."
-    else
-        brew install i2p
-    fi
+    # We install the formula 'i2p'.
+    install_brew_package "i2p"
     
     # Post-install info
     success "I2P installed."

@@ -257,6 +257,8 @@ assert_contains "$OUTPUT" "Skipping Lockdown Mode" "Should skip if user declines
 
 
 
+
+
 # Test 6: Firewall
 # ----------------
 OUTPUT=$(hardening_enable_firewall)
@@ -1505,6 +1507,14 @@ OUTPUT=$(tor_status)
 assert_contains "$OUTPUT" "[RUNNING] Tor Service is active" "Should show running status"
 assert_contains "$OUTPUT" "[ENABLED] System SOCKS Proxy is ON" "Should show enabled proxy"
 
+# Test 26b: Tor Install Tracking
+# ------------------------------
+# Mock is_brew_installed to false to trigger install
+is_brew_installed() { return 1; }
+OUTPUT=$(tor_install)
+assert_contains "$OUTPUT" "brew called with: install tor" "Should track tor install"
+assert_contains "$OUTPUT" "brew called with: install torsocks" "Should track torsocks install"
+
 
 
 
@@ -1774,6 +1784,11 @@ start_suite "System State Restore"
     assert_contains "$OUTPUT_RESTORE" "SUDO_EXEC: Enable Firewall $SOCKETFILTERFW_CMD --setglobalstate on" "Should restore firewall"
     assert_contains "$OUTPUT_RESTORE" "Restoring Homebrew Analytics (Enabling)..." "Should announce brew analytics"
     assert_contains "$OUTPUT_RESTORE" "BREW_CALL: analytics on" "Should enable brew analytics"
+    
+    # Verify Proxy Reset
+    assert_contains "$OUTPUT_RESTORE" "SUDO_EXEC: Disable SOCKS Proxy networksetup -setsocksfirewallproxystate Wi-Fi off" "Should disable SOCKS proxy"
+    assert_contains "$OUTPUT_RESTORE" "SUDO_EXEC: Disable HTTP Proxy networksetup -setwebproxystate Wi-Fi off" "Should disable HTTP proxy"
+    assert_contains "$OUTPUT_RESTORE" "SUDO_EXEC: Disable HTTPS Proxy networksetup -setsecurewebproxystate Wi-Fi off" "Should disable HTTPS proxy"
 
     # Verify zshrc sed
     # Note: unit test environment might not have sed (BSD vs GNU issue if mocking?)
@@ -1975,6 +1990,15 @@ assert_contains "$OUTPUT" "detected wrapper failure" "Should detect wrapper fail
 assert_contains "$OUTPUT" "Attempting fallback to 'runplain.sh'" "Should attempt fallback"
 assert_contains "$OUTPUT" "Found runner:" "Should find runner"
 assert_contains "$OUTPUT" "I2P started via runplain.sh" "Should report success"
+
+# Test 31b: I2P Install Tracking
+# ------------------------------
+# Mock to trigger install
+is_brew_installed() { return 1; }
+OUTPUT=$(i2p_install)
+# Should track install via install_brew_package wrapper
+assert_contains "$OUTPUT" "brew called with: install i2p" "Should track i2p install"
+assert_contains "$OUTPUT" "I2P installed" "Should report success"
 
 # Cleanup fallback mocks
 /bin/rm -rf "$MOCK_PREFIX"

@@ -7,12 +7,9 @@ tor_install() {
     require_brew
     info "Installing Tor..."
     
-    # Install tor and torsocks
-    if is_brew_installed "tor"; then
-        info "Tor is already installed."
-    else
-        brew install tor torsocks
-    fi
+    # Install tor (and torsocks)
+    install_brew_package "tor"
+    install_brew_package "torsocks"
 
     local CONF_DIR="$BREW_PREFIX/etc/tor"
     if [ ! -d "$CONF_DIR" ]; then
