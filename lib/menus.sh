@@ -121,6 +121,7 @@ menu_network() {
                 case $wchoice in
                     1) wifi_audit ;;
                     2) wifi_spoof_mac ;;
+                    *) error "Invalid option" ;;
                 esac
                 ;;
             4)
@@ -173,6 +174,7 @@ menu_installers() {
                     2) 
                         load_module "tor_manager"
                         tor_install ;;
+                    *) error "Invalid option" ;;
                  esac
                  ;;
             2)
@@ -187,6 +189,7 @@ menu_installers() {
                     2) i2p_start ;;
                     3) i2p_stop ;;
                     4) i2p_console ;;
+                    *) error "Invalid option" ;;
                  esac
                  ;;
             3) install_privoxy ;;
@@ -200,6 +203,7 @@ menu_installers() {
                 case $gchoice in
                     1) install_gpg ;;
                     2) configure_gpg ;;
+                    *) error "Invalid option" ;;
                 esac
                 ;;
             8)
@@ -211,6 +215,7 @@ menu_installers() {
                     1) install_dnscrypt ;;
                     2) install_unbound ;;
                     3) install_pingbar ;;
+                    *) error "Invalid option" ;;
                 esac
                 ;;
             9) harden_firefox ;;
@@ -253,6 +258,7 @@ menu_privacy() {
                     w) vault_write ;;
                     r) vault_read ;;
                     l) vault_list ;;
+                    *) error "Invalid option" ;;
                  esac
                  ;;
             3)
@@ -268,6 +274,7 @@ menu_privacy() {
                     decrypt) backup_decrypt_dir ;;
                     volume) backup_create_volume ;;
                     audit) backup_audit_timemachine ;;
+                    *) error "Invalid option" ;;
                  esac
                  ;;
             4)
