@@ -194,6 +194,7 @@ network_verify_anonymity() {
          
          if echo "$user_services" | grep -q "privoxy.*started" || pgrep -x "privoxy" >/dev/null; then
              info "[PASS] privoxy is running."
+         else
              warn "[FAIL] privoxy is NOT running or has errors."
          fi
 
