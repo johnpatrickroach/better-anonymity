@@ -193,28 +193,6 @@ _spinner() {
     printf "    \b\b\b\b"
 }
 
-start_spinner() {
-    # Only if interactive
-    if [ -t 1 ]; then
-        # Hide cursor
-        tput civis
-        # Run spinner in background
-        _spinner $$ &
-        _SPINNER_PID=$!
-    fi
-}
-
-stop_spinner() {
-    if [ -n "$_SPINNER_PID" ]; then
-        disown "$_SPINNER_PID"
-        kill "$_SPINNER_PID" >/dev/null 2>&1
-        _SPINNER_PID=""
-        tput cnorm # Reset cursor
-        # Clear the entire line using CR + Clear to EOL
-        printf "\r\033[K"
-    fi
-}
-
 # Wrapper for commands to show spinner
 execute_with_spinner() {
     local msg="$1"
@@ -227,13 +205,22 @@ execute_with_spinner() {
     local temp_log
     temp_log=$(mktemp /tmp/b-a-install.XXXXXX)
     
-    start_spinner
-    
-    # Execute command
-    "$@" > "$temp_log" 2>&1
-    local status=$?
-    
-    stop_spinner
+    local status
+    if [ -t 1 ]; then
+        # Interactive: Run command in background, spinner in foreground
+        tput civis
+        "$@" > "$temp_log" 2>&1 &
+        local pid=$!
+        _spinner "$pid"
+        wait "$pid"
+        status=$?
+        tput cnorm # Reset cursor
+        printf "\r\033[K" # Clear line
+    else
+        # Non-interactive: Run synchronously
+        "$@" > "$temp_log" 2>&1
+        status=$?
+    fi
     
     if [ $status -eq 0 ]; then
         rm -f "$temp_log"
