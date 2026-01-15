@@ -347,9 +347,8 @@ network_restore_default() {
     # User requested 'network-open' which implies clearing anonymity routing.
     # Stopping services is consistent.
     if is_brew_installed "i2p"; then
-         # Check if running first to avoid noise? manage_service handles it mostly for brew services
-         # functionality for i2p is custom commands though.
-         if command -v i2prouter &>/dev/null; then i2prouter stop; fi
+         load_module "i2p_manager"
+         i2p_stop
     fi
 
     # 2. Disable Proxies on Active Service
@@ -383,7 +382,8 @@ network_enable_anonymity() {
         manage_service "start" "tor"
     fi
     if is_brew_installed "i2p"; then
-        if command -v i2prouter &>/dev/null; then i2prouter start; fi
+        load_module "i2p_manager"
+        i2p_start
     fi
     
     # 2. Set DNS to Localhost (DNSCrypt/Unbound)
