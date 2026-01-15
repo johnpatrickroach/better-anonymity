@@ -126,11 +126,38 @@ backup_audit_timemachine() {
         return 1
     fi
     
-    local status
-    status=$(tmutil status | grep "Running" | wc -l) # Naive check
+    
+    # Check if a backup is currently running
+    local is_running=0
+    # Use plutil to parse -plist output cleanly
+    if status_plist=$(tmutil status -plist 2>/dev/null); then
+        # extracting value of Running key (0 or 1)
+        # We can use plutil's -extract if available on modern macOS
+        # Or simplistic parsing since it's a flat dict usually
+        if echo "$status_plist" | grep -A 1 "<key>Running</key>" | grep -q "<true/>" || \
+           echo "$status_plist" | grep -A 1 "<key>Running</key>" | grep -q "<integer>1</integer>"; then
+            is_running=1
+        fi
+    else
+        # Fallback to text parsing "Running = 1;"
+        if tmutil status | grep -q "Running = 1"; then
+            is_running=1
+        fi
+    fi
+    
+    if [ "$is_running" -eq 1 ]; then
+        info "Time Machine backup is CURRENTLY RUNNING."
+    else
+        info "Time Machine is idle."
+    fi
+    
+    info "Destinations:"
     tmutil destinationinfo
     
+    # Check if encryption is enabled (naive grep on destinationinfo)
+    # Usually shows "Kind: Local" or similar. Robust encryption check is harder without parsing XML of destinationinfo.
+    # We will warn generically.
     echo
     warn "Ensure your backups are encrypted!"
-    warn "If destination is external, use Finder/Disk Utility to encrypt the disk."
+    warn "If destination is external, verify encryption in Disk Utility."
 }
