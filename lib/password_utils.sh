@@ -23,10 +23,7 @@ generate_password() {
          return 1
     fi
     
-    local mapfile_available=false
-    if type mapfile >/dev/null 2>&1 || type readarray >/dev/null 2>&1; then
-        mapfile_available=true
-    fi
+
 
     local words=()
     # Read words into array. The EFF list format is usually "11111   abacus"
