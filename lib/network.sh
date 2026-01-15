@@ -40,11 +40,14 @@ network_set_dns() {
     for service in $services; do
         current_dns=$(networksetup -getdnsservers "$service" | tr '\n' ' ' | sed 's/ $//')
         
-        if [[ "$current_dns" == *"$dns_servers"* ]] || [[ "$dns_servers" == *"$current_dns"* ]]; then 
-             # Check if they are effectively equal. 
-             # If current_dns contains the target servers (and maybe more? No, exact match preference)
-             # Let's check for containment of our target string in the normalized current_dns
-             if [[ "$current_dns" == *"$dns_servers"* ]]; then
+        # Strict comparison to ensure NO extra servers are set (crucial for anonymity)
+        if [ "$dns_servers" == "Empty" ]; then
+             if [[ "$current_dns" == *"There aren't any DNS Servers"* ]]; then
+                 info "DNS for $service is already set to default (Empty)."
+                 continue
+             fi
+        else
+             if [ "$current_dns" == "$dns_servers" ]; then
                  info "DNS for $service is already set to $dns_servers."
                  continue
              fi
