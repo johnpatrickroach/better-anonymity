@@ -299,10 +299,10 @@ lifecycle_restore_state() {
     if [ -f "$HOME/.zshrc" ]; then
         info "Cleaning .zshrc of better-anonymity exports..."
         # Remove known exports
-        sed -i '' '/HOMEBREW_NO_ANALYTICS=1/d' "$HOME/.zshrc"
-        sed -i '' '/HOMEBREW_NO_INSECURE_REDIRECT=1/d' "$HOME/.zshrc"
-        sed -i '' '/DOTNET_CLI_TELEMETRY_OPTOUT=1/d' "$HOME/.zshrc"
-        sed -i '' '/POWERSHELL_TELEMETRY_OPTOUT=1/d' "$HOME/.zshrc"
+        sed_in_place '/HOMEBREW_NO_ANALYTICS=1/d' "$HOME/.zshrc"
+        sed_in_place '/HOMEBREW_NO_INSECURE_REDIRECT=1/d' "$HOME/.zshrc"
+        sed_in_place '/DOTNET_CLI_TELEMETRY_OPTOUT=1/d' "$HOME/.zshrc"
+        sed_in_place '/POWERSHELL_TELEMETRY_OPTOUT=1/d' "$HOME/.zshrc"
         # Also remove completion block if present (harder to regex, usually manually added by user per README)
     fi
 }

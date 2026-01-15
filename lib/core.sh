@@ -51,6 +51,18 @@ die() {
     exit 1
 }
 
+# Helper: Cross-platform sed in-place wrapper
+# Defaults to macOS (BSD) style 'sed -i ""' if not specified otherwise
+sed_in_place() {
+    # Usage: sed_in_place 'pattern' file
+    local expression="$1"
+    local file="$2"
+    
+    # macOS/BSD requires empty string for -i to avoid backup
+    # GNU sed (if installed as sed) might interpret -i '' differently, but on macOS ecosystem:
+    sed -i '' "$expression" "$file"
+}
+
 header() {
     echo -e "${BLUE}======================================================================${NC}"
     echo -e "${BLUE}   $1${NC}"
