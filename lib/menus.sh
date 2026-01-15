@@ -250,9 +250,9 @@ menu_privacy() {
                  load_module "vault"
                  vault_list 
                  echo "Vault Commands:"
-                 echo "  w [name] - Write/Create"
-                 echo "  r [name] - Read"
-                 echo "  l        - List"
+                 echo "  w - Write/Create"
+                 echo "  r - Read"
+                 echo "  l - List"
                  read -p "Action (w/r/l): " vaction
                  case $vaction in
                     w) vault_write ;;
@@ -264,10 +264,10 @@ menu_privacy() {
             3)
                  load_module "backup"
                  echo "Backup Commands:"
-                 echo "  encrypt [dir]  - Encrypt Directory"
-                 echo "  decrypt [file] - Decrypt Archive"
-                 echo "  volume         - Create Encrypted DMG"
-                 echo "  audit          - Audit Time Machine"
+                 echo "  encrypt - Encrypt Directory"
+                 echo "  decrypt - Decrypt Archive"
+                 echo "  volume  - Create Encrypted DMG"
+                 echo "  audit   - Audit Time Machine"
                  read -p "Action: " baction
                  case $baction in
                     encrypt) backup_encrypt_dir ;;
