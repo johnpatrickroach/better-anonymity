@@ -235,11 +235,15 @@ cleanup_quarantine() {
              chflags nouchg "$db_file"
         fi
         
-        info "Deleting events from SQLite DB..."
-        sqlite3 "$db_file" "delete from LSQuarantineEvent"
+        # User requested robustness against schema changes/corruption.
+        # The safest way is to remove the file entirely and let macOS recreate it.
+        # This avoids assuming table names (like LSQuarantineEvent) or handling open DB locks.
+        info "Removing Quarantine Database (recreation is automatic)..."
+        rm -f "$db_file"
         
-        # Lock it? Privacy.sexy locks it. Let's ask or just do it if aggressive.
-        # For now, just clean.
+        # Optional: Recreate empty to prevent "missing file" checks if any? 
+        # Usually not needed, but touch ensures it exists.
+        # touch "$db_file"
     fi
     
     # Clear attributes from Downloads
