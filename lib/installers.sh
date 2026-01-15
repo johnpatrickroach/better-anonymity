@@ -459,7 +459,7 @@ install_unbound() {
 
     # Check if running
     local is_running=false
-    if brew services list | grep "unbound" | grep -q "started"; then
+    if execute_sudo "Check if running" brew services list | grep "unbound" | grep -q "started"; then
         is_running=true
     elif pgrep -x "unbound" >/dev/null; then
         is_running=true
