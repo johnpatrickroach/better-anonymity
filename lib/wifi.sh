@@ -102,20 +102,29 @@ wifi_audit() {
     fi
 
     info "Auditing current Wi-Fi connection..."
+    
+    local iface
+    iface=$(wifi_get_interface)
+    
+    # 1. Check Power Status forcefully via networksetup (Robust)
+    if [ -n "$iface" ]; then
+        local power_status
+        power_status=$(networksetup -getairportpower "$iface" 2>/dev/null)
+        if [[ "$power_status" == *": Off"* ]]; then
+             warn "Wi-Fi interface ($iface) is powered OFF."
+             return 0
+        fi
+    fi
+
     local info_out
     info_out=$("$AIRPORT_BIN" -I)
     
-    # Check if connected (AirPort: Off or similar results in mostly empty output)
-    if echo "$info_out" | grep -q "AirPort: Off"; then
-        warning "Wi-Fi is turned off."
-        return 0
-    fi
-    
+    # 2. Check association (SSID)
     local ssid
     ssid=$(echo "$info_out" | awk -F': ' '/ SSID/ {print $2}')
     
     if [ -z "$ssid" ]; then
-        warning "Not connected to any Wi-Fi network."
+        warn "Not connected to any Wi-Fi network."
         return 0
     fi
 
@@ -132,7 +141,7 @@ wifi_audit() {
     elif [[ "$auth" == *"wep"* ]]; then
         error "Network uses WEP (Insecure)! Easily cracked."
     else
-        warning "Unknown or weak security type: $auth"
+        warn "Unknown or weak security type: $auth"
     fi
 
     # Check for hidden network?
