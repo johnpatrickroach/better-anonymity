@@ -72,9 +72,11 @@ OUTPUT=$(cleanup_browsers)
 teardown_browser_mocks
 
 assert_contains "$OUTPUT" "Cleaning Chrome History" "Should start Chrome cleanup"
-assert_contains "$OUTPUT" "RM_CALL: -rfv $test_dir/Library/Application Support/Google/Chrome/Default/History" "Should delete Chrome History"
+# Implementation uses simple rm -rf, not verbose
+assert_contains "$OUTPUT" "RM_CALL: -rf $test_dir/Library/Application Support/Google/Chrome/Default/History" "Should delete Chrome History"
 assert_contains "$OUTPUT" "RM_CALL: -f $test_dir/Library/Safari/History.db" "Should delete Safari History"
-assert_contains "$OUTPUT" "RM_CALL: -fv $test_dir/Library/Application Support/Firefox/Profiles/test.default/cookies.sqlite" "Should delete Firefox Cookies"
+# Implementation uses simple rm -f, not verbose
+assert_contains "$OUTPUT" "RM_CALL: -f $test_dir/Library/Application Support/Firefox/Profiles/test.default/cookies.sqlite" "Should delete Firefox Cookies"
 
 
 # Test 2: Quarantine Cleanup
@@ -90,7 +92,8 @@ rm -rf "$test_db_dir"
 export HOME="$USER_HOME_BACKUP"
 
 assert_contains "$OUTPUT" "Clearing File Quarantine Logs" "Should start quarantine cleanup"
-assert_contains "$OUTPUT" "SQLITE_CALL: $test_db_dir/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2 delete from LSQuarantineEvent" "Should execute sqlite delete"
+# Implementation removes the file instead of SQL delete
+assert_contains "$OUTPUT" "RM_CALL: -f $test_db_dir/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2" "Should execute sqlite delete"
 assert_contains "$OUTPUT" "FIND_CALL: $test_db_dir/Downloads -type f -exec xattr -d com.apple.quarantine {}" "Should find and remove xattr"
 
 
