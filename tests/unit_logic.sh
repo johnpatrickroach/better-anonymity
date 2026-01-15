@@ -1389,7 +1389,7 @@ assert_contains "$(cat "$HOME/.zshrc")" "DOTNET_CLI_TELEMETRY_OPTOUT" "Should di
 
 OUTPUT=$(hardening_secure_sudoers)
 assert_contains "$OUTPUT" "Auditing sudoers" "Should audit"
-assert_contains "$OUTPUT" "Sudoers contains 'env_keep" "Should find bad line"
+assert_contains "$OUTPUT" "Found 'env_keep' directives" "Should find bad line"
 
 OUTPUT=$(hardening_set_umask)
 assert_contains "$OUTPUT" "Setting system umask" "Should set umask"
@@ -1673,6 +1673,10 @@ start_suite "System State Restore"
     
     # Mock Global Vars & commands
     export HOME="/tmp/mock_home_restore"
+    # Fix: Update STATE_DIR to match new HOME, otherwise it points to original HOME
+    STATE_DIR="$HOME/.better-anonymity/state"
+    mkdir -p "$STATE_DIR"
+    
     mkdir -p "$HOME/.better-anonymity/state"
     
     # Mock socketfilterfw as executable file
@@ -1724,19 +1728,35 @@ start_suite "System State Restore"
     # Use real sed for file editing verification
     unset -f sed
     
+    # Mock sed_in_place (missing since core.sh not sourced)
+    sed_in_place() {
+        sed -i "" "$1" "$2"
+    }
+    
     OUTPUT_CAPTURE=$(lifecycle_capture_state 2>&1)
     # assert_contains "$OUTPUT_CAPTURE" "System state snapshot saved." "Should log success"
     
-    # Verify files created
-    assert_file_exists "$HOME/.better-anonymity/state/hostname.original" "Should capture hostname"
-    assert_file_exists "$HOME/.better-anonymity/state/dns.original" "Should capture dns"
-    assert_file_exists "$HOME/.better-anonymity/state/firewall.original" "Should capture firewall"
-    assert_file_exists "$HOME/.better-anonymity/state/defaults.finder.showall" "Should capture defaults"
-    assert_file_exists "$HOME/.better-anonymity/state/ssh.original" "Should capture ssh"
+    # Verify State File Created
+    state_file="$HOME/.better-anonymity/state/restore_state.env"
+    assert_file_exists "$state_file" "Should create restore_state.env"
     
-    # Verify content
-    assert_contains "$(cat "$HOME/.better-anonymity/state/hostname.original")" "OriginalMac" "Hostname content verification"
-    assert_contains "$(cat "$HOME/.better-anonymity/state/defaults.finder.showall")" "1" "Finder default verification"
+    state_content=$(cat "$state_file")
+    
+    # Verify Content (Variables)
+    # printf %q does not quote simple strings, and escapes spaces
+    assert_contains "$state_content" "export STATE_HOSTNAME=OriginalMac" "Should capture hostname"
+    assert_contains "$state_content" "export STATE_DEF_finder_showall=1" "Should capture finder default"
+    
+    # Checking what we mocked with printf %q escaping:
+    # socketfilterfw -> STATE_FIREWALL='Firewall is enabled. (State = 1)' -> Firewall\ is\ enabled.\ \(State\ =\ 1\)
+    assert_contains "$state_content" "export STATE_FIREWALL=Firewall\ is\ enabled.\ \(State\ =\ 1\)" "Should capture firewall"
+    
+    # ssh -> STATE_SSH='Remote Login: On' -> Remote\ Login:\ On (or not). Loosening check.
+    assert_contains "$state_content" "export STATE_SSH=" "Should capture ssh key"
+    assert_contains "$state_content" "Remote Login" "Should capture ssh value"
+    
+    # dns -> STATE_DNS='8.8.8.8 8.8.4.4' -> 8.8.8.8\ 8.8.4.4
+    assert_contains "$state_content" "export STATE_DNS=8.8.8.8\ 8.8.4.4" "Should capture dns"
     
     # 2. Test Restore
     # ---------------
@@ -1800,7 +1820,17 @@ start_suite "System State Restore"
     
     # Cleanup
     /bin/rm -rf "$HOME"
+
+    # Export status
+    echo "$PASSED" > "/tmp/test_38_passed"
+    echo "$FAILED" > "/tmp/test_38_failed"
 )
+# Import status from subshell
+if [ -f "/tmp/test_38_passed" ]; then
+    PASSED=$(cat "/tmp/test_38_passed")
+    FAILED=$(cat "/tmp/test_38_failed")
+    rm -f "/tmp/test_38_passed" "/tmp/test_38_failed"
+fi
 
 
 network_verify_anonymity() { echo "CALL: network_verify_anonymity"; }
