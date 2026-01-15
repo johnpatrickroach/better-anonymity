@@ -82,6 +82,14 @@ stop_sudo_keepalive() { :; }
 get_airport_bin() { echo "mock_airport"; }
 check_airport_exists() { return 0; }
 
+# Mock manage_service (Core)
+# Since tests expect "EXEC: brew services ...", we simulate that output.
+manage_service() {
+    local action="$1"
+    local service="$2"
+    echo "EXEC: brew services $action $service"
+}
+
 # Mock execute_with_spinner to unhide output for tests
 execute_with_spinner() {
     shift # Remove description string
