@@ -63,52 +63,63 @@ setup_advanced_dns_atomic() {
 # State Management for Restore/Undo
 # ---------------------------------
 
+# Helper: Append variable to state file safely
+save_state_var() {
+    local key="$1"
+    local value="$2"
+    local state_file="$HOME/.better-anonymity/state/restore_state.env"
+    
+    # Use printf %q for safe shell quoting
+    printf "export %s=%q\n" "$key" "$value" >> "$state_file"
+}
+
 # Helper: Capture a 'defaults read' value
 # Usage: capture_default "domain" "key" "file_suffix"
 capture_default() {
     local domain="$1"
     local key="$2"
     local suffix="$3"
-    local state_dir="$HOME/.better-anonymity/state"
+    
+    # Convert suffix to safe variable name (replace . with _)
+    local var_name="STATE_DEF_${suffix//./_}"
     
     local val
     if val=$(defaults read "$domain" "$key" 2>/dev/null); then
-        echo "$val" > "$state_dir/defaults.$suffix"
+        save_state_var "$var_name" "$val"
     else
-        echo "__MISSING__" > "$state_dir/defaults.$suffix"
+        save_state_var "$var_name" "__MISSING__"
     fi
 }
 
 # Helper: Capture Brew Analytics state
 capture_brew_analytics() {
-    local state_dir="$HOME/.better-anonymity/state"
     if command -v brew &>/dev/null; then
+        local val
         if brew analytics | grep -q "disabled"; then
-            echo "disabled" > "$state_dir/brew.analytics.original"
+            val="disabled"
         else
-            echo "enabled" > "$state_dir/brew.analytics.original"
+            val="enabled"
         fi
+        save_state_var "STATE_BREW_ANALYTICS" "$val"
     fi
 }
 
 # Helper: Restore a 'defaults write' value
 # Usage: restore_default "domain" "key" "type" "file_suffix"
-# Type can be: -bool, -int, -string, etc.
 restore_default() {
     local domain="$1"
     local key="$2"
     local type="$3"
     local suffix="$4"
-    local state_dir="$HOME/.better-anonymity/state"
-    local file="$state_dir/defaults.$suffix"
     
-    if [ -f "$file" ]; then
-        local val
-        val=$(cat "$file")
+    # Construct variable name
+    local var_name="STATE_DEF_${suffix//./_}"
+    
+    # Indirect expansion to get value
+    local val="${!var_name}"
+    
+    if [ -n "$val" ]; then
         if [ "$val" == "__MISSING__" ]; then
-            # Check if currently exists, if so delete?
-            # Safer to just defaults delete if it didn't exist, or ignore.
-            # Usually 'defaults delete domain key' restores properly if it was missing.
             execute_sudo "Reset Default (Delete)" defaults delete "$domain" "$key" 2>/dev/null || true
         else
             execute_sudo "Restore Default" defaults write "$domain" "$key" $type "$val"
@@ -118,27 +129,35 @@ restore_default() {
 
 lifecycle_capture_state() {
     local state_dir="$HOME/.better-anonymity/state"
+    local state_file="$state_dir/restore_state.env"
+    
     mkdir -p "$state_dir"
     
     info "Capturing extended system state..."
+    
+    # Initialize State File
+    echo "# Better Anonymity System State - $(date)" > "$state_file"
+    echo "# DO NOT EDIT MANUALLY" >> "$state_file"
 
     # 1. Hostname
-    if [ ! -f "$state_dir/hostname.original" ]; then
-        scutil --get ComputerName > "$state_dir/hostname.original"
-    fi
+    local hostname
+    hostname=$(scutil --get ComputerName)
+    save_state_var "STATE_HOSTNAME" "$hostname"
 
     # 2. DNS
-    if [ ! -f "$state_dir/dns.original" ]; then
-        if command -v networksetup &>/dev/null; then
-            networksetup -getdnsservers Wi-Fi > "$state_dir/dns.original"
-        fi
+    if command -v networksetup &>/dev/null; then
+        # Detect Wifi Service (using platform var if available, else literal fallback)
+        local wifi_svc="${PLATFORM_WIFI_SERVICE:-Wi-Fi}"
+        local dns
+        dns=$(networksetup -getdnsservers "$wifi_svc")
+        save_state_var "STATE_DNS" "$dns"
     fi
 
     # 3. Firewall
-    if [ ! -f "$state_dir/firewall.original" ]; then
-        if [ -x "$SOCKETFILTERFW_CMD" ]; then
-             "$SOCKETFILTERFW_CMD" --getglobalstate > "$state_dir/firewall.original"
-        fi
+    if [ -x "$SOCKETFILTERFW_CMD" ]; then
+         local fw_state
+         fw_state=$("$SOCKETFILTERFW_CMD" --getglobalstate)
+         save_state_var "STATE_FIREWALL" "$fw_state"
     fi
     
     # 4. Defaults (Finder, Dock, Privacy)
@@ -170,52 +189,58 @@ lifecycle_capture_state() {
     capture_brew_analytics
     
     # 5. Remote Login / Events
-    if [ ! -f "$state_dir/ssh.original" ]; then
-        systemsetup -getremotelogin > "$state_dir/ssh.original" 2>/dev/null || true
-    fi
+    local ssh_state
+    ssh_state=$(systemsetup -getremotelogin 2>/dev/null || true)
+    save_state_var "STATE_SSH" "$ssh_state"
     
-    info "System state snapshot saved."
+    info "System state snapshot saved to $state_file."
 }
 
 lifecycle_restore_state() {
     local state_dir="$HOME/.better-anonymity/state"
+    local state_file="$state_dir/restore_state.env"
+    
+    if [ ! -f "$state_file" ]; then
+        warn "No state file found at $state_file. Cannot restore."
+        return 1
+    fi
+    
+    info "Loading System State from $state_file..."
+    # Source the state file to load variables
+    source "$state_file"
     
     info "Restoring System Settings..."
     
     # 1. Hostname
-    if [ -f "$state_dir/hostname.original" ]; then
-        local orig_name
-        orig_name=$(cat "$state_dir/hostname.original")
-        if [ -n "$orig_name" ]; then
-            info "Restoring Hostname to '$orig_name'..."
-            execute_sudo "Restore Hostname" scutil --set ComputerName "$orig_name"
-            execute_sudo "Restore LocalHostName" scutil --set LocalHostName "$orig_name"
-            execute_sudo "Restore HostName" scutil --set HostName "$orig_name"
-        fi
+    if [ -n "$STATE_HOSTNAME" ]; then
+        info "Restoring Hostname to '$STATE_HOSTNAME'..."
+        execute_sudo "Restore Hostname" scutil --set ComputerName "$STATE_HOSTNAME"
+        execute_sudo "Restore LocalHostName" scutil --set LocalHostName "$STATE_HOSTNAME"
+        execute_sudo "Restore HostName" scutil --set HostName "$STATE_HOSTNAME"
     fi
 
     # 2. DNS
-    if [ -f "$state_dir/dns.original" ]; then
-        local orig_dns
-        orig_dns=$(cat "$state_dir/dns.original")
-        if [[ "$orig_dns" == *"There aren't any DNS Servers set"* ]] || [[ -z "$orig_dns" ]]; then
-             execute_sudo "Reset DNS to Empty" networksetup -setdnsservers Wi-Fi "Empty"
+    local wifi_svc="${PLATFORM_WIFI_SERVICE:-Wi-Fi}"
+    
+    if [ -n "$STATE_DNS" ]; then
+        if [[ "$STATE_DNS" == *"There aren't any DNS Servers set"* ]] || [[ -z "$STATE_DNS" ]]; then
+             execute_sudo "Reset DNS to Empty" networksetup -setdnsservers "$wifi_svc" "Empty"
         else
              local clean_dns
-             clean_dns=$(echo "$orig_dns" | tr '\n' ' ' | xargs)
-             execute_sudo "Restore DNS" networksetup -setdnsservers Wi-Fi $clean_dns
+             clean_dns=$(echo "$STATE_DNS" | tr '\n' ' ' | xargs)
+             execute_sudo "Restore DNS" networksetup -setdnsservers "$wifi_svc" $clean_dns
         fi
     fi
     
     # 2.5 Proxies (Always disable on restore to ensure connectivity)
     info "Resetting Network Proxies..."
-    execute_sudo "Disable SOCKS Proxy" networksetup -setsocksfirewallproxystate Wi-Fi off 2>/dev/null || true
-    execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate Wi-Fi off 2>/dev/null || true
-    execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate Wi-Fi off 2>/dev/null || true
+    execute_sudo "Disable SOCKS Proxy" networksetup -setsocksfirewallproxystate "$wifi_svc" off 2>/dev/null || true
+    execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate "$wifi_svc" off 2>/dev/null || true
+    execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate "$wifi_svc" off 2>/dev/null || true
 
     # 3. Firewall
-    if [ -f "$state_dir/firewall.original" ]; then
-        if grep -q "enabled" "$state_dir/firewall.original"; then
+    if [ -n "$STATE_FIREWALL" ]; then
+        if [[ "$STATE_FIREWALL" == *"enabled"* ]]; then
              execute_sudo "Enable Firewall" "$SOCKETFILTERFW_CMD" --setglobalstate on
         else
              execute_sudo "Disable Firewall" "$SOCKETFILTERFW_CMD" --setglobalstate off
@@ -244,15 +269,10 @@ lifecycle_restore_state() {
     restore_default "/Library/Preferences/com.apple.mDNSResponder" "NoMulticastAdvertisements" "-bool" "bonjour.multicast"
 
     # Restore Homebrew Analytics
-    local brew_state_file="$state_dir/brew.analytics.original"
-    if [ -f "$brew_state_file" ]; then
-        local bstate
-        bstate=$(cat "$brew_state_file")
-        if [ "$bstate" == "enabled" ]; then
-            if command -v brew &>/dev/null; then
-                 info "Restoring Homebrew Analytics (Enabling)..."
-                 brew analytics on
-            fi
+    if [ "$STATE_BREW_ANALYTICS" == "enabled" ]; then
+        if command -v brew &>/dev/null; then
+             info "Restoring Homebrew Analytics (Enabling)..."
+             brew analytics on
         fi
     fi
     
@@ -261,8 +281,8 @@ lifecycle_restore_state() {
     killall Dock 2>/dev/null || true
     
     # 5. Remote Login
-    if [ -f "$state_dir/ssh.original" ]; then
-        if grep -q "On" "$state_dir/ssh.original"; then
+    if [ -n "$STATE_SSH" ]; then
+        if [[ "$STATE_SSH" == *"On"* ]]; then
             execute_sudo "Enable Remote Login" systemsetup -setremotelogin on
         else
             execute_sudo "Disable Remote Login" systemsetup -setremotelogin off
