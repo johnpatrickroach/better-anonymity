@@ -107,7 +107,7 @@ menu_network() {
             ;;
         2)
             load_module "network"
-            network_verify_dns
+            network_verify_anonymity
             ;;
         3)
             load_module "wifi"

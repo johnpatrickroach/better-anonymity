@@ -381,6 +381,16 @@ hardening_secure_homebrew() {
         info "Added HOMEBREW_NO_ANALYTICS to .zshrc"
     fi
     
+    # Torify Aliases
+    if ! grep -q "alias torify=" "$zshrc"; then
+         echo "alias torify='export ALL_PROXY=socks5h://127.0.0.1:9050'" >> "$zshrc"
+         info "Added 'torify' alias to .zshrc"
+    fi
+    if ! grep -q "alias untorify=" "$zshrc"; then
+         echo "alias untorify='unset ALL_PROXY'" >> "$zshrc"
+         info "Added 'untorify' alias to .zshrc"
+    fi
+    
     # TCC Warning
     warn "SECURITY WARNING: Homebrew requests 'App Management' or 'Full Disk Access'. Granting this is dangerous."
     warn "It allows any non-sandboxed app to execute code with Terminal's permissions."

@@ -137,8 +137,8 @@ network_update_hosts() {
     info "Hosts file updated successfully."
 }
 
-network_verify_dns() {
-    info "Verifying DNS Configuration..."
+network_verify_anonymity() {
+    info "Verifying Anonymity Network (DNS, Proxy, Tor)..."
     
     # 0. Check Service Status
     info "Checking Service Status (brew services)..."
@@ -175,8 +175,28 @@ network_verify_dns() {
          
          if echo "$user_services" | grep -q "privoxy.*started" || pgrep -x "privoxy" >/dev/null; then
              info "[PASS] privoxy is running."
-         else
              warn "[FAIL] privoxy is NOT running or has errors."
+         fi
+
+         # 3. Tor Service (Conditional Check)
+         # Only verify Tor if SOCKS proxy is set to Tor (127.0.0.1:9050)
+         if command -v networksetup &> /dev/null; then
+             local socks_state
+             socks_state=$(networksetup -getsocksfirewallproxy "Wi-Fi")
+             if echo "$socks_state" | grep -q "Enabled: Yes" && \
+                echo "$socks_state" | grep -q "Server: 127.0.0.1" && \
+                echo "$socks_state" | grep -q "Port: 9050"; then
+                 
+                 info "Tor SOCKS Proxy detected. Verifying Tor Service..."
+                 # Tor works better as user service usually, but check root too if installed via brew services --sudo? 
+                 # Usually 'brew install tor' is user. 'better-anonymity tor install' does 'brew install tor'.
+                 # So we check user services.
+                 if echo "$user_services" | grep -q "tor.*started" || pgrep -x "tor" >/dev/null; then
+                     info "[PASS] tor service is running."
+                 else
+                     warn "[FAIL] tor service is NOT running but Proxy is enabled!"
+                 fi
+             fi
          fi
     else
          warn "Homebrew not found. Skipping service check."

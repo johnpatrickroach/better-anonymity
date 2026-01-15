@@ -320,7 +320,7 @@ case "$COMMAND" in
         ;;
     verify-dns)
         load_module "network"
-        network_verify_dns
+        network_verify_anonymity
         ;;
     verify-security)
         load_module "macos_hardening"

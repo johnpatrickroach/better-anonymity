@@ -42,13 +42,39 @@ better-anonymity tor proxy-on
 better-anonymity tor proxy-off
 ```
 
+### Application Configuration
+To maximize privacy, you can configure individual applications to use the Tor SOCKS5 proxy (`127.0.0.1:9050`).
+
+**Terminal (CLI)**
+To route command line traffic through Tor, you can use the built-in aliases (added to `~/.zshrc`):
+
+```bash
+# Enable Tor routing for current session
+torify
+# Check IP (should be different)
+curl ifconfig.me
+# Disable routing
+untorify
+```
+
+Or manually:
+```bash
+export ALL_PROXY=socks5h://127.0.0.1:9050
+```
+
+**Messengers & Wallets**
+Configure **SOCKS5** Proxy in settings (Telegram, Signal, Bitcoin, etc.):
+- **Server**: `127.0.0.1`
+- **Port**: `9050`
+- **DNS**: Enable "Resolve queries via proxy" (sometimes called SOCKS5h) if available.
+
 ### Verification
 To verify your traffic is routing through Tor:
 
-1. Enable the proxy: `better-anonymity tor proxy-on`
-2. Run a check:
+1. Enable the System Proxy: `better-anonymity tor proxy-on`
+2. Run a secure check (forces remote DNS):
    ```bash
-   curl --socks5 127.0.0.1:9050 https://check.torproject.org | grep "Congratulations"
+   curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org | grep "Congratulations"
    ```
 3. Visit [check.torproject.org](https://check.torproject.org) in Safari.
 

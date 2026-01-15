@@ -39,7 +39,8 @@ tor_install() {
         fi
     fi
 
-    info "Tor installed. Use 'start' to run the service."
+    info "Tor installed. Starting service..."
+    tor_service_start
 }
 
 tor_service_start() {
@@ -130,5 +131,5 @@ tor_info() {
     echo "- Control Port: 9051"
     echo ""
     echo "To test connection:"
-    echo "  curl --socks5 127.0.0.1:9050 https://check.torproject.org"
+    echo "  curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org"
 }

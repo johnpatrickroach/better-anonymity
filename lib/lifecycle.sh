@@ -473,7 +473,7 @@ lifecycle_daily() {
     
     # 4. Verify DNS
     echo ""
-    network_verify_dns
+    network_verify_anonymity
 
     # 5. Check Tor
     echo ""

@@ -327,6 +327,18 @@ else
     assert_equals "true" "false" "zshrc should contain analytics"
 fi
 
+if grep -q "alias torify=" "$TEST_7_HOME/.zshrc"; then
+    assert_equals "true" "true" "zshrc should contain torify alias"
+else
+    assert_equals "true" "false" "zshrc should contain torify alias"
+fi
+
+if grep -q "alias untorify=" "$TEST_7_HOME/.zshrc"; then
+    assert_equals "true" "true" "zshrc should contain untorify alias"
+else
+    assert_equals "true" "false" "zshrc should contain untorify alias"
+fi
+
 # Cleanup
 rm -rf "$TEST_7_HOME"
 
@@ -691,9 +703,9 @@ dig() {
     fi
 }
 
-OUTPUT=$(network_verify_dns)
+OUTPUT=$(network_verify_anonymity)
 
-assert_contains "$OUTPUT" "Verifying DNS Configuration" "Should verify"
+assert_contains "$OUTPUT" "Verifying Anonymity Network" "Should verify"
 assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should check dnscrypt-proxy"
 assert_contains "$OUTPUT" "unbound is running" "Should check unbound"
 assert_contains "$OUTPUT" "privoxy is running" "Should check privoxy"
@@ -742,7 +754,7 @@ brew() {
 # Restore pgrep defaults
 pgrep() { return 0; }
 
-OUTPUT=$(network_verify_dns)
+OUTPUT=$(network_verify_anonymity)
 assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should check dnscrypt-proxy (fallback)"
 assert_contains "$OUTPUT" "privoxy is running" "Should check privoxy (fallback)"
 
@@ -769,16 +781,32 @@ brew() {
         else
             # User services visible
             echo "privoxy        started"
+            # Simulate Tor if we are testing it
+            echo "tor            started"
         fi
+    fi
+}
+# Enable SOCKS proxy mock for this test to trigger Tor check
+networksetup() {
+    if [[ "$1" == "-getsocksfirewallproxy" ]]; then
+        echo "Enabled: Yes"
+        echo "Server: 127.0.0.1"
+        echo "Port: 9050"
+    else
+        # Reuse previous mock behavior for other calls if needed, or just return basic
+        echo "Enabled: Yes"
+        echo "Server: 127.0.0.1"
+        echo "Port: 8118"
     fi
 }
 # Disable pgrep fallback to force reliance on brew check
 pgrep() { return 1; }
 
-OUTPUT=$(network_verify_dns)
+OUTPUT=$(network_verify_anonymity)
 assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should find dnscrypt via sudo"
 assert_contains "$OUTPUT" "unbound is running" "Should find unbound via sudo"
 assert_contains "$OUTPUT" "privoxy is running" "Should find privoxy via user"
+assert_contains "$OUTPUT" "tor service is running" "Should find tor via user (conditional)"
 
 # Restore mocks
 execute_sudo() { 
@@ -1762,7 +1790,7 @@ start_suite "System State Restore"
 )
 
 
-network_verify_dns() { echo "CALL: network_verify_dns"; }
+network_verify_anonymity() { echo "CALL: network_verify_anonymity"; }
 tor_status() { echo "CALL: tor_status"; }
 # Mock brew existence
 command() { return 0; } 
@@ -1774,7 +1802,7 @@ OUTPUT=$(lifecycle_daily)
 assert_contains "$OUTPUT" "HEADER: Daily Health Check" "Should show daily header"
 
 assert_contains "$OUTPUT" "CALL: hardening_verify" "Should verify security"
-assert_contains "$OUTPUT" "CALL: network_verify_dns" "Should verify dns"
+assert_contains "$OUTPUT" "CALL: network_verify_anonymity" "Should verify dns"
 assert_contains "$OUTPUT" "CALL: tor_status" "Should check tor"
 
 # Verify module loading
