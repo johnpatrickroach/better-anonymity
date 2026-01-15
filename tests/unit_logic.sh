@@ -1934,7 +1934,7 @@ command() {
 
 # Test Installation
 OUTPUT=$(i2p_install)
-assert_contains "$OUTPUT" "BREW_CALL: install i2p" "Should install i2p"
+assert_contains "$OUTPUT" "brew called with: install i2p" "Should install i2p"
 
 # Test Start
 OUTPUT=$(i2p_start)
