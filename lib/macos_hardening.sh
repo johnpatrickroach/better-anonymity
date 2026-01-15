@@ -353,7 +353,7 @@ hardening_secure_homebrew() {
 
     # We execute this as the user (brew warns against running as root)
     if [ -n "$SUDO_USER" ]; then
-        execute_sudo "Disable Analytics (User)" su - "$SUDO_USER" -c "$brew_path analytics off"
+        execute_sudo "Disable Analytics (User)" sudo -u "$SUDO_USER" "$brew_path" analytics off
     else
         # Run directly as current user (do NOT use execute_sudo which adds sudo)
         info "Disable Analytics"
