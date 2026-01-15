@@ -14,11 +14,12 @@ ssh_check_sshd_status() {
         # macOS specific
         systemsetup -getremotelogin
     else
-        # Generic check
-        if sudo lsof -Pni TCP:22 >/dev/null; then
-            echo "Remote Login: On (Process listening on port 22)"
+        # Generic check (using connection test instead of process listing)
+        # This avoids needing sudo if lsof is restricted.
+        if check_port "localhost" 22; then
+            echo "Remote Login: On (Listening on localhost:22)"
         else
-            echo "Remote Login: Off (No process on port 22)"
+            echo "Remote Login: Off (Locahost:22 not reachable)"
         fi
     fi
 }
