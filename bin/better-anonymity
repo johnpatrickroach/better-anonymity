@@ -528,7 +528,7 @@ case "$COMMAND" in
         ;;
     diagnose)
         load_module "diagnosis"
-        load_module "wifi" # missing dependency for airport check?
+
         # Diagnosis uses is_brew_installed, which is in core.
         # It uses check_airport_exists which calls [ -x ].
         # It uses networksetup (system).
