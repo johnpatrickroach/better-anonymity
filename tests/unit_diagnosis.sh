@@ -170,18 +170,21 @@ check_airport_exists() {
     return 0 # Always pass in test
 }
 
-# Mock dir check
-# Mock [ for directory checks since existing replaced check_dir_exists with inline [ -d ]
-# We need to simulate /Applications/Firefox.app existence without root/actual filesystem mods
-[() {
-    # Recursion avoidance: Use [[ ]] for internal checks
-    if [[ "$1" == "-d" ]]; then
-        if [[ "$2" == "/Applications/Firefox.app" ]] && [[ "$MOCK_FF_INSTALLED" == "on" ]]; then return 0; fi
-        # Pattern match for profile dir
-        if [[ "$2" == *"Firefox/Profiles"* ]] && [[ "$MOCK_FF_PROFILE" == "on" ]]; then return 0; fi
-    fi
-    # Fallback to authentic
-    builtin [ "$@" ]
+# Mock path check
+check_path() {
+    if [[ "$1" == "/Applications/Firefox.app" ]] && [[ "$MOCK_FF_INSTALLED" == "on" ]]; then return 0; fi
+    # Pattern match for profile dir
+    if [[ "$1" == *"Firefox/Profiles"* ]] && [[ "$MOCK_FF_PROFILE" == "on" ]]; then return 0; fi
+    return 1
+}
+
+# Mock section (Core)
+section() {
+    echo "SECTION: $1"
+    shift
+    for line in "$@"; do
+        echo "$line"
+    done
 }
 
 

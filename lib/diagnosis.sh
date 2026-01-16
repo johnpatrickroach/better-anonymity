@@ -124,7 +124,7 @@ diagnosis_run() {
     # Firefox Telemetry and Hardening (30 pts)
     # If installed, check for user.js
     ((priv_total+=30))
-    if [ -d "/Applications/Firefox.app" ]; then
+    if check_path "/Applications/Firefox.app"; then
          local ff_hardened=0
          # Check Telemetry pref
          if [ "$(defaults read /Library/Preferences/org.mozilla.firefox DisableTelemetry 2>/dev/null)" == "1" ]; then
@@ -135,7 +135,7 @@ diagnosis_run() {
          
          # Check Arkenfox user.js
          local ff_dir="$HOME/Library/Application Support/Firefox/Profiles"
-         if [ -d "$ff_dir" ]; then
+         if check_path "$ff_dir"; then
              # Find any profile with user.js
              if find "$ff_dir" -name "user.js" -maxdepth 2 | grep -q "user.js"; then
                   ((priv_passed+=20))
