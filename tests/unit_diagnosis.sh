@@ -171,12 +171,18 @@ check_airport_exists() {
 }
 
 # Mock dir check
-check_dir_exists() {
-    local d="$1"
-    if [ "$d" == "/Applications/Firefox.app" ] && [ "$MOCK_FF_INSTALLED" == "on" ]; then return 0; fi
-    if [[ "$d" == *"Firefox/Profiles"* ]] && [ "$MOCK_FF_PROFILE" == "on" ]; then return 0; fi
-    return 1
+# Mock [ for directory checks since existing replaced check_dir_exists with inline [ -d ]
+# We need to simulate /Applications/Firefox.app existence without root/actual filesystem mods
+[() {
+    if [ "$1" == "-d" ]; then
+        if [ "$2" == "/Applications/Firefox.app" ] && [ "$MOCK_FF_INSTALLED" == "on" ]; then return 0; fi
+        # Pattern match for profile dir
+        if [[ "$2" == *"Firefox/Profiles" ]] && [ "$MOCK_FF_PROFILE" == "on" ]; then return 0; fi
+    fi
+    # Fallback to authentic
+    builtin [ "$@" ]
 }
+
 
 OUTPUT=$(diagnosis_run)
 if echo "$OUTPUT" | grep -q "Security: .*100/100"; then
