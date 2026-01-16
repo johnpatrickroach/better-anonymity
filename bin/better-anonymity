@@ -282,7 +282,7 @@ case "$COMMAND" in
         ;;
     dns)
         if [[ -z "$1" ]]; then
-            error "Usage: better-anonymity dns [quad9|mullvad|cloudflare]"
+            error "Usage: better-anonymity dns [dnscrypt-proxy|quad9|mullvad|cloudflare|localhost|default]"
             exit 1
         fi
         load_module "network"

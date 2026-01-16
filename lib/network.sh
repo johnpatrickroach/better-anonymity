@@ -8,7 +8,7 @@ network_set_dns() {
     local dns_servers=""
 
     case $provider in
-        "localhost")
+        "localhost"|"dnscrypt-proxy"|"dnscrypt"|"unbound")
             dns_servers="127.0.0.1"
             info "Setting DNS to Localhost (127.0.0.1)..."
             ;;
