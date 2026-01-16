@@ -147,17 +147,17 @@ function i2p_console() {
 }
 
 function i2p_info() {
-    header "about: I2P (Invisible Internet Project)"
-    echo "I2P is an anonymous network layer that allows for censorship-resistant,"
-    echo "peer-to-peer communication. Anonymous connections are achieved by"
-    echo "encrypting the user's traffic (by end-to-end encryption) and sending it"
-    echo "through a volunteer-run network of roughly 55,000 computers distributed" 
-    echo "around the world."
-    echo ""
-    echo "Commands:"
-    echo "  install  - Install I2P via Homebrew"
-    echo "  start    - Start the I2P router"
-    echo "  stop     - Stop the I2P router"
-    echo "  status   - Check router status"
-    echo "  console  - Open the web console"
+    section "about: I2P (Invisible Internet Project)" \
+        "I2P is an anonymous network layer that allows for censorship-resistant," \
+        "peer-to-peer communication. Anonymous connections are achieved by" \
+        "encrypting the user's traffic (by end-to-end encryption) and sending it" \
+        "through a volunteer-run network of roughly 55,000 computers distributed" \
+        "around the world." \
+        "" \
+        "Commands:" \
+        "  install  - Install I2P via Homebrew" \
+        "  start    - Start the I2P router" \
+        "  stop     - Stop the I2P router" \
+        "  status   - Check router status" \
+        "  console  - Open the web console"
 }

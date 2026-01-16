@@ -579,20 +579,21 @@ exec \"$SOURCE_BIN\" \"\$@\""
     
     if command -v better-anonymity &>/dev/null; then
         success "CLI installed successfully!"
-        echo "You can now run:"
-        echo "  better-anonymity"
-        echo "  better-anon"
-        echo "  b-a"
-        echo ""
-        echo "To enable zsh completions, run:"
-        echo ""
-        echo "  echo 'fpath=(\"$ROOT_DIR/completions\" \$fpath)' >> ~/.zshrc"
-        echo "  echo 'autoload -Uz compinit && compinit' >> ~/.zshrc"
-        echo ""
-        echo "Then restart your shell."
-        echo ""
-        echo "Recommended Next Step:"
-        echo "  Run 'better-anonymity setup' to apply the security baseline."
+        section "CLI Usage" \
+            "You can now run:" \
+            "  better-anonymity" \
+            "  better-anon" \
+            "  b-a" \
+            "" \
+            "To enable zsh completions, run:" \
+            "" \
+            "  echo 'fpath=(\"$ROOT_DIR/completions\" \$fpath)' >> ~/.zshrc" \
+            "  echo 'autoload -Uz compinit && compinit' >> ~/.zshrc" \
+            "" \
+            "Then restart your shell." \
+            "" \
+            "Recommended Next Step:" \
+            "  Run 'better-anonymity setup' to apply the security baseline."
     else
         warn "Installation completed, but 'better-anonymity' not found in PATH."
         warn "Ensure $BIN_PATH is in your PATH."

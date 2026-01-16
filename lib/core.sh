@@ -112,6 +112,18 @@ header() {
     echo -e "${BLUE}======================================================================${NC}"
 }
 
+# section "Title" "line1" "line2" ...
+# Convenience wrapper: header + multi-line body text.
+section() {
+    local title="$1"
+    shift
+    header "$title"
+    while [ "$#" -gt 0 ]; do
+        echo "$1"
+        shift
+    done
+}
+
 # Banner
 show_banner() {
     if [ -f "$LIB_DIR/banner.txt" ]; then

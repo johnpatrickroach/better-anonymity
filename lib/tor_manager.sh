@@ -132,11 +132,11 @@ tor_disable_system_proxy() {
 }
 
 tor_info() {
-    echo "Tor Service Configuration:"
-    echo "- Config: $BREW_PREFIX/etc/tor/torrc"
-    echo "- SOCKS Port: 9050"
-    echo "- Control Port: 9051"
-    echo ""
-    echo "To test connection:"
-    echo "  curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org"
+    section "Tor Service Configuration" \
+        "- Config: $BREW_PREFIX/etc/tor/torrc" \
+        "- SOCKS Port: 9050" \
+        "- Control Port: 9051" \
+        "" \
+        "To test connection:" \
+        "  curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org"
 }
