@@ -157,7 +157,7 @@ show_explanation() {
             ;;
         install)
             echo "Installs specified privacy tools/services."
-            echo "Tools: tor, privoxy, gpg, dnscrypt, unbound, etc."
+            echo "Tools: tor, i2p, privoxy, gpg, signal, telegram, session, firefox, keepassxc, etc."
             echo "This will download binaries/recipes and configure them."
             ;;
         verify-dns)
