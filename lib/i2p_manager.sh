@@ -118,26 +118,32 @@ function i2p_restart() {
 }
 
 function i2p_status() {
-    header "I2P Service Status"
     if ! command -v i2prouter &> /dev/null; then
-        echo "I2P is not installed or not in PATH."
+        section "I2P Service Status" \
+            "I2P is not installed or not in PATH."
         return
     fi
-    
-    # Check wrapper status
+
+    local lines=()
+
+    # Wrapper status
     local status_out
     status_out=$(i2prouter status 2>&1)
-    echo "$status_out"
-    
-    # Check fallback process if wrapper says not running
+    while IFS= read -r line; do
+        [ -n "$line" ] && lines+=("$line")
+    done <<< "$status_out"
+
+    # Fallback process info
     if echo "$status_out" | grep -q "not running"; then
-         if pgrep -u "$(id -u)" -f "net.i2p.router.Router" >/dev/null; then
-             local pids
-             pids=$(pgrep -u "$(id -u)" -f "net.i2p.router.Router" | tr '\n' ',' | sed 's/,$//')
-             echo "NOTE: I2P appears to be running via fallback (Java process found)."
-             echo "PID: $pids"
-         fi
+        if pgrep -u "$(id -u)" -f "net.i2p.router.Router" >/dev/null; then
+            local pids
+            pids=$(pgrep -u "$(id -u)" -f "net.i2p.router.Router" | tr '\n' ',' | sed 's/,$//')
+            lines+=("NOTE: I2P appears to be running via fallback (Java process found).")
+            lines+=("PID: $pids")
+        fi
     fi
+
+    section "I2P Service Status" "${lines[@]}"
 }
 
 function i2p_console() {

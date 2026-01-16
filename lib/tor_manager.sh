@@ -76,32 +76,33 @@ tor_status_check() {
 }
 
 tor_status() {
-    info "Checking Tor Status..."
+    local status_lines=()
+
+    # Service status
     if tor_status_check; then
         local pids
-        # Capture all PIDs, replace newlines with commas, remove trailing comma
         pids=$(pgrep -x tor | tr '\n' ',' | sed 's/,$//')
-        info "[RUNNING] Tor Service is active (PID: $pids)."
+        status_lines+=("[RUNNING] Tor Service is active (PID: $pids).")
     else
-        warn "[STOPPED] Tor Service is NOT running."
+        status_lines+=("[STOPPED] Tor Service is NOT running.")
     fi
-    
-    # Check Proxy Status
-    # Check Proxy Status
+
+    # Proxy Status
     local target_service="${PLATFORM_ACTIVE_NETWORK_SERVICE:-${PLATFORM_WIFI_SERVICE:-Wi-Fi}}"
     local proxy_state
-    
     proxy_state=$(networksetup -getsocksfirewallproxy "$target_service")
-    
+
     if echo "$proxy_state" | grep -q "Enabled: Yes"; then
         local server
         local port
         server=$(echo "$proxy_state" | grep "Server:" | awk '{print $2}')
         port=$(echo "$proxy_state" | grep "Port:" | awk '{print $2}')
-        info "[ENABLED] System SOCKS Proxy is ON for '$target_service' ($server:$port)."
+        status_lines+=("[ENABLED] System SOCKS Proxy is ON for '$target_service' ($server:$port).")
     else
-        info "[DISABLED] System SOCKS Proxy is OFF for '$target_service'."
+        status_lines+=("[DISABLED] System SOCKS Proxy is OFF for '$target_service'.")
     fi
+
+    section "Tor Status" "${status_lines[@]}"
 }
 
 tor_enable_system_proxy() {

@@ -19,6 +19,15 @@ info() { echo "[INFO] $*"; }
 warn() { echo "[WARN] $*"; }
 error() { echo "[ERROR] $*"; }
 success() { echo "[SUCCESS] $*"; }
+
+# Mock section (Core)
+section() {
+    echo "SECTION: $1"
+    shift
+    for line in "$@"; do
+        echo "$line"
+    done
+}
 # Mock execute_sudo to log and run
 execute_sudo() { 
     shift # Remove description

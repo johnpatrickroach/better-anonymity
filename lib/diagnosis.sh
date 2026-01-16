@@ -273,16 +273,19 @@ diagnosis_run() {
     
     # Report
     echo ""
-    header "DIAGNOSIS REPORT"
-    diagnosis_print_score "Security" "$security_score"
-    diagnosis_print_score "Privacy " "$privacy_score"
-    diagnosis_print_score "Anonymity" "$anonymity_score"
-    
     local total_score=$(( (security_score + privacy_score + anonymity_score) / 3 ))
-    echo "----------------------------------------"
-    echo "OVERALL SCORE: $total_score / 100"
-    echo ""
-    
+
+    # Build lines with scores + overall
+    local report_lines=()
+    report_lines+=("$(diagnosis_print_score "Security" "$security_score")")
+    report_lines+=("$(diagnosis_print_score "Privacy " "$privacy_score")")
+    report_lines+=("$(diagnosis_print_score "Anonymity" "$anonymity_score")")
+    report_lines+=("----------------------------------------")
+    report_lines+=("OVERALL SCORE: $total_score / 100")
+    report_lines+=("")
+
+    section "DIAGNOSIS REPORT" "${report_lines[@]}"
+
     diagnosis_recommendations "$security_score" "$privacy_score" "$anonymity_score"
 }
 
@@ -290,18 +293,18 @@ diagnosis_print_score() {
     local name="$1"
     local score="$2"
     local color="$RED"
-    
+
     if [ "$score" -ge 90 ]; then color="$GREEN"; fi
     if [ "$score" -ge 70 ] && [ "$score" -lt 90 ]; then color="$YELLOW"; fi
-    
-    # Calculate Grade
+
     local grade="F"
-    if [ "$score" -ge 90 ]; then grade="A"; 
-    elif [ "$score" -ge 80 ]; then grade="B"; 
-    elif [ "$score" -ge 70 ]; then grade="C"; 
-    elif [ "$score" -ge 60 ]; then grade="D"; 
+    if [ "$score" -ge 90 ]; then grade="A"
+    elif [ "$score" -ge 80 ]; then grade="B"
+    elif [ "$score" -ge 70 ]; then grade="C"
+    elif [ "$score" -ge 60 ]; then grade="D"
     fi
-    
+
+    # Return a single formatted line so caller can decide where to print
     echo -e "${name}: ${color}${score}/100${NC} (Grade: $grade)"
 }
 
