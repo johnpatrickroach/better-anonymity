@@ -212,12 +212,16 @@ hardening_privacy_tweaks() {
     defaults write com.apple.dock show-recents -bool false
     
     # Disable AirDrop (optional)
-    if ask_confirmation "Disable AirDrop?"; then
+    if ask_confirmation_with_info "Disable AirDrop?" \
+        "Disabling AirDrop reduces local attack surface and casual file sharing." \
+        "You can still move files via cables or encrypted messengers."; then
         defaults write com.apple.NetworkBrowser DisableAirDrop -bool true
     fi
 
     # Disable Metadata Indexing (Aggressive)
-    if ask_confirmation "Disable Spotlight Indexing entirely (Aggressive)?"; then
+    if ask_confirmation_with_info "Disable Spotlight Indexing (Aggressive)?" \
+        "Disables Spotlight indexing system-wide, which can reduce metadata leakage." \
+        "This may degrade search performance in Finder and apps."; then
          execute_sudo "Disable Spotlight" mdutil -i off /
     fi
 }
@@ -262,8 +266,10 @@ hardening_ensure_filevault() {
         info "FileVault is already enabled."
     else
         warn "FileVault is NOT enabled."
-        if ask_confirmation "Do you want to enable FileVault now?"; then
-             execute_sudo "Enable FileVault" fdesetup enable
+        if ask_confirmation_with_info "Enable FileVault?" \
+            "FileVault provides full-disk encryption at rest." \
+            "Enabling it requires administrative credentials and may take time to complete."; then
+            execute_sudo "Enable FileVault" fdesetup enable
         else
              info "Skipping FileVault enablement."
         fi
@@ -318,13 +324,12 @@ hardening_ensure_lockdown() {
     else
         warn "Lockdown Mode is NOT enabled."
         echo "Lockdown Mode significantly reduces attack surface."
-        if ask_confirmation "Do you want to enable Lockdown Mode now? (Requires Restart)"; then
-             # There is no direct CLI command to enable it silently.
-             # We can try opening the preference pane.
-             info "Opening System Settings for Lockdown Mode..."
-             # Ventura+ URL scheme
-             execute_sudo "Open Lockdown Mode Settings" open "x-apple.systempreferences:com.apple.LockdownMode"
-             warn "Please enable Lockdown Mode manually in the window that appears, then restart your computer."
+        if ask_confirmation_with_info "Enable Lockdown Mode? (Requires Restart)" \
+            "Lockdown Mode significantly reduces attack surface but may break some features." \
+            "You will need to enable it manually in System Settings and then restart."; then
+            info "Opening System Settings for Lockdown Mode..."
+            execute_sudo "Open Lockdown Mode Settings" open "x-apple.systempreferences:com.apple.LockdownMode"
+            warn "Please enable Lockdown Mode manually in the window that appears, then restart your computer."
         else
              info "Skipping Lockdown Mode."
         fi
@@ -466,15 +471,17 @@ hardening_set_umask() {
 }
 
 hardening_disable_captive_portal() {
-    warn "Disabling Captive Portal detection may prevent login pages from appearing on public Wi-Fi."
-    if ask_confirmation "Disable Captive Portal detection?"; then
+    if ask_confirmation_with_info "Disable Captive Portal detection?" \
+        "Disabling Captive Portal detection may prevent captive Wi-Fi login pages from appearing automatically." \
+        "Only do this if you understand the trade-offs for public Wi-Fi usage."; then
         execute_sudo "Disable Captive Portal" defaults write /Library/Preferences/SystemConfiguration/com.apple.captive.control.plist Active -bool false
     fi
 }
 
 hardening_reset_tcc() {
-    warn "This will reset Privacy Permissions (Camera, Mic, etc.) for ALL apps."
-    if ask_confirmation "Reset TCC Permissions?"; then
+    if ask_confirmation_with_info "Reset TCC Permissions?" \
+        "This will reset all privacy permissions (Camera, Mic, Files, etc.) for ALL apps." \
+        "macOS will ask again next time each app requests access."; then
         execute_sudo "Reset TCC" tccutil reset All || true
         info "TCC Permissions reset."
     fi

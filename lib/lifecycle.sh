@@ -631,8 +631,9 @@ lifecycle_check_update() {
 lifecycle_uninstall() {
     header "Uninstalling Better Anonymity CLI..."
     
-    local BIN_PATH="/usr/local/bin"
-    if ask_confirmation "Remove global symlinks (b-a, better-anon)?"; then
+    if ask_confirmation_with_info "Remove CLI shims?" \
+        "This removes the global commands: better-anonymity, better-anon, and b-a." \
+        "Installed tools (Tor, Privoxy, etc.) are not removed by this step."; then
         execute_sudo "Remove better-anonymity" rm -f "$BIN_PATH/better-anonymity"
         execute_sudo "Remove better-anon" rm -f "$BIN_PATH/better-anon"
         execute_sudo "Remove b-a" rm -f "$BIN_PATH/b-a"
@@ -642,8 +643,9 @@ lifecycle_uninstall() {
     warn "This command does NOT remove installed tools (Tor, Privoxy) or configuration files (~/.better-anonymity)."
     info "To remove those, manual deletion is required to prevent data loss."
     
-    echo ""
-    if ask_confirmation "Do you want to attempting to RESTORE system state (Hostname, DNS, Firewall)?"; then
+    if ask_confirmation_with_info "Restore system state?" \
+        "Attempts to restore hostname, DNS, firewall, proxies, and related settings from the snapshot." \
+        "Use this if you want to undo configuration changes made by better-anonymity."; then
         lifecycle_restore_state
         success "System state restoration attempted."
     fi
@@ -651,8 +653,9 @@ lifecycle_uninstall() {
     local installed_log="$HOME/.better-anonymity/state/installed_tools.log"
     if [ -f "$installed_log" ]; then
         echo ""
-        warn "Found tracked installed tools in $installed_log."
-        if ask_confirmation "Uninstall tools installed by better-anonymity (brew uninstall)?"; then
+        if ask_confirmation_with_info "Uninstall tracked tools?" \
+            "Uninstalls tools recorded in $installed_log using 'brew uninstall'." \
+            "This may remove Tor, DNSCrypt, Unbound, and other dependencies set up by better-anonymity."; then
              # Sort and unique to avoid duplicates
              sort -u "$installed_log" | while read -r tool; do
                  if [ -n "$tool" ]; then
@@ -672,8 +675,9 @@ lifecycle_uninstall() {
     local files_log="$HOME/.better-anonymity/state/installed_files.log"
     if [ -f "$files_log" ]; then
         echo ""
-        warn "Found tracked manual files (extensions, configs)."
-        if ask_confirmation "Delete tracked files (e.g. Firefox extensions)?"; then
+        if ask_confirmation_with_info "Delete tracked files?" \
+            "Deletes files recorded in $files_log (e.g., Firefox extensions and custom configs)." \
+            "Only choose this if you want to fully remove these artifacts."; then
             sort -u "$files_log" | while read -r filepath; do
                 if [ -f "$filepath" ]; then
                     info "Removing $filepath..."
@@ -684,8 +688,9 @@ lifecycle_uninstall() {
         fi
     fi
     
-    echo ""
-    if ask_confirmation "Remove state data and logs (~/.better-anonymity)?"; then
+    if ask_confirmation_with_info "Remove state data and logs?" \
+        "Deletes ~/.better-anonymity, including state snapshots, logs, and internal tracking files." \
+        "Secrets in the vault will also be removed if stored there."; then
         rm -rf "$HOME/.better-anonymity"
         success "Configuration directory removed."
     fi

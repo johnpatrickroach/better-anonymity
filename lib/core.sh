@@ -150,6 +150,22 @@ ask_confirmation() {
     return 1
 }
 
+# ask_confirmation_with_info "Title" "description line 1" "description line 2" ...
+# Prints a short description block, then a standard yes/no confirmation.
+ask_confirmation_with_info() {
+    local title="$1"
+    shift
+
+    # Optional description lines
+    if [ "$#" -gt 0 ]; then
+        section "$title" "$@"
+    else
+        header "$title"
+    fi
+
+    ask_confirmation "Proceed?"
+}
+
 # Ensure the script is run as root (auto-elevate)
 ensure_root() {
     if [ "$EUID" -ne 0 ]; then

@@ -43,6 +43,18 @@ die() { echo "DIED: $1"; }
 # Mock require_brew
 require_brew() { :; }
 
+# Mock ask_confirmation_with_info (Simple delegation)
+ask_confirmation_with_info() {
+    local title="$1"
+    section "$title"
+    shift # Remove title
+    # Pass remaining args (if any) or just call ask_confirmation
+    # In reality, it calls ask_confirmation "Proceed?"
+    # We just want to bridge to ask_confirmation so existing mocks work.
+    ask_confirmation "proceed?"
+}
+export -f ask_confirmation_with_info
+
 # Mock load_module to avoid errors in tests
 load_module() { echo "LOAD_MODULE: $1"; }
 export -f load_module
@@ -204,6 +216,7 @@ ask_confirmation() {
         return 1
     fi
 }
+export -f ask_confirmation
 
 # Case A: Already On
 MOCK_FDESETUP_STATUS="FileVault is On."
@@ -618,14 +631,6 @@ cd - > /dev/null || exit 1
 
 # Test 11b: Unbound Integrity Check
 # ---------------------------------
-# Mock check_installed
-check_installed() {
-    if [ "$1" == "unbound" ]; then
-        if [ "$MOCK_UNBOUND_INSTALLED" == "false" ]; then return 1; fi
-        return 0
-    fi
-}
-
 # Mock dscl
 dscl() {
     if [[ "$*" == *"-list"* ]]; then
@@ -638,6 +643,16 @@ dscl() {
         return 0
     fi
 }
+
+# Mock check_installed
+check_installed() {
+    if [ "$1" == "unbound" ]; then
+        if [ "$MOCK_UNBOUND_INSTALLED" == "false" ]; then return 1; fi
+        return 0
+    fi
+}
+
+
 
 # Mock config file existence
 # We can't mock [ -f ... ] easily in bash unit tests without creating the file.
@@ -1857,7 +1872,7 @@ start_suite "System State Restore"
     
     OUTPUT_UNINSTALL=$(lifecycle_uninstall 2>&1)
     
-    assert_contains "$OUTPUT_UNINSTALL" "Found tracked installed tools" "Should detect installed tools"
+    assert_contains "$OUTPUT_UNINSTALL" "Uninstall tracked tools?" "Should detect installed tools"
     assert_contains "$OUTPUT_UNINSTALL" "BREW_CALL: uninstall test-tool" "Should call brew uninstall"
     assert_contains "$OUTPUT_UNINSTALL" "RM_CALL: -f /tmp/mock_file" "Should run rm on tracked file"
     
