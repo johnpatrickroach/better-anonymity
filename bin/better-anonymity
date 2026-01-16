@@ -359,7 +359,7 @@ case "$COMMAND" in
                     load_module "lifecycle"
                     lifecycle_install_cli
                     ;;
-                *) error "Unknown tool: $TOOL. Available: tor, tor-browser, privoxy, gpg, dnscrypt, pingbar, unbound, firefox, firefox-extensions, keepassxc, signal, i2p, cli." ;;
+                *) error "Unknown tool: $TOOL. Available: tor, tor-browser, privoxy, gpg, dnscrypt, pingbar, unbound, firefox, firefox-extensions, keepassxc, signal, telegram, session, onionshare, i2p, cli." ;;
             esac
         fi
         ;;
