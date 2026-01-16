@@ -3,6 +3,22 @@
 # lib/installers.sh
 # Tool installation functions
 
+# Generic pattern for simple cask installs with a docs hint.
+# Usage: install_app_with_docs "Display Name" "cask-name" "App.app" "docs/path.md"
+install_app_with_docs() {
+    local display="$1"
+    local cask="$2"
+    local app="$3"
+    local doc_path="$4"
+
+    info "Installing $display..."
+    require_brew
+    install_cask_package "$cask" "$app"
+    if [ -n "$doc_path" ]; then
+        info "Refer to $doc_path for usage instructions."
+    fi
+}
+
 install_privoxy() {
     require_brew
 
@@ -178,17 +194,11 @@ configure_gpg() {
 
 
 install_signal() {
-    info "Installing Signal Desktop..."
-    require_brew
-    install_cask_package "signal" "Signal.app"
-    info "Refer to docs/MESSENGERS.md for usage instructions."
+    install_app_with_docs "Signal Desktop" "signal" "Signal.app" "docs/MESSENGERS.md"
 }
 
 install_keepassxc() {
-    info "Installing KeePassXC..."
-    require_brew
-    install_cask_package "keepassxc" "KeePassXC.app"
-    info "Refer to docs/PASSWORDS.md for usage instructions."
+    install_app_with_docs "KeePassXC" "keepassxc" "KeePassXC.app" "docs/PASSWORDS.md"
 }
 
 install_dnscrypt() {
@@ -489,9 +499,7 @@ check_unbound_integrity() {
 }
 
 install_firefox() {
-    info "Installing Firefox..."
-    require_brew
-    install_cask_package "firefox" "Firefox.app"
+    install_app_with_docs "Firefox" "firefox" "Firefox.app" ""
 }
 
 harden_firefox() {
@@ -661,30 +669,19 @@ verify_firefox() {
 }
 
 install_tor_browser() {
-    info "Installing Tor Browser..."
-    require_brew
-    install_cask_package "tor-browser" "Tor Browser.app"
-    info "See docs/TOR.md for instructions on configuring Pluggable Transports."
+    install_app_with_docs "Tor Browser" "tor-browser" "Tor Browser.app" "docs/TOR.md"
 }
 
 install_onionshare() {
-    info "Installing OnionShare..."
-    require_brew
-    install_cask_package "onionshare" "OnionShare.app"
+    install_app_with_docs "OnionShare" "onionshare" "OnionShare.app" ""
 }
 
 install_telegram() {
-    info "Installing Telegram..."
-    require_brew
-    install_cask_package "telegram" "Telegram.app"
-    info "Refer to docs/MESSENGERS.md for usage and security notes."
+    install_app_with_docs "Telegram" "telegram" "Telegram.app" "docs/MESSENGERS.md"
 }
 
 install_session() {
-    info "Installing Session (Private Messenger)..."
-    require_brew
-    install_cask_package "session" "Session.app"
-    info "Refer to docs/MESSENGERS.md for usage and security notes."
+    install_app_with_docs "Session (Private Messenger)" "session" "Session.app" "docs/MESSENGERS.md"
 }
 
 
