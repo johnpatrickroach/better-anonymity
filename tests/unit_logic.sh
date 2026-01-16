@@ -2004,7 +2004,8 @@ assert_contains "$OUTPUT" "I2P_CALL: stop" "Should stop i2p"
 
 # Test Restart
 OUTPUT=$(i2p_restart)
-assert_contains "$OUTPUT" "I2P_CALL: restart" "Should restart i2p"
+assert_contains "$OUTPUT" "I2P_CALL: stop" "Should stop i2p during restart"
+assert_contains "$OUTPUT" "I2P_CALL: start" "Should start i2p during restart"
 
 # Test Status
 OUTPUT=$(i2p_status)

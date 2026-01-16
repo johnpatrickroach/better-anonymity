@@ -75,46 +75,58 @@ function i2p_start() {
 
 function i2p_stop() {
     info "Stopping I2P Router..."
-    if ! command -v i2prouter &> /dev/null; then
-         error "i2prouter command not found."
-         return 1
+    
+    local standard_stop_ok=false
+
+    # Try standard stop first if available
+    if command -v i2prouter &> /dev/null; then
+        if i2prouter stop; then
+             standard_stop_ok=true
+             info "Standard stop command issued."
+        else
+             warn "Standard stop command reported failure."
+        fi
     fi
 
-    # Try standard stop
-    if i2prouter stop; then
-        success "I2P Router stopped."
-        return 0
-    fi
-    
-    # Fallback: Kill java process if runplain was used
-    # Identify by main java class 'net.i2p.router.Router'
-    # Restrict to current user to avoid killing other users' processes
-    warn "Standard stop failed. Checking for fallback process..."
+    # ALWAYS check for fallback process cleanup
+    # This ensures that if started via runplain.sh (backup method), we still catch it,
+    # even if standard stop claims success (or failed).
     local pids
     pids=$(pgrep -u "$(id -u)" -f "net.i2p.router.Router")
     
     if [ -n "$pids" ]; then
-        info "Found I2P java process(es): $pids. Killing..."
+        if [ "$standard_stop_ok" = true ]; then
+            warn "Standard stop succeeded, but I2P process (PID: $pids) is still running."
+        else
+            info "Checking for I2P process (PID: $pids)..."
+        fi
+        
+        info "Killing I2P Java process..."
         kill $pids
-        sleep 1
+        sleep 2
+        
+        # Double check
         if pgrep -u "$(id -u)" -f "net.i2p.router.Router" >/dev/null; then
             kill -9 $pids 2>/dev/null
+            success "I2P process killed (SIGKILL)."
+        else
+            success "I2P process stopped."
         fi
-        success "I2P process stopped manually."
     else
-        warn "No running I2P process found."
+        if [ "$standard_stop_ok" = true ]; then
+            success "I2P Router stopped."
+        else
+            warn "No running I2P process found."
+        fi
     fi
 }
 
 function i2p_restart() {
     info "Restarting I2P Router..."
-    if command -v i2prouter &> /dev/null; then
-        i2prouter restart
-        success "I2P Router restarted."
-    else
-        error "i2prouter command not found."
-        return 1
-    fi
+    # Use stop+start to ensure fallback mechanisms are respected
+    i2p_stop
+    sleep 2
+    i2p_start
 }
 
 function i2p_status() {
