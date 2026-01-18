@@ -41,7 +41,7 @@ ssh_harden_sshd() {
         return 1
     fi
 
-    ensure_root # Function from core.sh to auto-elevate if needed
+    start_sudo_keepalive # Use keepalive instead of re-exec to preserve flow
     
     # Use helper from core.sh
     if check_config_and_backup "$SSHD_CONFIG_SRC" "$target" "sudo"; then

@@ -74,9 +74,13 @@ sed_in_place() {
     local expression="$1"
     local file="$2"
     
-    # macOS/BSD requires empty string for -i to avoid backup
-    # GNU sed (if installed as sed) might interpret -i '' differently, but on macOS ecosystem:
-    sed -i '' "$expression" "$file"
+    if sed --version 2>/dev/null | grep -q GNU; then
+        # GNU sed
+        sed -i "$expression" "$file"
+    else
+        # BSD/macOS sed
+        sed -i '' "$expression" "$file"
+    fi
 }
 
 # Helper: Check if a TCP port is open (Robust: nc -> bash /dev/tcp)
@@ -167,6 +171,10 @@ ask_confirmation_with_info() {
 }
 
 # Ensure the script is run as root (auto-elevate)
+# Usage: ensure_root "$@"
+# WARNING: This re-executes the script. You MUST pass "$@" to forward arguments.
+# If called from a function, "$@" are the function's args, which may not match script args.
+# For subcommands, consider using start_sudo_keepalive instead.
 ensure_root() {
     if [ "$EUID" -ne 0 ]; then
         # Resolve script path for sudo
@@ -485,9 +493,23 @@ require_brew() {
 }
 
 check_internet() {
-    if ! ping -c 1 8.8.8.8 &> /dev/null; then
-        warn "No internet connection detected. Network-dependent steps may fail."
-    fi
+    # Check multiple reliable DNS providers (Cloudflare, Google, Quad9)
+    local targets=("1.1.1.1" "8.8.8.8" "9.9.9.9")
+    
+    for target in "${targets[@]}"; do
+        # -c 1: send 1 packet
+        # -W 1000: wait 1000ms (1s) - This is for macOS (BSD) ping where -W is ms, 
+        # but commonly on Linux -W is seconds. 
+        # To be safe and portable-ish without complex logic, we rely on -c 1
+        # or use a simple timeout wrapper if we really wanted to be strict.
+        # But 'ping -c 1' is usually sufficient.
+        if ping -c 1 "$target" &> /dev/null; then
+            return 0
+        fi
+    done
+    
+    warn "No internet connection detected. Network-dependent steps may fail."
+    return 1
 }
 
 # Helper to manage Homebrew services quietly and idempotently.
