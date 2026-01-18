@@ -84,7 +84,7 @@ hardening_disable_analytics() {
     hardening_disable_app_telemetry
 }
 
-    hardening_disable_app_telemetry() {
+hardening_disable_app_telemetry() {
     info "Disabling Third-Party App Telemetry..."
     
     hardening_disable_parallels
@@ -108,10 +108,10 @@ hardening_disable_analytics() {
     fi
     # Stricter Office
     # Stricter Office
-    if [ "$(defaults read com.microsoft.office.telemetry ZeroDiagnosticData -bool 2>/dev/null)" != "1" ]; then
+    if [ "$(defaults read com.microsoft.office.telemetry ZeroDiagnosticData 2>/dev/null)" != "1" ]; then
         defaults write com.microsoft.office.telemetry ZeroDiagnosticData -bool true 2>/dev/null || true
     fi
-     if [ "$(defaults read com.microsoft.office.telemetry UserOptIn -bool 2>/dev/null)" != "0" ]; then
+     if [ "$(defaults read com.microsoft.office.telemetry UserOptIn 2>/dev/null)" != "0" ]; then
         defaults write com.microsoft.office.telemetry UserOptIn -bool false 2>/dev/null || true
     fi
 
@@ -120,25 +120,29 @@ hardening_disable_analytics() {
     export DOTNET_CLI_TELEMETRY_OPTOUT=1
     export POWERSHELL_TELEMETRY_OPTOUT=1
     # Persistence
-    local profiles=("$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc")
-    for profile in "${profiles[@]}"; do
-        # Only modify if exists or is the default shell profile
-        if [ -f "$profile" ] || { [ "$SHELL" = "/bin/zsh" ] && [ "$profile" = "$HOME/.zshrc" ]; } || { [ "$SHELL" = "/bin/bash" ] && [ "$profile" = "$HOME/.bash_profile" ]; }; then
-            if [ ! -f "$profile" ]; then touch "$profile"; fi
-            
-            # DOTNET
-            if ! grep -q "^\s*export DOTNET_CLI_TELEMETRY_OPTOUT=" "$profile"; then
-                echo "export DOTNET_CLI_TELEMETRY_OPTOUT=1" >> "$profile"
-                info "Added DOTNET_CLI_TELEMETRY_OPTOUT to $profile"
+    if ask_confirmation "Add telemetry opt-out environment variables to shell profiles?"; then
+        local profiles=("$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc")
+        for profile in "${profiles[@]}"; do
+            # Only modify if exists or is the default shell profile
+            if [ -f "$profile" ] || { [ "$SHELL" = "/bin/zsh" ] && [ "$profile" = "$HOME/.zshrc" ]; } || { [ "$SHELL" = "/bin/bash" ] && [ "$profile" = "$HOME/.bash_profile" ]; }; then
+                if [ ! -f "$profile" ]; then touch "$profile"; fi
+                
+                # DOTNET
+                if ! grep -q "^\s*export DOTNET_CLI_TELEMETRY_OPTOUT=" "$profile"; then
+                    echo "export DOTNET_CLI_TELEMETRY_OPTOUT=1" >> "$profile"
+                    info "Added DOTNET_CLI_TELEMETRY_OPTOUT to $profile"
+                fi
+                
+                # POWERSHELL
+                if ! grep -q "^\s*export POWERSHELL_TELEMETRY_OPTOUT=" "$profile"; then
+                     echo "export POWERSHELL_TELEMETRY_OPTOUT=1" >> "$profile"
+                     info "Added POWERSHELL_TELEMETRY_OPTOUT to $profile"
+                fi
             fi
-            
-            # POWERSHELL
-            if ! grep -q "^\s*export POWERSHELL_TELEMETRY_OPTOUT=" "$profile"; then
-                 echo "export POWERSHELL_TELEMETRY_OPTOUT=1" >> "$profile"
-                 info "Added POWERSHELL_TELEMETRY_OPTOUT to $profile"
-            fi
-        fi
-    done
+        done
+    else
+        info "Skipping shell profile modifications for telemetry."
+    fi
 }
 
 hardening_disable_parallels() {
@@ -374,7 +378,9 @@ hardening_secure_homebrew() {
 
     # We execute this as the user (brew warns against running as root)
     if [ -n "$SUDO_USER" ]; then
-        execute_sudo "Disable Analytics (User)" sudo -u "$SUDO_USER" "$brew_path" analytics off
+        info "Disabling Analytics (User: $SUDO_USER)..."
+        # Run directly to avoid nested 'sudo' inside 'execute_sudo'
+        sudo -u "$SUDO_USER" "$brew_path" analytics off
     else
         # Run directly as current user (do NOT use execute_sudo which adds sudo)
         info "Disable Analytics"
@@ -385,40 +391,42 @@ hardening_secure_homebrew() {
     info "Set HOMEBREW_NO_INSECURE_REDIRECT=1 for this session."
     
     # Persistence
-    local zshrc="$HOME/.zshrc"
-    info "Ensuring persistence in $zshrc..."
-    
-    if [ ! -f "$zshrc" ]; then
-        touch "$zshrc"
-    fi
-    
-    if ! grep -q "HOMEBREW_NO_INSECURE_REDIRECT=1" "$zshrc"; then
-        echo "export HOMEBREW_NO_INSECURE_REDIRECT=1" >> "$zshrc"
-        info "Added HOMEBREW_NO_INSECURE_REDIRECT to .zshrc"
-    fi
-    
-    if ! grep -q "HOMEBREW_NO_ANALYTICS=1" "$zshrc"; then
-        echo "export HOMEBREW_NO_ANALYTICS=1" >> "$zshrc"
-        info "Added HOMEBREW_NO_ANALYTICS to .zshrc"
-    fi
-    
-    # Torify Aliases
-    if ! grep -q "alias torify=" "$zshrc"; then
-         echo "alias torify='export ALL_PROXY=socks5h://127.0.0.1:9050'" >> "$zshrc"
-         info "Added 'torify' alias to .zshrc"
-    fi
-    if ! grep -q "alias untorify=" "$zshrc"; then
-         echo "alias untorify='unset ALL_PROXY'" >> "$zshrc"
-         info "Added 'untorify' alias to .zshrc"
-    fi
-    
-    # I2P Alias (HTTP Proxy 4444)
-    if ! grep -q "alias i2pify=" "$zshrc"; then
-         # I2P HTTP Proxy is at 4444. Note: I2P is mainly for within-network browsing (.i2p).
-         # Routing all traffic via I2P outproxy is possible if configured, but default is local.
-         # This alias helps easy access to .i2p sites via CLI tools that respect http_proxy.
-         echo "alias i2pify='export http_proxy=http://127.0.0.1:4444 https_proxy=http://127.0.0.1:4445'" >> "$zshrc"
-         info "Added 'i2pify' alias to .zshrc"
+    if ask_confirmation "Add Homebrew security variables and proxy aliases to shell profiles?"; then
+        local profiles=("$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc")
+        for profile in "${profiles[@]}"; do
+            if [ -f "$profile" ] || { [ "$SHELL" = "/bin/zsh" ] && [ "$profile" = "$HOME/.zshrc" ]; } || { [ "$SHELL" = "/bin/bash" ] && [ "$profile" = "$HOME/.bash_profile" ]; }; then
+                info "Ensuring persistence in $profile..."
+                if [ ! -f "$profile" ]; then touch "$profile"; fi
+                
+                if ! grep -q "HOMEBREW_NO_INSECURE_REDIRECT=1" "$profile"; then
+                    echo "export HOMEBREW_NO_INSECURE_REDIRECT=1" >> "$profile"
+                    info "Added HOMEBREW_NO_INSECURE_REDIRECT to $profile"
+                fi
+                
+                if ! grep -q "HOMEBREW_NO_ANALYTICS=1" "$profile"; then
+                    echo "export HOMEBREW_NO_ANALYTICS=1" >> "$profile"
+                    info "Added HOMEBREW_NO_ANALYTICS to $profile"
+                fi
+                
+                # Torify Aliases
+                if ! grep -q "alias torify=" "$profile"; then
+                     echo "alias torify='export ALL_PROXY=socks5h://127.0.0.1:9050'" >> "$profile"
+                     info "Added 'torify' alias to $profile"
+                fi
+                if ! grep -q "alias untorify=" "$profile"; then
+                     echo "alias untorify='unset ALL_PROXY'" >> "$profile"
+                     info "Added 'untorify' alias to $profile"
+                fi
+                
+                # I2P Alias (HTTP Proxy 4444)
+                if ! grep -q "alias i2pify=" "$profile"; then
+                     echo "alias i2pify='export http_proxy=http://127.0.0.1:4444 https_proxy=http://127.0.0.1:4445'" >> "$profile"
+                     info "Added 'i2pify' alias to $profile"
+                fi
+            fi
+        done
+    else
+        info "Skipping shell profile modifications for Homebrew/Proxies."
     fi
     
     # TCC Warning
@@ -438,7 +446,8 @@ hardening_disable_bonjour() {
     fi
     
     # Write preference unconditionally (creates file if missing)
-    execute_sudo "Disable Multicast" defaults write "$plist" NoMulticastAdvertisements -bool YES
+    # defaults write expects a domain or path without extension
+    execute_sudo "Disable Multicast" defaults write "${plist%.plist}" NoMulticastAdvertisements -bool YES
     
     # Reload mDNSResponder to apply changes
     execute_sudo "Reload mDNSResponder" killall -HUP mDNSResponder 2>/dev/null || true

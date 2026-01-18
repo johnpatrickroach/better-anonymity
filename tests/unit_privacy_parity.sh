@@ -32,6 +32,15 @@ find() {
 }
 xattr() { echo "XATTR_CALL: $*"; }
 purge() { echo "PURGE_CALL: $*"; }
+pgrep() { 
+    # Simulate apps running to verify kill logic, or not running to skip.
+    # For safety, let's say "Safari" is running to test that path, but others not?
+    # Actually, close_app calls pgrep. If we return 0, it calls killall.
+    # We want to test that killall IS called.
+    return 0 
+}
+killall() { echo "KILLALL_CALL: $*"; return 0; }
+
 
 # Mock defaults for hardening checks
 defaults() {

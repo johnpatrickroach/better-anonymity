@@ -30,6 +30,10 @@ start_suite "Settings Idempotency"
 # Mock defaults
 DEFAULTS_WRITE_CALLED=0
 
+# Mock ask_confirmation to always say yes
+ask_confirmation() { return 0; }
+
+
 defaults() {
     local op=$1
     local domain=$2

@@ -346,6 +346,7 @@ OLD_HOME="$HOME"
 export HOME="$TEST_7_HOME"
 touch "$HOME/.zshrc"
 
+MOCK_USER_CONFIRM="yes"
 OUTPUT=$(hardening_secure_homebrew)
 
 # Restore HOME
@@ -356,8 +357,8 @@ assert_contains "$OUTPUT" "Disabling Homebrew Analytics" "Should try to disable 
 assert_contains "$OUTPUT" "brew called with: analytics off" "Should run brew analytics off"
 assert_contains "$OUTPUT" "Set HOMEBREW_NO_INSECURE_REDIRECT=1" "Should set env var"
 assert_contains "$OUTPUT" "SECURITY WARNING" "Should warn about TCC"
-assert_contains "$OUTPUT" "Added HOMEBREW_NO_INSECURE_REDIRECT to .zshrc" "Should update zshrc (redirect)"
-assert_contains "$OUTPUT" "Added HOMEBREW_NO_ANALYTICS to .zshrc" "Should update zshrc (analytics)"
+assert_contains "$OUTPUT" "Added HOMEBREW_NO_INSECURE_REDIRECT to $TEST_7_HOME/.zshrc" "Should update zshrc (redirect)"
+assert_contains "$OUTPUT" "Added HOMEBREW_NO_ANALYTICS to $TEST_7_HOME/.zshrc" "Should update zshrc (analytics)"
 
 # Verify file content
 if grep -q "HOMEBREW_NO_INSECURE_REDIRECT=1" "$TEST_7_HOME/.zshrc"; then

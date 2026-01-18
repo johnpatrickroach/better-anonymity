@@ -100,8 +100,12 @@ else
 fi
 
 # Test is_app_installed
-# Mock directory
-mkdir -p "/Applications/MockApp.app"
+# Use a temporary HOME to avoid writing to system /Applications
+TEST_HOME="$(mktemp -d)"
+OLD_HOME="$HOME"
+export HOME="$TEST_HOME"
+mkdir -p "$TEST_HOME/Applications/MockApp.app"
+
 if is_app_installed "MockApp.app"; then
     echo -e "${GREEN}[PASS]${NC} is_app_installed detected app"
     ((PASSED++))
@@ -109,7 +113,8 @@ else
     echo -e "${RED}[FAIL]${NC} is_app_installed failed to detect app"
     ((FAILED++))
 fi
-rm -rf "/Applications/MockApp.app"
+rm -rf "$TEST_HOME"
+export HOME="$OLD_HOME"
 
 if ! is_app_installed "NonExistent.app"; then
     echo -e "${GREEN}[PASS]${NC} is_app_installed correctly reportedly missing"
