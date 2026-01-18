@@ -95,13 +95,13 @@ menu_network() {
         case $choice in
             1)
                 load_module "network"
-                echo "1) Localhost (127.0.0.1) [Recommended]"
+                echo "1) DNSCrypt Proxy (Localhost) [Recommended]"
                 echo "2) Quad9"
                 echo "3) Mullvad"
                 echo "4) Cloudflare"
                 read -r dns_choice
                 case $dns_choice in
-                    1) network_set_dns "localhost" ;;
+                    1) network_set_dns "dnscrypt-proxy" ;;
                     2) network_set_dns "quad9" ;;
                     3) network_set_dns "mullvad" ;;
                     4) network_set_dns "cloudflare" ;;
@@ -161,8 +161,7 @@ menu_installers() {
         echo -n "Select an option: "
         read -r choice
         
-        # Load installers module for most tasks
-        load_module "installers"
+        # Load installers module only when needed
     
         case $choice in
             1)
@@ -170,7 +169,9 @@ menu_installers() {
                  echo "2) Install Tor Service (CLI)"
                  read -p "Select: " tchoice
                  case $tchoice in
-                    1) install_tor_browser ;;
+                    1) 
+                        load_module "installers"
+                        install_tor_browser ;;
                     2) 
                         load_module "tor_manager"
                         tor_install ;;
@@ -192,11 +193,20 @@ menu_installers() {
                     *) error "Invalid option" ;;
                  esac
                  ;;
-            3) install_privoxy ;;
-            4) install_signal ;;
-            5) install_firefox ;;
-            6) install_keepassxc ;;
+            3) 
+                load_module "installers"
+                install_privoxy ;;
+            4) 
+                load_module "installers"
+                install_signal ;;
+            5) 
+                load_module "installers"
+                install_firefox ;;
+            6) 
+                load_module "installers"
+                install_keepassxc ;;
             7) 
+                load_module "installers"
                 echo "1) Install GPG"
                 echo "2) Setup GPG Config"
                 read -p "Select: " gchoice
@@ -207,6 +217,7 @@ menu_installers() {
                 esac
                 ;;
             8)
+                load_module "installers"
                 echo "1) DNSCrypt"
                 echo "2) Unbound"
                 echo "3) PingBar"
@@ -218,7 +229,9 @@ menu_installers() {
                     *) error "Invalid option" ;;
                 esac
                 ;;
-            9) harden_firefox ;;
+            9) 
+                load_module "installers"
+                harden_firefox ;;
             b|back) return ;;
             *) error "Invalid option" ;;
         esac
@@ -254,9 +267,17 @@ menu_privacy() {
                  echo "  r - Read"
                  echo "  l - List"
                  read -p "Action (w/r/l): " vaction
-                 case $vaction in
-                    w) vault_write ;;
-                    r) vault_read ;;
+                  case $vaction in
+                    w) 
+                        echo -n "Enter secret name (e.g. github): "
+                        read -r vname
+                        vault_write "$vname" 
+                        ;;
+                    r) 
+                        echo -n "Enter secret name to read: "
+                        read -r vname
+                        vault_read "$vname" 
+                        ;;
                     l) vault_list ;;
                     *) error "Invalid option" ;;
                  esac
@@ -269,10 +290,24 @@ menu_privacy() {
                  echo "  volume  - Create Encrypted DMG"
                  echo "  audit   - Audit Time Machine"
                  read -p "Action: " baction
-                 case $baction in
-                    encrypt) backup_encrypt_dir ;;
-                    decrypt) backup_decrypt_dir ;;
-                    volume) backup_create_volume ;;
+                  case $baction in
+                    encrypt) 
+                        echo -n "Enter source directory to backup: "
+                        read -r bsrc
+                        backup_encrypt_dir "$bsrc" 
+                        ;;
+                    decrypt) 
+                        echo -n "Enter backup file to decrypt: "
+                        read -r bfile
+                        backup_decrypt_dir "$bfile" 
+                        ;;
+                    volume) 
+                        echo -n "Enter Volume Name (e.g. SecretStuff): "
+                        read -r vname
+                        echo -n "Enter Volume Size (e.g. 100M, 1G): "
+                        read -r vsize
+                        backup_create_volume "$vname" "$vsize" 
+                        ;;
                     audit) backup_audit_timemachine ;;
                     *) error "Invalid option" ;;
                  esac

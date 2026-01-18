@@ -9,8 +9,8 @@ backup_encrypt_dir() {
     local dest_file="$2"
     
     if [ -z "$source_dir" ]; then
-        echo -n "Enter source directory to backup: "
-        read -r source_dir
+        error "Usage: backup_encrypt_dir <source_dir> [dest_file]"
+        return 1
     fi
     # Default filename if not provided
     if [ -z "$dest_file" ]; then
@@ -65,8 +65,8 @@ backup_decrypt_dir() {
     local dest_path="$2"
     
     if [ -z "$source_file" ]; then
-        echo -n "Enter backup file to decrypt: "
-        read -r source_file
+        error "Usage: backup_decrypt_dir <source_file> [dest_path]"
+        return 1
     fi
     
     if [ ! -f "$source_file" ]; then
@@ -100,13 +100,13 @@ backup_create_volume() {
     local vol_size="$2"
     
     if [ -z "$vol_name" ]; then 
-        echo -n "Enter Volume Name (e.g. SecretStuff): "
-        read -r vol_name
+        error "Usage: backup_create_volume <vol_name> <vol_size>"
+        return 1
     fi
     
     if [ -z "$vol_size" ]; then
-        echo -n "Enter Volume Size (e.g. 100M, 1G): "
-        read -r vol_size
+        error "Usage: backup_create_volume <vol_name> <vol_size>"
+        return 1
     fi
     
     local dmg_name="${vol_name}.dmg"

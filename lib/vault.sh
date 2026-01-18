@@ -19,8 +19,8 @@ vault_init() {
 vault_write() {
     local name="$1"
     if [ -z "$name" ]; then
-        echo -n "Enter secret name (e.g. github): "
-        read -r name
+        error "No name provided."
+        return 1
     fi
     
     if [ -z "$name" ]; then
@@ -91,8 +91,8 @@ vault_write() {
 vault_read() {
     local name="$1"
     if [ -z "$name" ]; then
-        echo -n "Enter secret name to read: "
-        read -r name
+        error "No name provided."
+        return 1
     fi
     
     local target_file="$VAULT_DIR/${name}.gpg"

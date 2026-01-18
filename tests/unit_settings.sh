@@ -153,6 +153,7 @@ TEST_CONFIG_CALLED=0
 # Mock confirm/ensure_root
 ask_confirmation() { return 0; }
 ensure_root() { return 0; }
+start_sudo_keepalive() { return 0; }
 # Mock sshd
 sshd() { return 0; }
 

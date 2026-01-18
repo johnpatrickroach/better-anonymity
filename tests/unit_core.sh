@@ -119,6 +119,7 @@ else
     ((FAILED++))
 fi
 
+
 # Test check_config_and_backup
 # ----------------------------
 test_config_backup() {
@@ -156,5 +157,53 @@ test_config_backup() {
 }
 test_config_backup
 
+# Test 5: sed_in_place Portability
+# --------------------------------
+test_sed_in_place() {
+    local test_file="/tmp/test_sed_$$"
+    echo "foo bar" > "$test_file"
+    
+    sed_in_place "s/foo/baz/" "$test_file"
+    
+    if grep -q "baz bar" "$test_file"; then
+        echo -e "${GREEN}[PASS]${NC} sed_in_place modified content correctly"
+        ((PASSED++))
+    else
+        echo -e "${RED}[FAIL]${NC} sed_in_place failed. Content: $(cat "$test_file")"
+        ((FAILED++))
+    fi
+    rm -f "$test_file"
+}
+test_sed_in_place
+
+# Test 6: check_internet Robustness
+# ---------------------------------
+# Mock ping to fail for 8.8.8.8 but succeed for 1.1.1.1
+ping() {
+    local ip="$3" # ping -c 1 <ip> -> $3 is IP usually? No: ping -c 1 8.8.8.8
+    # Arguments order varies. standard: ping -c 1 ip
+    # check_internet calls: ping -c 1 "$target"
+    # Args: $1=-c, $2=1, $3=target
+    local target="$3"
+    
+    if [ "$target" == "8.8.8.8" ]; then
+        return 1 # Fail Google
+    elif [ "$target" == "1.1.1.1" ]; then
+        return 0 # Pass Cloudflare
+    fi
+    return 1
+}
+
+# Capture output to suppress explicit output from check_internet? 
+# check_internet returns 0 on success, 1 on fail.
+if check_internet >/dev/null 2>&1; then
+     echo -e "${GREEN}[PASS]${NC} check_internet succeeded with fallback"
+     ((PASSED++))
+else
+     echo -e "${RED}[FAIL]${NC} check_internet failed despite available fallback"
+     ((FAILED++))
+fi
+
 end_suite
+
 

@@ -725,7 +725,11 @@ rm -rf "$TEST_CHECK_ROOT"
 sudo() { if [[ "$1" == "-v" ]]; then return 0; fi; "$@"; } # Mock sudo
 scutil() { echo "  nameserver[0] : 127.0.0.1"; }
 networksetup() { 
-    if [[ "$1" == "-getdnsservers" ]]; then
+    if [[ "$1" == "-listnetworkserviceorder" ]]; then
+        echo "(1) Wi-Fi"
+        echo "(Hardware Port: Wi-Fi, Device: en0)"
+        return
+    elif [[ "$1" == "-getdnsservers" ]]; then
         echo "127.0.0.1"
     elif [[ "$1" == "-getwebproxy" ]] || [[ "$1" == "-getsecurewebproxy" ]]; then
         echo "Enabled: Yes"
