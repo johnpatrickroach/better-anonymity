@@ -36,6 +36,11 @@ check_macos() {
     fi
 }
 
+# Helper: Check for battery presence (indicates laptop)
+has_battery() {
+    ioreg -c AppleSmartBattery -r | grep -q "BatteryInstalled"
+}
+
 detect_model() {
     # sysctl hw.model returns strings like "MacBookPro18,3", "Macmini9,1", etc.
     local model_id=$(sysctl -n hw.model | tr -d '[:space:]')
@@ -43,9 +48,6 @@ detect_model() {
     
     # Generic "Mac" identifiers (M2/M3+) confuse the name-based check.
     # Reliable fallback: Check for battery.
-    has_battery() {
-        ioreg -c AppleSmartBattery -r | grep -q "BatteryInstalled"
-    }
 
     if [[ "$model_id" == *"MacBook"* ]]; then
         export PLATFORM_TYPE="Laptop"
@@ -97,6 +99,7 @@ get_wifi_device() {
     if [ -z "$dev" ]; then
         # Fallback for some systems: check for en0 if explicitly wireless??
         # Safe default fallback
+        warn "Could not detect Wi-Fi device from hardware ports. Defaulting to en0 (heuristic)."
         dev="en0" 
     fi
     echo "$dev"
@@ -136,11 +139,32 @@ detect_active_network() {
     active_dev=$(route get default 2>/dev/null | grep interface: | awk '{print $2}')
     
     if [ -z "$active_dev" ]; then
-        warn "No default route found (offline?). Defaulting to primary Wi-Fi."
-        detect_wifi_network
-        export PLATFORM_ACTIVE_DEVICE="$PLATFORM_WIFI_DEVICE"
-        export PLATFORM_ACTIVE_SERVICE="$PLATFORM_WIFI_SERVICE"
-        return
+        warn "No default route found (offline?). Scanning for first active service..."
+        
+        # Parse service order: (1) Service Name (2) Device
+        # networksetup -listnetworkserviceorder returns:
+        # (1) Wi-Fi
+        # (Hardware Port: Wi-Fi, Device: en0)
+        
+        # We try to extract devices in order.
+        local services
+        services=$(networksetup -listnetworkserviceorder | grep "Device:" | sed -E 's/.*Device: ([a-z0-9]+).*/\1/')
+        
+        for dev in $services; do
+             # Check if interface is active
+             if ifconfig "$dev" 2>/dev/null | grep -q "status: active"; then
+                 active_dev="$dev"
+                 info "Found active fallback device: $active_dev"
+                 break
+             fi
+        done
+        
+        if [ -z "$active_dev" ]; then
+             warn "No active network interface found."
+             PLATFORM_ACTIVE_DEVICE=""
+             PLATFORM_ACTIVE_SERVICE=""
+             return
+        fi
     fi
     
     export PLATFORM_ACTIVE_DEVICE="$active_dev"
@@ -158,6 +182,7 @@ detect_active_network() {
              # Assume "Ethernet" or use device name as fallback?
              # Networksetup commands usually NEED the Service Name, not device.
              # If we can't find it, we might be in trouble for changing settings.
+             warn "Could not verify service name for $active_dev. Assuming 'Ethernet' for networksetup commands."
              sname="Ethernet"
         fi
     fi
