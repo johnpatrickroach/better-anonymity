@@ -1230,7 +1230,7 @@ assert_contains "$OUTPUT" "Encryption: [OFF]" "Should detect disabled encryption
 
 # Test 22: Wi-Fi Tools
 # --------------------
-check_root() { return 0; }
+ensure_root() { return 0; }
 
 
 # Mock networksetup for Wi-Fi audit

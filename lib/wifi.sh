@@ -21,24 +21,35 @@ wifi_get_interface() {
 }
 
 # wifi_generate_mac
-# Generates a random MAC address with the locally administered bit set
-# and the unicast bit set (second hex char: 2, 6, A, or E).
+# Generates a random MAC address with the locally administered bit set (bit 1)
+# and the unicast bit cleared (bit 0).
+# This results in the second hex digit being 2, 6, A, or E.
 wifi_generate_mac() {
-    # Generate a random valid prefix: 02, 06, 0a, 0e (locally administered containing bit, unicast)
-    # This ensures the MAC is widely accepted by APs rejecting improper random MACs.
-    local prefix
-    local r=$((RANDOM % 4))
-    case $r in
-        0) prefix="02" ;;
-        1) prefix="06" ;;
-        2) prefix="0a" ;;
-        3) prefix="0e" ;;
-    esac
-
-    # Generate 5 random bytes
-    local suffix
-    suffix=$(openssl rand -hex 5 | sed 's/\(..\)/:\1/g')
-    echo "${prefix}${suffix}"
+    # Generate 6 random bytes via openssl
+    local hex
+    hex=$(openssl rand -hex 6)
+    
+    # Extract the first byte
+    local first_byte="${hex:0:2}"
+    
+    # Convert hex to decimal to perform bitwise operations
+    local val=$((16#$first_byte))
+    
+    # Set bit 1 (locally administered) -> | 0x02
+    # Clear bit 0 (unicast) -> & 0xFE
+    val=$(( (val | 2) & 254 ))
+    
+    # Convert back to hex, ensure 2 digits
+    local new_first_byte
+    new_first_byte=$(printf "%02x" "$val")
+    
+    # Reconstruct the string with colons
+    # We use the new first byte, then the remaining 5 bytes from original
+    local suffix="${hex:2}"
+    local full_hex="${new_first_byte}${suffix}"
+    
+    # Format with colons
+    echo "$full_hex" | sed 's/\(..\)/:\1/g' | sed 's/^://' 
 }
 
 # wifi_spoof_mac
@@ -52,7 +63,7 @@ wifi_spoof_mac() {
         return 1
     fi
 
-    check_root || return 1
+    ensure_root || return 1
 
     info "Target Interface: $iface"
     local current_mac
