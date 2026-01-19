@@ -1969,6 +1969,44 @@ assert_contains "$OUTPUT" "Attempting fallback to 'runplain.sh'" "Should attempt
 assert_contains "$OUTPUT" "Found runner:" "Should find runner"
 assert_contains "$OUTPUT" "I2P started via runplain.sh" "Should report success"
 
+# Verify PID file creation
+if [ -f "/tmp/better-anonymity-i2p.pid" ]; then
+    pass "PID file created"
+else
+    fail "PID file NOT created"
+fi
+
+# Test 31c: I2P Stop via PID
+# --------------------------
+# Mock kill to succeed
+kill() {
+    echo "KILL_CALL: $*"
+    return 0
+}
+# Ensure PID file exists (from previous test)
+echo "12345" > "/tmp/better-anonymity-i2p.pid"
+
+OUTPUT=$(i2p_stop)
+assert_contains "$OUTPUT" "Stopping fallback process via PID file" "Should use PID file"
+assert_contains "$OUTPUT" "KILL_CALL: 12345" "Should kill correct PID"
+
+# In mock environment, kill -0 always succeeds, so it falls through to SIGKILL
+if [[ "$OUTPUT" == *"I2P process stopped"* ]] || [[ "$OUTPUT" == *"I2P process killed"* ]]; then
+    pass "Should report stop/kill"
+else
+    fail "Did not report stop or kill"
+fi
+
+# Check for removal (RM is mocked in previous tests, so we check for the call OR the file removal if real rm was restored)
+if [[ "$OUTPUT" == *"RM_CALL:"* ]] || [ ! -f "/tmp/better-anonymity-i2p.pid" ]; then
+    pass "PID file removed (or rm called)"
+else
+    fail "PID file NOT removed"
+fi
+
+# Manual Cleanup because rm was mocked
+/bin/rm -f "/tmp/better-anonymity-i2p.pid"
+
 # Test 31b: I2P Install Tracking
 # ------------------------------
 # Mock to trigger install
@@ -1980,6 +2018,39 @@ assert_contains "$OUTPUT" "I2P installed" "Should report success"
 
 # Cleanup fallback mocks
 /bin/rm -rf "$MOCK_PREFIX"
+
+# Test 31d: Status without Command (Refinement)
+# ---------------------------------------------
+# Verify that status reports correctly even if i2prouter is not in PATH
+# but PID file or process exists.
+
+# Mock command -v using a function that fails for i2prouter
+command() {
+    if [ "$1" == "-v" ] && [ "$2" == "i2prouter" ]; then
+        return 1
+    fi
+    # Delegate to real command for others? In test env 'command' is builtin.
+    # But we previously mocked it. Let's stick to our mock pattern.
+    if [ "$1" == "-v" ]; then return 0; fi # default success for others
+    return 0
+}
+
+# Create PID file
+echo "99999" > "/tmp/better-anonymity-i2p.pid"
+# Mock kill to succeed for PID 99999
+kill() {
+    if [ "$2" == "99999" ]; then return 0; fi
+    # Fallback
+    echo "KILL_CALL: $*"
+    return 0
+}
+
+OUTPUT=$(i2p_status)
+assert_contains "$OUTPUT" "NOTE: I2P is running via fallback" "Should detect running state via PID"
+assert_contains "$OUTPUT" "WARNING: 'i2prouter' command not found" "Should warn about missing command"
+
+# Cleanup
+/bin/rm -f "/tmp/better-anonymity-i2p.pid"
 
 end_suite
 

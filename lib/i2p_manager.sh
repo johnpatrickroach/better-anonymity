@@ -19,6 +19,8 @@ function i2p_install() {
     echo "This will launch the I2P router in the background."
 }
 
+I2P_PID_FILE="/tmp/better-anonymity-i2p.pid"
+
 function i2p_start() {
     info "Starting I2P Router..."
     
@@ -50,8 +52,6 @@ function i2p_start() {
         fi
         
         # Determine exact path. Structure is usuallylibexec/runplain.sh or just alongside.
-        # User reported: /opt/homebrew/Cellar/i2p/2.10.0/libexec/runplain.sh
-        # brew --prefix i2p points to opted version (linked).
         local runplain="$brew_prefix/libexec/runplain.sh"
         
         if [[ -f "$runplain" ]]; then
@@ -59,6 +59,7 @@ function i2p_start() {
              # Run in background, detached. Use 'sh' to ensure it runs even if +x is missing.
              nohup sh "$runplain" >/dev/null 2>&1 &
              local pid=$!
+             echo "$pid" > "$I2P_PID_FILE"
              success "I2P started via runplain.sh (PID: $pid)"
              return 0
         else
@@ -66,6 +67,8 @@ function i2p_start() {
              return 1
         fi
     elif [ $start_code -eq 0 ]; then
+        # Standard start succeeded - clear any stale PID file
+        /bin/rm -f "$I2P_PID_FILE"
         success "I2P Router started."
     else
         error "Failed to start I2P Router."
@@ -88,9 +91,31 @@ function i2p_stop() {
         fi
     fi
 
-    # ALWAYS check for fallback process cleanup
-    # This ensures that if started via runplain.sh (backup method), we still catch it,
-    # even if standard stop claims success (or failed).
+    # Check PID file for fallback process
+    if [ -f "$I2P_PID_FILE" ]; then
+        local pid_from_file
+        pid_from_file=$(cat "$I2P_PID_FILE")
+        if [ -n "$pid_from_file" ] && kill -0 "$pid_from_file" 2>/dev/null; then
+             info "Stopping fallback process via PID file (PID: $pid_from_file)..."
+             kill "$pid_from_file"
+             sleep 2
+             if kill -0 "$pid_from_file" 2>/dev/null; then
+                 kill -9 "$pid_from_file" 2>/dev/null
+                 success "I2P process killed (SIGKILL)."
+             else
+                 success "I2P process stopped."
+             fi
+             /bin/rm -f "$I2P_PID_FILE"
+             return 0
+        else
+            # Stale PID file
+            /bin/rm -f "$I2P_PID_FILE"
+        fi
+    fi
+
+    # Heuristic Fallback (Safety Net)
+    # ALWAYS check for process cleanup even if PID file was missing
+    # This ensures backward compatibility or manual start cleanup
     local pids
     pids=$(pgrep -u "$(id -u)" -f "net.i2p.router.Router")
     
@@ -102,15 +127,19 @@ function i2p_stop() {
         fi
         
         info "Killing I2P Java process..."
-        kill $pids
+        # Use array to safely handle multiple PIDs
+        local pid_array=($pids)
+        kill "${pid_array[@]}"
         sleep 2
         
         # Double check
-        if pgrep -u "$(id -u)" -f "net.i2p.router.Router" >/dev/null; then
-            kill -9 $pids 2>/dev/null
-            success "I2P process killed (SIGKILL)."
+        pids=$(pgrep -u "$(id -u)" -f "net.i2p.router.Router")
+        if [ -n "$pids" ]; then
+             local pid_array_kill=($pids)
+             kill -9 "${pid_array_kill[@]}" 2>/dev/null
+             success "I2P process killed (SIGKILL)."
         else
-            success "I2P process stopped."
+             success "I2P process stopped."
         fi
     else
         if [ "$standard_stop_ok" = true ]; then
@@ -130,29 +159,50 @@ function i2p_restart() {
 }
 
 function i2p_status() {
+    local installed=true
     if ! command -v i2prouter &> /dev/null; then
-        section "I2P Service Status" \
-            "I2P is not installed or not in PATH."
-        return
+        installed=false
     fi
 
     local lines=()
+    local is_running=false
 
-    # Wrapper status
-    local status_out
-    status_out=$(i2prouter status 2>&1)
-    while IFS= read -r line; do
-        [ -n "$line" ] && lines+=("$line")
-    done <<< "$status_out"
+    # PID File Check
+    if [ -f "$I2P_PID_FILE" ]; then
+        local pid_from_file
+        pid_from_file=$(cat "$I2P_PID_FILE")
+        if [ -n "$pid_from_file" ] && kill -0 "$pid_from_file" 2>/dev/null; then
+            lines+=("NOTE: I2P is running via fallback (PID: $pid_from_file tracked in $I2P_PID_FILE).")
+            is_running=true
+        fi
+    fi
 
-    # Fallback process info
-    if echo "$status_out" | grep -q "not running"; then
+    # Fallback process info (Heuristic)
+    if [ "$is_running" = false ]; then
         if pgrep -u "$(id -u)" -f "net.i2p.router.Router" >/dev/null; then
             local pids
             pids=$(pgrep -u "$(id -u)" -f "net.i2p.router.Router" | tr '\n' ',' | sed 's/,$//')
-            lines+=("NOTE: I2P appears to be running via fallback (Java process found).")
+            lines+=("NOTE: I2P appears to be running via fallback (Java process matched).")
             lines+=("PID: $pids")
+            is_running=true
         fi
+    fi
+
+    if [ "$installed" = false ] && [ "$is_running" = false ]; then
+        section "I2P Service Status" \
+            "I2P is not installed or not in PATH."
+        return
+    elif [ "$installed" = false ]; then
+         lines+=("WARNING: 'i2prouter' command not found, but I2P process detected.")
+    fi
+
+    if [ "$installed" = true ]; then
+        # Wrapper status
+        local status_out
+        status_out=$(i2prouter status 2>&1)
+        while IFS= read -r line; do
+            [ -n "$line" ] && lines+=("$line")
+        done <<< "$status_out"
     fi
 
     section "I2P Service Status" "${lines[@]}"

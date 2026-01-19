@@ -89,3 +89,9 @@ To remove I2P:
 ```bash
 brew uninstall i2p
 ```
+
+## Troubleshooting
+### "Wrapper failure" or "runplain.sh" warning
+On some systems (especially Apple Silicon), the standard I2P service wrapper may fail to load. `better-anonymity` detects this and automatically falls back to `runplain.sh` (monitoring the PID).
+*   **Status**: `better-anonymity i2p status` will report "I2P is running via fallback".
+*   **Warning**: You may see "i2prouter command not found" if only the fallback runner is available. This is normal in this mode.
