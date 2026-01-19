@@ -38,7 +38,7 @@ backup_encrypt_dir() {
     # Using - (stdout) for tar to pipe
     # tar -> gzip -> gpg
     # Using - (stdout) for tar to pipe
-    tar zcvf - "$source_dir" | gpg -c > "$dest_file"
+    tar zcf - "$source_dir" | gpg -c > "$dest_file"
     local statuses=(${PIPESTATUS[@]})
     
     # Check tar status (index 0)
@@ -168,12 +168,62 @@ backup_audit_timemachine() {
     fi
     
     info "Destinations:"
-    tmutil destinationinfo
     
-    # Check if encryption is enabled (naive grep on destinationinfo)
-    # Usually shows "Kind: Local" or similar. Robust encryption check is harder without parsing XML of destinationinfo.
-    # We will warn generically.
-    echo
-    warn "Ensure your backups are encrypted!"
-    warn "If destination is external, verify encryption in Disk Utility."
+    # Capture plist output
+    local dest_plist
+    dest_plist=$(tmutil destinationinfo -plist 2>/dev/null)
+    
+    if [ -z "$dest_plist" ]; then
+        warn "No Time Machine destinations found (or tmutil failed)."
+        return 0
+    fi
+
+    # Parse MountPoints using simplified XML parsing suitable for this specific plist structure.
+    # We look for <key>MountPoint</key> then the next <string> value.
+    local mount_points
+    mount_points=$(echo "$dest_plist" | grep -A 1 "<key>MountPoint</key>" | grep "<string>" | sed -E 's/.*<string>(.*)<\/string>.*/\1/')
+    
+    if [ -z "$mount_points" ]; then
+        warn "No mounted destinations found."
+        echo "$dest_plist" | grep -A 1 "<key>Name</key>" | grep "<string>" | sed -E 's/.*<string>(.*)<\/string>.*/\t- Name: \1 (Not Mounted)/'
+        return 0
+    fi
+    
+    while read -r mp; do
+        if [ -z "$mp" ]; then continue; fi
+        
+        local encrypted="UNKNOWN"
+        local fs_name=""
+        
+        # Check diskutil info
+        if type diskutil >/dev/null 2>&1; then
+            local disk_info
+            disk_info=$(diskutil info "$mp" 2>/dev/null)
+            
+            # Check FileVault or APFS Encryption
+            if echo "$disk_info" | grep -q "FileVault:.*Yes" || \
+               echo "$disk_info" | grep -q "Encrypted:.*Yes"; then
+                encrypted="YES"
+            elif echo "$disk_info" | grep -q "FileVault:.*No" || \
+                 echo "$disk_info" | grep -q "Encrypted:.*No"; then
+                encrypted="NO"
+            fi
+            
+            fs_name=$(echo "$disk_info" | grep "Volume Name:" | awk -F': *' '{print $2}')
+        fi
+        
+        info "- Destination: $mp"
+        if [ -n "$fs_name" ]; then
+             echo "     Name      : $fs_name"
+        fi
+        
+        if [ "$encrypted" == "YES" ]; then
+            success "     Encryption: [ON] (Secure)"
+        elif [ "$encrypted" == "NO" ]; then
+            error "     Encryption: [OFF] (INSECURE! Enable in Disk Utility)"
+        else
+            warn "     Encryption: [UNKNOWN] (Could not verify)"
+        fi
+        
+    done <<< "$mount_points"
 }

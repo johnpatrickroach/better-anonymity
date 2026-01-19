@@ -1157,12 +1157,51 @@ gpg() { echo "GPG_CALL: $*" >&2; return 0; }
 tar() { echo "TAR_CALL: $*" >&2; return 0; }
 hdiutil() { echo "HDIUTIL_CALL: $*"; return 0; }
 tmutil() {
-    echo "TMUTIL_CALL: $*" >&2
+    # echo "TMUTIL_CALL: $*" >&2
     if [[ "$*" == *"-plist"* ]]; then
-        return 1
+        cat <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Destinations</key>
+    <array>
+        <dict>
+            <key>Name</key>
+            <string>EncryptedBackup</string>
+            <key>Kind</key>
+            <string>Local</string>
+            <key>MountPoint</key>
+            <string>/Volumes/EncryptedBackup</string>
+        </dict>
+        <dict>
+            <key>Name</key>
+            <string>InsecureBackup</string>
+            <key>Kind</key>
+            <string>Local</string>
+            <key>MountPoint</key>
+            <string>/Volumes/InsecureBackup</string>
+        </dict>
+    </array>
+</dict>
+</plist>
+EOF
+        return 0
     fi
     echo "Running = 1"
     return 0
+}
+
+diskutil() {
+    if [[ "$1" == "info" ]]; then
+        if [[ "$2" == *"/EncryptedBackup" ]]; then
+            echo "   Volume Name:              EncryptedBackup"
+            echo "   FileVault:                Yes"
+        else
+            echo "   Volume Name:              InsecureBackup"
+            echo "   FileVault:                No"
+        fi
+    fi
 }
 
 # Source lib/backup.sh
@@ -1173,7 +1212,7 @@ mkdir -p "/tmp/src"
 # Test Encrypt (capture stderr too)
 OUTPUT=$(backup_encrypt_dir "/tmp/src" "/tmp/dst.gpg" 2>&1)
 assert_contains "$OUTPUT" "Archiving and Encrypting" "Should start encrypt"
-assert_contains "$OUTPUT" "TAR_CALL: zcvf - /tmp/src" "Should call tar"
+assert_contains "$OUTPUT" "TAR_CALL: zcf - /tmp/src" "Should call tar"
 
 # Test Volume
 OUTPUT=$(backup_create_volume "Secret" "100M")
@@ -1183,7 +1222,10 @@ assert_contains "$OUTPUT" "HDIUTIL_CALL: create Secret.dmg -encryption -size 100
 # Test Audit (capture stderr)
 OUTPUT=$(backup_audit_timemachine 2>&1)
 assert_contains "$OUTPUT" "Auditing Time Machine" "Should audit TM"
-assert_contains "$OUTPUT" "TMUTIL_CALL: status" "Should call tmutil status"
+assert_contains "$OUTPUT" "EncryptedBackup" "Should list encrypted volume"
+assert_contains "$OUTPUT" "Encryption: [ON]" "Should detect enabled encryption"
+assert_contains "$OUTPUT" "InsecureBackup" "Should list insecure volume"
+assert_contains "$OUTPUT" "Encryption: [OFF]" "Should detect disabled encryption"
 
 
 # Test 22: Wi-Fi Tools
