@@ -1398,6 +1398,8 @@ networksetup() {
     fi
 }
 
+
+
 OUTPUT=$(tor_enable_system_proxy)
 assert_contains "$OUTPUT" "Enabling System SOCKS Proxy" "Should report enabling"
 assert_contains "$OUTPUT" "NET_CALL: -setsocksfirewallproxy Wi-Fi 127.0.0.1 9050" "Should set proxy host port"
@@ -2052,7 +2054,71 @@ assert_contains "$OUTPUT" "WARNING: 'i2prouter' command not found" "Should warn 
 # Cleanup
 /bin/rm -f "/tmp/better-anonymity-i2p.pid"
 
-end_suite
+
+# end_suite removed to allow continuation
+
+
+
+# Test 19b: Quarantine Cleanup (SQLite)
+# -------------------------------------
+start_suite "Quarantine Cleanup"
+
+# Setup dummy db
+mkdir -p "$HOME/Library/Preferences"
+DB_FILE="$HOME/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2"
+touch "$DB_FILE"
+
+# Mock sqlite3 success
+sqlite3() {
+    echo "SQL: $*"
+    return 0
+}
+
+# Source cleanup.sh if not already available
+if ! command -v cleanup_quarantine &>/dev/null; then
+    source "$(dirname "$0")/../lib/cleanup.sh"
+fi
+
+# Mock ask_confirmation to yes
+ask_confirmation() { return 0; }
+# Mock sudo
+execute_sudo() { echo "SUDO: $*"; }
+
+OUTPUT=$(cleanup_quarantine 2>&1)
+assert_contains "$OUTPUT" "Attempting to clean Quarantine Database via sqlite3" "Should detect sqlite3"
+assert_contains "$OUTPUT" "SQL: $DB_FILE DELETE FROM LSQuarantineEvent; VACUUM;" "Should run correct SQL"
+assert_contains "$OUTPUT" "Quarantine History cleared (via SQL)" "Should report SQL success"
+
+# Test 19c: Quarantine Cleanup (Fallback)
+# ---------------------------------------
+# Mock sqlite3 failure
+sqlite3() {
+    echo "SQL: $*"
+    return 1
+}
+# Reset file state
+touch "$DB_FILE"
+
+OUTPUT=$(cleanup_quarantine 2>&1)
+assert_contains "$OUTPUT" "sqlite3 cleanup failed" "Should detect failure"
+assert_contains "$OUTPUT" "Removing Quarantine Database file..." "Should announce deletion"
+assert_contains "$OUTPUT" "Quarantine History cleared (file deleted and recreated)" "Should report fallback success"
+
+# Cleanup
+command rm -f "$DB_FILE"
+
+# Reset execute_sudo to default logic (recover from Quarantine mock)
+execute_sudo() {
+    shift
+    if declare -f "$1" > /dev/null; then
+        "$@"
+    else
+        echo "EXEC: $*"
+    fi
+}
+
+# end_suite removed to allow continuation
+
 
 
 # Test 32: KeePassXC Installer
@@ -2080,6 +2146,15 @@ assert_contains "$OUTPUT" "Installing KeePassXC" "Should print info"
 # Test 32: Atomic Advanced DNS Setup
 # ----------------------------------
 start_suite "Atomic Advanced DNS"
+
+# Mock check_port (lib/core.sh dependency)
+check_port() {
+    if [ "$MOCK_PORTS_OPEN" == "true" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
 # Sourcing lifecycle again to get the real function setup_advanced_dns_atomic
 # But we need to be careful about overwrites. 
 # We overrode it in Test 27. We need to restore it by sourcing lib again.
@@ -2254,6 +2329,31 @@ networksetup() {
         echo "NETSETUP_SET: $*"
     fi
 }
+
+# Smart manage_service mock for idempotency tests
+manage_service() {
+    local action="$1"
+    local service="$2"
+    
+    # Simulate start idempotency
+    if [[ "$action" == "start" ]]; then
+        if [[ "$MOCK_SERVICE_RUNNING" == "true" ]] || [[ "$MOCK_PGREP_RUNNING" == "true" ]]; then
+            echo "DNSCrypt-Proxy is already running with latest config. Skipping restart."
+            if [[ "$service" == "unbound" ]]; then
+                 echo "Unbound is already running with latest config. Skipping restart."
+            fi
+            return 0
+        fi
+        # If not running, start
+        # Mock brew doesn't handle start, so just echo
+        echo "EXEC: brew services start $service"
+    fi
+
+    # Simulate restart
+    if [[ "$action" == "restart" ]]; then
+        echo "BREW_RESTART: $service"
+    fi
+}
 # Mock cmp to control "diff" logic
 cmp() {
     # If MOCK_FILES_SAME is true (0), else 1
@@ -2423,10 +2523,28 @@ if [[ "$ROOT_DIR" != *"/tmp/"* ]] && [[ "$ROOT_DIR" == *"better-anonymity"* ]]; 
 else
     rm -rf "$BREW_PREFIX" "$ROOT_DIR" "$HOME"
 fi
+# Unset mock rm
+unset -f rm
 # Restore global ROOT_DIR
 export ROOT_DIR="$OLD_ROOT_DIR"
 if [[ "$OUTPUT" == *"EXEC: unbound-anchor"* ]]; then fail "Should NOT fetch root key"; else pass "Correctly skipped root key fetch"; fi
 if [[ "$OUTPUT" == *"BREW_RESTART"* ]]; then fail "Should NOT restart unbound"; else pass "Correctly skipped unbound restart"; fi
+
+# Cleanup local mocks and restore global defaults
+unset -f brew cmp pgrep networksetup killall
+
+# Restore global manage_service mock
+manage_service() {
+    local action="$1"
+    local service="$2"
+    echo "EXEC: brew services $action $service"
+}
+
+# Restore global sudo mock
+sudo() {
+    if [[ "$1" == "-v" ]]; then return 0; fi
+    "$@"
+}
 
 
 
@@ -2531,6 +2649,7 @@ echo "----------------------------------------"
 # Mock HOME to safely control profile discovery
 ORIG_HOME="$HOME"
 TEST_HOME="/tmp/mock_home_firefox_${RANDOM}"
+rm -rf "$TEST_HOME" # Ensure clean state (prevent collisions)
 mkdir -p "$TEST_HOME/Library/Application Support/Firefox/Profiles"
 HOME="$TEST_HOME"
 export HOME
@@ -2627,6 +2746,18 @@ export HOME
 
 PROF_PATH="$TEST_HOME/Library/Application Support/Firefox/Profiles/test.default-release"
 
+# Mock bash to ensure user.js is created in the correct location
+bash() {
+    if [[ "$1" == *"updater.sh"* ]]; then
+        echo "MOCK: Executing updater.sh with args: $*"
+        touch "$PROF_PATH/user.js" 
+        echo '// arkenfox user.js' >> "$PROF_PATH/user.js"
+        return 0
+    fi
+    # Use 'command bash' if we wanted real bash, but here we just echo default
+    echo "MOCK: bash $*"
+}
+
 # Mock curl to avoid network and just touch file
 curl() {
     echo "CURL_CALL: $*"
@@ -2639,8 +2770,16 @@ curl() {
             if [ "$prev" == "-o" ]; then output_file="$arg"; fi
             prev="$arg"
         done
-        touch "$output_file"
-        echo "// arkenfox user.js" > "$output_file"
+        if [[ "$output_file" == *"updater.sh" ]]; then
+             echo "#!/bin/bash" > "$output_file"
+             # Simulate updater creating user.js
+             echo "echo '// arkenfox user.js' > user.js" >> "$output_file"
+        elif [[ "$output_file" == *"prefsCleaner.sh" ]]; then
+             touch "$output_file"
+        else
+             touch "$output_file"
+             echo "// arkenfox user.js" > "$output_file"
+        fi
     fi
     return 0
 }
@@ -2652,7 +2791,7 @@ touch "$PROF_PATH/prefs.js"
 echo 'user_pref("privacy.resistFingerprinting", true);' > "$PROF_PATH/prefs.js"
 
 OUTPUT=$(harden_firefox 2>&1)
-assert_contains "$OUTPUT" "Downloading Arkenfox user.js..." "Should download"
+assert_contains "$OUTPUT" "Downloading Arkenfox scripts" "Should download scripts"
 assert_contains "$OUTPUT" "Verifying Firefox Hardening..." "Should verify"
 assert_contains "$OUTPUT" "user.js contains Arkenfox signatures" "Verify should pass"
 
@@ -2661,8 +2800,9 @@ echo "SCENARIO 2: Already Hardened"
 echo "// arkenfox user.js" > "$PROF_PATH/user.js"
 
 OUTPUT=$(harden_firefox 2>&1)
-assert_contains "$OUTPUT" "Arkenfox user.js verified present. Skipping download." "Should skip download"
-if [[ "$OUTPUT" == *"Downloading Arkenfox user.js"* ]]; then fail "Should NOT download"; else pass "Correctly skipped download"; fi
+assert_contains "$OUTPUT" "Downloading Arkenfox scripts" "Should update scripts"
+# New logic updates every time, so we check for download
+if [[ "$OUTPUT" == *"Downloading Arkenfox scripts"* ]]; then pass "Correctly updated scripts"; else fail "Should update scripts"; fi
 assert_contains "$OUTPUT" "Verifying Firefox Hardening..." "Should still verify"
 
 # Cleanup
@@ -2674,6 +2814,16 @@ export HOME
 # Test 15: Network Restore & Anonymize
 # ------------------------------------
 start_suite "Network Restore & Anonymize"
+
+# Restore logic-aware execute_sudo (recovering from previous test overrides)
+execute_sudo() { 
+    shift
+    if declare -f "$1" > /dev/null; then
+        "$@"
+    else
+        echo "EXEC: $*"
+    fi
+}
 
 # Mock networksetup for toggle tests
 networksetup() {
@@ -2692,13 +2842,21 @@ is_brew_installed() {
     return 1
 }
 
+# Mock detect_active_network to ensure consistent "Wi-Fi" return
+detect_active_network() {
+    # Returns: Service Name (e.g. Wi-Fi), Device (e.g. en0)
+    echo "Wi-Fi"
+    echo "en0"
+    return 0
+}
+
 # Test Restore
 OUTPUT=$(network_restore_default)
 assert_contains "$OUTPUT" "Restoring Network Defaults" "Should announce restore"
-assert_contains "$OUTPUT" "BREW: services stop privoxy" "Should stop privoxy"
-assert_contains "$OUTPUT" "BREW: services stop dnscrypt-proxy" "Should stop dnscrypt-proxy"
-assert_contains "$OUTPUT" "BREW: services stop unbound" "Should stop unbound"
-assert_contains "$OUTPUT" "BREW: services stop tor" "Should stop tor"
+assert_contains "$OUTPUT" "EXEC: brew services stop privoxy" "Should stop privoxy"
+assert_contains "$OUTPUT" "EXEC: brew services stop dnscrypt-proxy" "Should stop dnscrypt-proxy"
+assert_contains "$OUTPUT" "EXEC: brew services stop unbound" "Should stop unbound"
+assert_contains "$OUTPUT" "EXEC: brew services stop tor" "Should stop tor"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setwebproxystate Wi-Fi off" "Should disable HTTP proxy"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setsecurewebproxystate Wi-Fi off" "Should disable HTTPS proxy"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setsocksfirewallproxystate Wi-Fi off" "Should disable SOCKS proxy"
@@ -2707,15 +2865,67 @@ assert_contains "$OUTPUT" "NET_DNS: default" "Should reset to Default DNS"
 # Test Anonymize
 OUTPUT=$(network_enable_anonymity)
 assert_contains "$OUTPUT" "Enabling Anonymity Mode" "Should announce enable"
-assert_contains "$OUTPUT" "BREW: services start privoxy" "Should start privoxy"
-assert_contains "$OUTPUT" "BREW: services start dnscrypt-proxy" "Should start dnscrypt-proxy"
-assert_contains "$OUTPUT" "BREW: services start unbound" "Should start unbound"
-assert_contains "$OUTPUT" "BREW: services start tor" "Should start tor"
+assert_contains "$OUTPUT" "EXEC: brew services start privoxy" "Should start privoxy"
+assert_contains "$OUTPUT" "EXEC: brew services start dnscrypt-proxy" "Should start dnscrypt-proxy"
+assert_contains "$OUTPUT" "EXEC: brew services start unbound" "Should start unbound"
+assert_contains "$OUTPUT" "EXEC: brew services start tor" "Should start tor"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setwebproxy Wi-Fi 127.0.0.1 8118" "Should enable HTTP proxy"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setsecurewebproxy Wi-Fi 127.0.0.1 8118" "Should enable HTTPS proxy"
 assert_contains "$OUTPUT" "NETWORKSETUP: -setsocksfirewallproxy Wi-Fi 127.0.0.1 9050" "Should enable SOCKS proxy"
 assert_contains "$OUTPUT" "NET_DNS: localhost" "Should set Localhost DNS"
 
+
+
+
+# Test 39: Process Cleanup Safety
+# --------------------------------
+echo "Running Test Suite: Process Cleanup Safety"
+echo "----------------------------------------"
+
+unset -f pgrep killall
+
+# Mock pgrep to strict checking
+mock_pgrep() {
+    echo "PGREP_CALL: $*" >&2
+    if [[ "$*" == *"-x"* ]]; then
+        # Strict mode
+        # Scenario 1: Safari (Exact match) -> Found (0)
+        if [[ "$*" == *"Safari"* ]] && [[ "$*" != *"SafariPartial"* ]]; then return 0; fi
+        
+        # Scenario 2: SafariPartial (Partial match exists, but Exact match missing) -> Not Found (1)
+        if [[ "$*" == *"SafariPartial"* ]]; then return 1; fi
+        
+        return 1
+    else
+        # Loose mode (Simulate partial match found)
+        return 0
+    fi
+}
+export -f mock_pgrep
+
+# Mock killall
+mock_killall() {
+    echo "KILLALL_CALL: $*"
+    return 0
+}
+export -f mock_killall
+
+# Source cleanup lib to get updated close_app
+source "$(dirname "$0")/../lib/cleanup.sh"
+
+# Scenario 1: Safari (Should match exact and close)
+OUTPUT=$(PGREP_CMD=mock_pgrep KILLALL_CMD=mock_killall close_app "Safari" 2>&1)
+assert_contains "$OUTPUT" "PGREP_CALL: -x Safari" "Should use pgrep -x"
+assert_contains "$OUTPUT" "Closing Safari" "Should announce closing"
+assert_contains "$OUTPUT" "KILLALL_CALL: Safari" "Should call killall"
+
+# Scenario 2: Safe Partial Match (Should NOT close if exact missing)
+# We test with "SafariPartial". Mock says strict check fails (1), loose check matches (0).
+# If correct, close_app gets 1, and does nothing.
+OUTPUT=$(PGREP_CMD=mock_pgrep KILLALL_CMD=mock_killall close_app "SafariPartial" 2>&1)
+assert_contains "$OUTPUT" "PGREP_CALL: -x SafariPartial" "Should use pgrep -x for others"
+if [[ "$OUTPUT" == *"Closing"* ]]; then fail "Should NOT close on partial match"; else pass "Correctly ignored partial match"; fi
+if [[ "$OUTPUT" == *"KILLALL_CALL"* ]]; then fail "Should NOT call killall"; else pass "Correctly skipped killall"; fi
 
 
 # Test 16: Explain Flag

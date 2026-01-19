@@ -235,15 +235,28 @@ cleanup_quarantine() {
              chflags nouchg "$db_file"
         fi
         
-        # User requested robustness against schema changes/corruption.
-        # The safest way is to remove the file entirely and let macOS recreate it.
-        # This avoids assuming table names (like LSQuarantineEvent) or handling open DB locks.
-        info "Removing Quarantine Database (recreation is automatic)..."
-        rm -f "$db_file"
-        
-        # Optional: Recreate empty to prevent "missing file" checks if any? 
-        # Usually not needed, but touch ensures it exists.
-        # touch "$db_file"
+        # Try sqlite3 cleaning first (Cleaner, preserves inode/permissions)
+        local cleaned_via_sql=false
+        if command -v sqlite3 >/dev/null 2>&1; then
+            info "Attempting to clean Quarantine Database via sqlite3..."
+            if sqlite3 "$db_file" "DELETE FROM LSQuarantineEvent; VACUUM;" 2>/dev/null; then
+                success "Quarantine History cleared (via SQL)."
+                cleaned_via_sql=true
+            else
+                warn "sqlite3 cleanup failed (Database locked or schema changed?). Falling back to file deletion."
+            fi
+        else
+            info "sqlite3 not found. Falling back to file deletion."
+        fi
+
+        if [ "$cleaned_via_sql" = false ]; then
+            info "Removing Quarantine Database file..."
+            rm -f "$db_file"
+            
+            # Recreate empty to maintain file existence for system monitors
+            touch "$db_file"
+            success "Quarantine History cleared (file deleted and recreated)."
+        fi
     fi
     
     # Clear attributes from Downloads
@@ -255,14 +268,18 @@ close_app() {
     local proc_name="$1"
     local nice_name="${2:-$proc_name}"
 
-    if pgrep -q "$proc_name"; then
+    local pgrep_cmd="${PGREP_CMD:-pgrep}"
+    local killall_cmd="${KILLALL_CMD:-killall}"
+
+    # Use -x for exact match to avoid partial matches (e.g. "Safari" matching "Safari Preview")
+    if $pgrep_cmd -x "$proc_name" >/dev/null; then
         info "Closing $nice_name to safely clean data..."
         # Try standard kill (SIGTERM) first which allows cleanup
-        killall "$proc_name" 2>/dev/null
+        $killall_cmd "$proc_name" 2>/dev/null
         
         # Wait up to 5 seconds
         for i in {1..5}; do
-            if ! pgrep -q "$proc_name"; then
+            if ! $pgrep_cmd -x "$proc_name" >/dev/null; then
                 return 0
             fi
             sleep 1
@@ -270,7 +287,7 @@ close_app() {
         
         # Force kill (SIGKILL) if stuck
         warn "$nice_name still running. Force quitting..."
-        killall -9 "$proc_name" 2>/dev/null || true
+        $killall_cmd -9 "$proc_name" 2>/dev/null || true
     fi
 }
 
