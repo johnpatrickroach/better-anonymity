@@ -1100,8 +1100,60 @@ fi
 
 rm -rf "$VAULT_DIR"
 
+# Test 20b: Vault Write Interactivity
+# -----------------------------------
+start_suite "Vault Interactivity"
+
+# Setup
+VAULT_DIR="/tmp/test_vault_interact_$$"
+mkdir -p "$VAULT_DIR"
+gpg() { echo "Encrypted"; return 0; }
+openssl() { echo "mock_password_123"; return 0; }
+chmod() { return 0; }
+
+# Scenario 1: No Clipboard, Show Password
+# Point PBCOPY to nonexistent command to trigger fallback
+export PBCOPY_CMD="non_existent_command_$$"
+
+ask_confirmation() {
+    echo "PROMPT: $1"
+    if [[ "$1" == *"Display generated"* ]]; then return 0; fi # Yes
+    if [[ "$1" == *"Generate"* ]]; then return 0; fi # Yes to generate
+    if [[ "$1" == *"Overwrite"* ]]; then return 0; fi
+    return 1
+}
+
+OUTPUT=$(vault_write "test_secret_1" 2>&1)
+assert_contains "$OUTPUT" "PROMPT: Clipboard unavailable" "Should detect missing clipboard"
+assert_contains "$OUTPUT" "Generated Password: mock_password_123" "Should display password when requested"
+assert_contains "$OUTPUT" "Secret 'test_secret_1' saved" "Should save secret"
+
+# Scenario 2: No Clipboard, Hide Password
+ask_confirmation() {
+    echo "PROMPT: $1"
+    if [[ "$1" == *"Display generated"* ]]; then return 1; fi # No
+    if [[ "$1" == *"Generate"* ]]; then return 0; fi # Yes to generate
+    return 1
+}
+
+OUTPUT=$(vault_write "test_secret_2" 2>&1)
+assert_contains "$OUTPUT" "PROMPT: Clipboard unavailable" "Should detect missing clipboard"
+if [[ "$OUTPUT" == *"Generated Password:"* ]]; then fail "Should NOT display password"; else pass "Correctly hid password"; fi
+assert_contains "$OUTPUT" "Password generated but hidden" "Should warn about hidden password"
+
+# Cleanup
+rm -rf "$VAULT_DIR"
+unset -f gpg openssl
+unset PBCOPY_CMD
+# Restore ask_confirmation to always yes for subsequent tests
+ask_confirmation() { return 0; }
+unset -f chmod
+
+# end_suite removed to prevent early exit
+
 # Test 21: Backup Tools
 # ---------------------
+gpg() { echo "GPG_CALL: $*" >&2; return 0; }
 tar() { echo "TAR_CALL: $*" >&2; return 0; }
 hdiutil() { echo "HDIUTIL_CALL: $*"; return 0; }
 tmutil() {

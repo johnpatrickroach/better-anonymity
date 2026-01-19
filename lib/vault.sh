@@ -23,10 +23,7 @@ vault_write() {
         return 1
     fi
     
-    if [ -z "$name" ]; then
-        error "No name provided."
-        return 1
-    fi
+
     
     vault_init
     
@@ -52,14 +49,19 @@ vault_write() {
              password=$(openssl rand -base64 32)
         fi
         
-        if command -v pbcopy >/dev/null 2>&1; then
-             echo -n "$password" | pbcopy
+        local copy_cmd="${PBCOPY_CMD:-pbcopy}"
+        if command -v "$copy_cmd" >/dev/null 2>&1; then
+             echo -n "$password" | "$copy_cmd"
              info "Generated password copied to clipboard."
         else
              # Fallback only if no clipboard (e.g. strict headless)
-             # But unsafe to print.
-             warn "Clipboard not available. Password generated but not displayed to prevent logs."
-             warn "You can view it after encryption via 'vault read $name'."
+             if ask_confirmation "Clipboard unavailable. Display generated password on screen?"; then
+                warn "Warning: Password will be visible in terminal scrollback."
+                echo "Generated Password: $password"
+             else
+                warn "Password generated but hidden."
+                warn "You can view it after encryption via 'vault read $name'."
+             fi
         fi
     else
         echo -n "Enter Password: "
@@ -111,10 +113,11 @@ vault_read() {
         echo "--- SECRET END ---"
         
         # Clipboard support if available (pbcopy on Mac)
-        if command -v pbcopy >/dev/null 2>&1; then
-            echo -n "$decrypted" | pbcopy
+        local copy_cmd="${PBCOPY_CMD:-pbcopy}"
+        if command -v "$copy_cmd" >/dev/null 2>&1; then
+            echo -n "$decrypted" | "$copy_cmd"
             info "Secret copied to clipboard (clearing in 15s)..."
-            (sleep 15 && echo -n "" | pbcopy) &
+            (sleep 15 && echo -n "" | "$copy_cmd") &
         fi
     else
         error "Decryption failed."

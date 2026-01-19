@@ -6,7 +6,7 @@
 # Path to the airport utility
 # Path to the airport utility (legacy or modern)
 # Path to the airport utility (legacy or modern)
-AIRPORT_BIN="$(get_airport_bin)"
+AIRPORT_BIN="${AIRPORT_BIN:-$(get_airport_bin)}"
 
 # wifi_get_interface
 # Returns the name of the primary Wi-Fi interface (e.g., en0).
