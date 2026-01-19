@@ -17,7 +17,7 @@ diagnosis_run() {
     
     # Detect active network service
     local net_service="Wi-Fi"
-    if command -v detect_active_network >/dev/null; then
+    if type -t detect_active_network | grep -q "function"; then
         detect_active_network
         net_service="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
     fi

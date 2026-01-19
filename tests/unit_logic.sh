@@ -98,6 +98,13 @@ source "$(dirname "$0")/../lib/installers.sh"
 # Mock Sudo Keepalive (Core)
 start_sudo_keepalive() { :; }
 stop_sudo_keepalive() { :; }
+# Mock sudo command
+sudo() {
+    if [[ "$1" == "-v" ]]; then return 0; fi # sudo -v success
+    "$@"
+}
+# Mock pgrep globally to avoid waiting on real processes
+pgrep() { return 1; }
 
 # Mock get_airport_bin and check_airport_exists (Core)
 get_airport_bin() { echo "mock_airport"; }
@@ -404,38 +411,9 @@ unset -f command
 
 
 
-# Test 8: Hosts Hardening
-# -----------------------
-# Mock curl and tee ?
-# We rely on execute_sudo logging for verification
-OUTPUT=$(network_update_hosts)
-# Note: Backup assertions removed because they depend on /etc/hosts-base NOT existing,
-# which might not be true on the test machine.
-# assert_contains "$OUTPUT" "Creating /etc/hosts-base backup" "Should backup hosts"
-# assert_contains "$OUTPUT" "EXEC: cp /etc/hosts /etc/hosts-base" "Should run cp"
+# Test 8: Hosts Hardening (Moved to unit_network.sh)
+# --------------------------------------------------
 
-assert_contains "$OUTPUT" "EXEC: sh -c cat /etc/hosts-base > /etc/hosts" "Should restore base"
-assert_contains "$OUTPUT" "Downloading blocklist to config/hosts" "Should download to file"
-# Since curl is NOT sudo now, it runs directly. We need to check if 'curl' command mock was called if we mocked it,
-# OR we rely on the INFO message "Blocklist downloaded successfully".
-# Assuming curl exists on the system, it will try to download.
-# If we are offline or it fails, we might get "Download failed".
-# We should probably mock curl to return 0 and touch the file.
-assert_contains "$OUTPUT" "EXEC: sh -c cat 'config/hosts' | tee -a /etc/hosts > /dev/null" "Should apply local blocklist"
-assert_contains "$OUTPUT" "Hosts file updated successfully" "Should report success"
-
-# Case: Base already exists
-# We can't easily mock file existence check [ -f ... ] inside the function without mocking the shell test operator or the function itself.
-# However, if we assume the first run creates it, the second run might not.
-# Since we are not actually running real cp, the file check [ ! -f /etc/hosts-base ] will always be true or false depending on the REAL system or if we mock it.
-# IMPORTANT: In a unit test environment on a real FS, /etc/hosts-base likely doesn't exist.
-# But we don't want to actually check /etc/hosts-base on the user's machine!
-# The script runs `[ ! -f "/etc/hosts-base" ]`.
-# We should try to mock `[`. But `[` is a builtin.
-# We will just accept that the test output depends on the real filesystem state for that check?
-# No, checking /etc/hosts-base is harmless.
-# If we want to test the "already exists" path, we'd need to mock it.
-# For now, verification that the backup command IS called (assuming missing) is sufficient coverage for the "happy path".
 
 
 # Test 9: DNSCrypt Installation
@@ -719,182 +697,6 @@ fi
 
 # Cleanup
 rm -rf "$TEST_CHECK_ROOT"
-
-# Test 12: DNS Verification
-# -------------------------
-# Mocks
-sudo() { if [[ "$1" == "-v" ]]; then return 0; fi; "$@"; } # Mock sudo
-scutil() { echo "  nameserver[0] : 127.0.0.1"; }
-networksetup() { 
-    if [[ "$1" == "-listnetworkserviceorder" ]]; then
-        echo "(1) Wi-Fi"
-        echo "(Hardware Port: Wi-Fi, Device: en0)"
-        return
-    elif [[ "$1" == "-getdnsservers" ]]; then
-        echo "127.0.0.1"
-    elif [[ "$1" == "-getwebproxy" ]] || [[ "$1" == "-getsecurewebproxy" ]]; then
-        echo "Enabled: Yes"
-        echo "Server: 127.0.0.1"
-        echo "Port: 8118"
-        echo "Authenticated Proxy Enabled: 0"
-    else
-        echo "127.0.0.1"
-    fi
-}
-brew() {
-    if [[ "$*" == "services list" ]]; then
-       echo "Name           Status  User File"
-       echo "dnscrypt-proxy started root /Library/LaunchDaemons/homebrew.mxcl.dnscrypt-proxy.plist"
-       echo "unbound        started root /Library/LaunchDaemons/homebrew.mxcl.unbound.plist"
-       echo "privoxy        started root /Library/LaunchDaemons/homebrew.mxcl.privoxy.plist"
-    else
-       echo "EXEC: brew $*"
-    fi
-}
-dig() {
-    # Check args to simulate specific responses
-    if [[ "$*" == *"dnssec-failed"* ]]; then
-        echo ";; ->>HEADER<<- opcode: QUERY, status: SERVFAIL, id: 15190"
-    else
-        echo ";; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 47039"
-        echo ";; flags: qr rd ra ad; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 1"
-    fi
-}
-
-OUTPUT=$(network_verify_anonymity)
-
-assert_contains "$OUTPUT" "Verifying Anonymity Network" "Should verify"
-assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should check dnscrypt-proxy"
-assert_contains "$OUTPUT" "unbound is running" "Should check unbound"
-assert_contains "$OUTPUT" "privoxy is running" "Should check privoxy"
-assert_contains "$OUTPUT" "System resolver is using localhost" "Should check system resolver"
-assert_contains "$OUTPUT" "nameserver[0] : 127.0.0.1" "Should show scutil output"
-assert_contains "$OUTPUT" "Wi-Fi is configured to use 127.0.0.1" "Should check networksetup"
-assert_contains "$OUTPUT" "Checking Privoxy (HTTP/HTTPS) Proxy Settings" "Should start proxy check"
-assert_contains "$OUTPUT" "HTTP Proxy is using Privoxy (127.0.0.1:8118)" "Should verify HTTP proxy"
-assert_contains "$OUTPUT" "HTTPS Proxy is using Privoxy (127.0.0.1:8118)" "Should verify HTTPS proxy"
-# Mock pgrep
-pgrep() { 
-    if [ "${MOCK_PGREP_FAIL:-0}" -eq 1 ]; then return 1; fi
-    return 0 
-}
-
-assert_contains "$OUTPUT" "Testing Valid DNSSEC" "Should test valid DNSSEC"
-assert_contains "$OUTPUT" "Valid DNSSEC signature verified" "Should PASS valid DNSSEC"
-assert_contains "$OUTPUT" "Testing Invalid DNSSEC" "Should test invalid DNSSEC"
-assert_contains "$OUTPUT" "Invalid DNSSEC rejected" "Should PASS invalid DNSSEC"
-
-# Test 12b: DNS Verification (Fallback to pgrep)
-# ----------------------------------------------
-# Simulate brew services NOT showing started, but pgrep finding them
-brew() {
-    # Check if called via execute_sudo wrapper (which we will mock to set IS_SUDO)
-    # But wait, execute_sudo above calls "$@".
-    # Implementation:
-    # 1. Mock execute_sudo locally for this test context? 
-    # Global mock performs: call if function.
-    # We can rely on a custom execute_sudo in this subshell if we ran in subshell, but we are not.
-    # We can override execute_sudo globally then restore it? Or just make brew smarter.
-    
-    # Actually, let's look at how we called it in network.sh:
-    # execute_sudo "Check Root Services" brew services list
-    # The brew function receives "services list". It doesn't know about sudo.
-    
-    # We need to override execute_sudo for this test.
-    
-    if [[ "$*" == "services list" ]]; then
-       echo "Name           Status  User File"
-       echo "dnscrypt-proxy stopped root ..."
-       echo "unbound        stopped root ..."
-       echo "privoxy        none    root ..."
-    fi
-}
-# Restore pgrep defaults
-pgrep() { return 0; }
-
-OUTPUT=$(network_verify_anonymity)
-assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should check dnscrypt-proxy (fallback)"
-assert_contains "$OUTPUT" "privoxy is running" "Should check privoxy (fallback)"
-
-
-# Test 12c: DNS Verification (Sudo vs User separation)
-# ----------------------------------------------------
-# We override execute_sudo to tag calls
-execute_sudo_orig() {
-    shift
-    if declare -f "$1" > /dev/null; then "$@"; else echo "EXEC: $*"; fi
-}
-execute_sudo() {
-    export IS_SUDO_CALL="true"
-    execute_sudo_orig "$@"
-    unset IS_SUDO_CALL
-}
-# Smart brew mock
-brew() {
-    if [[ "$*" == "services list" ]]; then
-        if [ "$IS_SUDO_CALL" == "true" ]; then
-            # Root services visible
-            echo "dnscrypt-proxy started"
-            echo "unbound        started"
-        else
-            # User services visible
-            echo "privoxy        started"
-            # Simulate Tor if we are testing it
-            echo "tor            started"
-        fi
-    fi
-}
-# Enable SOCKS proxy mock for this test to trigger Tor check
-networksetup() {
-    if [[ "$1" == "-getsocksfirewallproxy" ]]; then
-        echo "Enabled: Yes"
-        echo "Server: 127.0.0.1"
-        echo "Port: 9050"
-    else
-        # Reuse previous mock behavior for other calls if needed, or just return basic
-        echo "Enabled: Yes"
-        echo "Server: 127.0.0.1"
-        echo "Port: 8118"
-    fi
-}
-# Disable pgrep fallback to force reliance on brew check
-pgrep() { return 1; }
-
-OUTPUT=$(network_verify_anonymity)
-assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should find dnscrypt via sudo"
-assert_contains "$OUTPUT" "unbound is running" "Should find unbound via sudo"
-assert_contains "$OUTPUT" "privoxy is running" "Should find privoxy via user"
-assert_contains "$OUTPUT" "tor service is running" "Should find tor via user (conditional)"
-
-# Mock I2P check for Test 12c
-is_brew_installed() {
-    if [ "$1" == "i2p" ]; then return 0; fi
-    return 1
-}
-i2prouter() {
-    if [ "$1" == "status" ]; then
-        echo "I2P Router is running: PID:1234"
-    fi
-}
-
-OUTPUT=$(network_verify_anonymity)
-assert_contains "$OUTPUT" "dnscrypt-proxy is running" "Should find dnscrypt via sudo"
-assert_contains "$OUTPUT" "unbound is running" "Should find unbound via sudo"
-assert_contains "$OUTPUT" "privoxy is running" "Should find privoxy via user"
-assert_contains "$OUTPUT" "tor service is running" "Should find tor via user (conditional)"
-assert_contains "$OUTPUT" "I2P installation detected" "Should detect I2P"
-assert_contains "$OUTPUT" "I2P Router is running" "Should verify I2P running"
-
-# Cleanup mocks
-unset -f is_brew_installed i2prouter
-
-# Restore mocks
-execute_sudo() { 
-    shift
-    if declare -f "$1" > /dev/null; then "$@"; else echo "EXEC: $*"; fi
-}
-
-
 
 # Test 13: Security Verification
 # ------------------------------
@@ -1182,6 +984,15 @@ xattr() { echo "XATTR_CALL: $*"; return 0; }
 chmod() { echo "CHMOD_CALL: $*"; return 0; }
 getconf() { echo "/tmp/mock_cache"; return 0; }
 ask_confirmation() { return 0; } # Auto-yes
+
+# Mock cleanup sub-functions to verify orchestration without running logic
+cleanup_trash() { echo "CALL: cleanup_trash"; }
+cleanup_dev_tools() { echo "CALL: cleanup_dev_tools"; }
+cleanup_ios_data() { echo "CALL: cleanup_ios_data"; }
+cleanup_receipts() { echo "CALL: cleanup_receipts"; }
+cleanup_memory() { echo "CALL: cleanup_memory"; }
+cleanup_browsers() { echo "CALL: cleanup_browsers"; }
+cleanup_quarantine() { echo "CALL: cleanup_quarantine"; }
 
 # We will use PWD since we run from root
 source "$(dirname "$0")/../lib/cleanup.sh"

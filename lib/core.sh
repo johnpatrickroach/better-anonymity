@@ -202,7 +202,7 @@ ensure_root() {
 execute_sudo() {
     local desc="$1"
     shift
-    info "$desc"
+    info "$desc" >&2
     # check if we are root, if not use sudo
     if [[ $EUID -eq 0 ]]; then
         "$@"
