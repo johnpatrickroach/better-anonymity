@@ -14,9 +14,9 @@ Our configuration (`config/privoxy/config`) is designed for **Minimal Privacy**.
   - `default.action`: Standard filtering rules.
 
 ### Setup
-The script `scripts/setup_privoxy.sh`:
+The script `scripts/setup_privoxy.sh` (or `install-privoxy` command):
 1.  Installs Privoxy via Homebrew.
-2.  Copies our custom config to the Homebrew `etc/privoxy/` directory.
+2.  Copies `config` and **all** `*.action` and `*.filter` files from `config/privoxy/` to the installation directory. This allows you to easily add custom rules by simply dropping files into the config folder.
 3.  Starts the Privoxy service.
 
 ### Browser Configuration

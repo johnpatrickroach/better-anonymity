@@ -26,6 +26,8 @@ better-anonymity tor stop
 
 # Check Status
 better-anonymity tor status
+# Note: If your active network interface cannot be reliably detected, 
+# this command may warn you that it safely fell back to checking Wi-Fi status.
 ```
 
 ### System SOCKS Proxy ("Torify" System)

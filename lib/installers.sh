@@ -41,7 +41,7 @@ install_privoxy() {
         
         # Patch for ARM if needed
         if [ "$PLATFORM_ARCH" == "arm64" ]; then
-            sed -i '' "s|/usr/local|$BREW_PREFIX|g" "$TEMP_CONFIG"
+            sed_in_place "s|/usr/local|$BREW_PREFIX|g" "$TEMP_CONFIG"
         fi
         
         if ! cmp -s "$TEMP_CONFIG" "$CONF_DIR/config"; then
@@ -58,15 +58,23 @@ install_privoxy() {
     fi
 
     # Copy actions and filters
-    for file in user.action; do
-        if [ -f "$CONFIG_SRC/$file" ]; then
-            if ! cmp -s "$CONFIG_SRC/$file" "$CONF_DIR/$file"; then
-                info "Updating $file..."
-                cp "$CONFIG_SRC/$file" "$CONF_DIR/$file"
-                RESTART_NEEDED="true"
-            fi
+    # Copy actions and filters
+    # Enable nullglob to handle case where no files match
+    shopt -s nullglob
+    for file_path in "$CONFIG_SRC"/*.{action,filter}; do
+        local file
+        file=$(basename "$file_path")
+        
+        # Ensure we don't try to copy directory itself in weird edge cases
+        [ -f "$file_path" ] || continue
+
+        if ! cmp -s "$file_path" "$CONF_DIR/$file"; then
+            info "Updating $file..."
+            cp "$file_path" "$CONF_DIR/$file"
+            RESTART_NEEDED="true"
         fi
     done
+    shopt -u nullglob
 
     # Check if running
     local is_running=false
@@ -263,6 +271,14 @@ install_pingbar() {
     fi
     
     if [ "$need_install" = "true" ]; then
+        if ! ask_confirmation_with_info "Compiling PingBar from Source" \
+             "PingBar is not available via Homebrew." \
+             "This installer will download the source code and compile it using Swift." \
+             "This process requires Xcode Command Line Tools and may take a few minutes."; then
+             warn "PingBar installation cancelled by user."
+             return 0
+        fi
+
         # Create a temp dir for building
         local BUILD_DIR
         BUILD_DIR=$(mktemp -d)
@@ -414,7 +430,7 @@ install_unbound() {
     
     # Patch configuration for ARM Macs in temp file
     if [[ "$BREW_PREFIX" != "/usr/local" ]]; then
-        sed -i '' "s|/usr/local|$BREW_PREFIX|g" "$TEMP_CONF"
+        sed_in_place "s|/usr/local|$BREW_PREFIX|g" "$TEMP_CONF"
     fi
     
     local config_changed=false
@@ -512,55 +528,80 @@ harden_firefox() {
     
     info "Target Profile: $(basename "$profile_path")"
     
-    # Idempotency Check
-    if [ -f "$profile_path/user.js" ]; then
-        if grep -i -q "arkenfox" "$profile_path/user.js" 2>/dev/null; then
-            info "Arkenfox user.js verified present. Skipping download."
-            verify_firefox
-            return 0
-        fi
-        info "Existing user.js found but does not appear to be Arkenfox. Overwriting..."
-        # Backup existing non-arkenfox user.js
-        cp "$profile_path/user.js" "$profile_path/user.js.backup.$(date +%Y%m%d%H%M%S)"
-    fi
+    # 1. Backups
+    local backup_ts
+    backup_ts=$(date +%Y%m%d%H%M%S)
     
-    # Backup prefs.js logic remains...
-    info "Backing up prefs.js..."
     if [ -f "$profile_path/prefs.js" ]; then
-        cp "$profile_path/prefs.js" "$profile_path/prefs.js.backup.$(date +%Y%m%d%H%M%S)"
+        info "Backing up prefs.js..."
+        cp "$profile_path/prefs.js" "$profile_path/prefs.js.backup.$backup_ts"
     else
         warn "prefs.js not found, nothing to backup."
     fi
     
-    # Download user.js
-    local arkenfox_url="https://raw.githubusercontent.com/arkenfox/user.js/master/user.js"
-    local temp_user_js="/tmp/arkenfox_user.js"
+    if [ -f "$profile_path/user.js" ]; then
+        info "Backing up existing user.js..."
+        cp "$profile_path/user.js" "$profile_path/user.js.backup.$backup_ts"
+    fi
+
+    # 2. Install Arkenfox Scripts
+    info "Downloading Arkenfox scripts (updater.sh, prefsCleaner.sh)..."
+    local updater_url="https://raw.githubusercontent.com/arkenfox/user.js/master/updater.sh"
+    local cleaner_url="https://raw.githubusercontent.com/arkenfox/user.js/master/prefsCleaner.sh"
     
-    info "Downloading Arkenfox user.js..."
-    if ! curl -L -o "$temp_user_js" "$arkenfox_url"; then
-        die "Failed to download user.js"
+    if ! curl -L -s -o "$profile_path/updater.sh" "$updater_url"; then
+        die "Failed to download updater.sh"
+    fi
+    chmod +x "$profile_path/updater.sh"
+    
+    if ! curl -L -s -o "$profile_path/prefsCleaner.sh" "$cleaner_url"; then
+        warn "Failed to download prefsCleaner.sh"
+    else
+        chmod +x "$profile_path/prefsCleaner.sh"
     fi
     
-    # Create simple overrides (optional, can be empty or have defaults)
-    local overrides_file="/tmp/user-overrides.js"
-    echo "// Custom Overrides for Better Anonymity" > "$overrides_file"
-    echo "// user_pref(\"browser.startup.page\", 3); // 3 = Restore previous session" >> "$overrides_file"
+    # 3. Create Overrides
+    info "Creating user-overrides.js..."
+    local overrides_file="$profile_path/user-overrides.js"
+    {
+        echo "// Better Anonymity Overrides"
+        echo "// Generated by better-anonymity on $(date)"
+        echo ""
+        echo "// 3 = Restore previous session"
+        echo "user_pref(\"browser.startup.page\", 3);"
+        echo ""
+        echo "// Example: Add your custom overrides here or edit this file later."
+    } > "$overrides_file"
+
+    # 4. Run Updater to generate user.js
+    info "Running Arkenfox updater to generate user.js..."
+    # -s: silent, -u: update (don't ask for confirmation), -d: don't create backups (we did our own)
+    # The script acts on the directory it is residing in usually, or current dir.
+    # We cd into profile to run it safely.
+    (
+        cd "$profile_path" || die "Failed to enter profile directory."
+        # Use bash explicitly
+        if ! bash updater.sh -s -u; then
+             die "Arkenfox updater failed."
+        fi
+    )
     
-    # Append overrides to user.js
-    info "Applying configuration..."
-    cat "$overrides_file" >> "$temp_user_js"
-    
-    # Install
-    cp "$temp_user_js" "$profile_path/user.js"
-    
-    # Log for restore
+    # 5. Track Files
     local state_dir="$HOME/.better-anonymity/state"
     mkdir -p "$state_dir"
-    echo "$profile_path/user.js" >> "$state_dir/installed_files.log"
-    echo "$profile_path/prefs.js.backup.*" >> "$state_dir/installed_files.log" # Wildcard to flag manual cleanup or just best effort
+    {
+        echo "$profile_path/user.js"
+        echo "$profile_path/user-overrides.js"
+        echo "$profile_path/updater.sh"
+        [ -f "$profile_path/prefsCleaner.sh" ] && echo "$profile_path/prefsCleaner.sh"
+        # Log specific backup files
+        [ -f "$profile_path/prefs.js.backup.$backup_ts" ] && echo "$profile_path/prefs.js.backup.$backup_ts"
+        [ -f "$profile_path/user.js.backup.$backup_ts" ] && echo "$profile_path/user.js.backup.$backup_ts"
+    } >> "$state_dir/installed_files.log"
     
-    # Cleanup
-    rm -f "$temp_user_js" "$overrides_file"
+    info "Arkenfox installed successfully."
+    info "To update in the future, run: cd '$profile_path' && ./updater.sh"
+    info "A 'prefsCleaner.sh' is also available in the profile directory to reset prefs if needed."
     
     verify_firefox
     info "Firefox hardening complete. Please restart Firefox."

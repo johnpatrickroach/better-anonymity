@@ -61,7 +61,7 @@ For more information, see [What is a DNS Leak?](https://www.dnsleaktest.com/what
 ```bash
 ./bin/better-anonymity install pingbar
 ```
-*   **Method**: Builds from source (requires `swift`).
+*   **Method**: Builds from source (requires `swift`). The installer will ask for confirmation before downloading/compiling.
 *   **Features**:
     *   Graphical interface for DNSCrypt stats.
     *   Automatically restores your custom DNS settings after passing a captive portal.

@@ -142,6 +142,30 @@ execute_with_spinner() {
     "$@"
 }
 
+# Mock sed_in_place since we don't source lib/core.sh
+sed_in_place() {
+    local expression="$1"
+    local file="$2"
+    # Use macOS/BSD style for tests running on macOS
+    sed -i '' "$expression" "$file"
+}
+
+# Mock bash to prevent executing updater.sh
+bash() {
+    if [[ "$1" == "updater.sh" ]]; then
+        echo "MOCK: Executing updater.sh with args: $*"
+        # Simulate creating user.js
+        touch user.js
+        return 0
+    else
+        # Fallback to real bash for other things? 
+        # Actually in tests we should be careful. 
+        # But 'bash' is rarely called directly except for scripts.
+        # Let's just echo for safety in this scope.
+        echo "MOCK: bash $*"
+    fi
+}
+
 start_suite "Logic Flows"
 
 # Test 1: Network Set DNS
@@ -804,24 +828,27 @@ curl() {
 OLD_HOME="$HOME"
 export HOME="$TEST_HOME"
 
-OUTPUT=$(harden_firefox)
+OUTPUT=$(harden_firefox 2>&1)
 
 # Restore HOME
 export HOME="$OLD_HOME"
 
 assert_contains "$OUTPUT" "Target Profile: abcd123.default-release" "Should detect profile"
 assert_contains "$OUTPUT" "Backing up prefs.js" "Should backup prefs"
-assert_contains "$OUTPUT" "Downloading Arkenfox user.js" "Should download"
-assert_contains "$OUTPUT" "Applying configuration" "Should apply overrides"
-assert_contains "$OUTPUT" "Firefox hardening complete" "Should complete"
+# New Workflow Assertions
+assert_contains "$OUTPUT" "Downloading Arkenfox scripts" "Should download scripts"
+assert_contains "$OUTPUT" "Creating user-overrides.js" "Should create overrides"
+assert_contains "$OUTPUT" "Running Arkenfox updater" "Should run updater"
+assert_contains "$OUTPUT" "MOCK: Executing updater.sh" "Should execute updater script"
+assert_contains "$OUTPUT" "Arkenfox installed successfully" "Should complete"
 
-if [ -f "$TEST_PROFILE_DIR/user.js" ]; then
-    USER_JS_CONTENT=$(cat "$TEST_PROFILE_DIR/user.js")
-    assert_contains "$USER_JS_CONTENT" "Arkenfox user.js" "Should install user.js"
-    assert_contains "$USER_JS_CONTENT" "Restore previous session" "Should apply overrides"
+if [ -f "$TEST_PROFILE_DIR/user-overrides.js" ]; then
+    OVERRIDES_CONTENT=$(cat "$TEST_PROFILE_DIR/user-overrides.js")
+    assert_contains "$OVERRIDES_CONTENT" "Better Anonymity Overrides" "Should install overrides"
+    assert_contains "$OVERRIDES_CONTENT" "Restore previous session" "Should set session restore"
 else
     # Force a fail
-    assert_equals "true" "false" "user.js should be created"
+    assert_equals "true" "false" "user-overrides.js should be created"
 fi
 
 # Check backup
@@ -2482,6 +2509,32 @@ echo 'user_pref("privacy.resistFingerprinting", false);' > "$PROF_PATH/prefs.js"
 OUTPUT=$(verify_firefox 2>&1)
 assert_contains "$OUTPUT" "privacy.resistFingerprinting is NOT enabled" "Should detect disabled"
 assert_contains "$OUTPUT" "RESTART Firefox" "Should suggest restart"
+
+
+# Test 37: Arkenfox Installation Flow
+# -----------------------------------
+echo "Running Test Suite: Firefox Arkenfox Flow"
+echo "----------------------------------------"
+
+# Mock get_firefox_profile to return our test path
+get_firefox_profile() {
+    echo "$TEST_HOME/Library/Application Support/Firefox/Profiles/test.default-release"
+}
+export -f get_firefox_profile
+
+# Ensure profile exists
+mkdir -p "$TEST_HOME/Library/Application Support/Firefox/Profiles/test.default-release"
+touch "$TEST_HOME/Library/Application Support/Firefox/Profiles/test.default-release/prefs.js"
+
+OUTPUT=$(harden_firefox 2>&1)
+
+assert_contains "$OUTPUT" "Hardening Firefox (Arkenfox)..." "Should announce hardening"
+assert_contains "$OUTPUT" "Backing up prefs.js..." "Should backup prefs"
+assert_contains "$OUTPUT" "Downloading Arkenfox scripts" "Should download scripts"
+assert_contains "$OUTPUT" "Creating user-overrides.js" "Should create overrides"
+assert_contains "$OUTPUT" "Running Arkenfox updater" "Should run updater"
+assert_contains "$OUTPUT" "MOCK: Executing updater.sh" "Should execute updater script"
+assert_contains "$OUTPUT" "Arkenfox installed successfully" "Should report success"
 
 # Cleanup
 rm -rf "$TEST_HOME"
