@@ -34,7 +34,7 @@ network_set_dns() {
             ;;
     esac
 
-    services=$(networksetup -listallnetworkservices | grep -v '*')
+    services=$(networksetup -listallnetworkservices | grep -v '\*')
     
     IFS=$'\n'
     for service in $services; do

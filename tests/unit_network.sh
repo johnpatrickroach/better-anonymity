@@ -126,7 +126,9 @@ detect_active_network() {
 
 
 # Mock grep using PATH interception (Function export unreliable for grep in subshells on some systems)
+# Mock grep using PATH interception (Function export unreliable for grep in subshells on some systems)
 setup_path_mocks() {
+    ORIGINAL_PATH="$PATH"
     MOCK_BIN=$(mktemp -d)
     export PATH="$MOCK_BIN:$PATH"
     
@@ -172,6 +174,8 @@ EOF
 # Clean up mocks
 teardown_path_mocks() {
     rm -rf "$MOCK_BIN"
+    export PATH="$ORIGINAL_PATH"
+    hash -r # Clear command cache
 }
 
 # Tests
@@ -305,5 +309,84 @@ assert_contains "$OUTPUT" "Applying blocklist" "Should apply new list"
 
 
 teardown_path_mocks
+
+# New Network DNS Logic Suite
+start_suite "Network DNS Logic"
+
+# Mock updated networksetup for DNS tests
+networksetup() {
+    local cmd="$1"
+    local service="$2"
+    
+    if [ "$cmd" == "-listallnetworkservices" ]; then
+        echo "Wi-Fi"
+        # echo "Ethernet"
+    elif [ "$cmd" == "-getdnsservers" ]; then
+        if [ "${MOCK_CURRENT_DNS:-empty}" == "empty" ]; then
+             echo "There aren't any DNS Servers set on ${service}."
+        else
+             echo "$MOCK_CURRENT_DNS"
+        fi
+    elif [ "$cmd" == "-setdnsservers" ]; then
+         echo "SET_DNS: $service ${*:3}"
+    fi
+}
+export -f networksetup
+
+# Mock execute_sudo to echo call for assertion
+execute_sudo() {
+    shift # Remove description
+    # Save IFS, restore later, to prevent newline join
+    local old_ifs="$IFS"
+    IFS=" "
+    local cmd="$*"
+    IFS="$old_ifs"
+    # Capture command execution
+    echo "EXEC_SUDO: $cmd"
+}
+export -f execute_sudo
+
+# Test 8: Set DNS Quad9
+# ---------------------
+MOCK_CURRENT_DNS="empty"
+OUTPUT=$(network_set_dns "quad9")
+assert_contains "$OUTPUT" "Setting DNS to Quad9" "Should announce Quad9"
+assert_contains "$OUTPUT" "EXEC_SUDO: networksetup -setdnsservers Wi-Fi 9.9.9.9 149.112.112.112" "Should set Quad9 IPs"
+
+# Test 9: Set DNS Localhost
+# -------------------------
+MOCK_CURRENT_DNS="8.8.8.8"
+OUTPUT=$(network_set_dns "localhost")
+assert_contains "$OUTPUT" "Setting DNS to Localhost" "Should announce Localhost"
+assert_contains "$OUTPUT" "EXEC_SUDO: networksetup -setdnsservers Wi-Fi 127.0.0.1" "Should set Localhost IP"
+
+# Test 10: Set DNS Default
+# ------------------------
+MOCK_CURRENT_DNS="127.0.0.1"
+OUTPUT=$(network_set_dns "default")
+assert_contains "$OUTPUT" "Resetting DNS to System Default" "Should announce Default"
+assert_contains "$OUTPUT" "EXEC_SUDO: networksetup -setdnsservers Wi-Fi empty" "Should set empty"
+
+# Test 11: Set DNS Idempotency (Skip if same)
+# -------------------------------------------
+MOCK_CURRENT_DNS="9.9.9.9 149.112.112.112"
+OUTPUT=$(network_set_dns "quad9")
+assert_contains "$OUTPUT" "DNS for Wi-Fi is already set" "Should detect existing config"
+# Should NOT contain EXEC_SUDO describing networksetup setdnsservers
+if echo "$OUTPUT" | grep -q "EXEC_SUDO: networksetup -setdnsservers"; then
+    fail "Idempotency failed, networksetup executed."
+    echo "DEBUG OUTPUT: $OUTPUT"
+else
+    pass "Idempotency verified (no networksetup executed)."
+fi
+
+# Test 12: Set DNS Idempotency (Default/Empty)
+# --------------------------------------------
+MOCK_CURRENT_DNS="empty"
+OUTPUT=$(network_set_dns "default")
+assert_contains "$OUTPUT" "DNS for Wi-Fi is already set to default" "Should detect existing default"
+
+teardown_path_mocks
 end_suite
+
 

@@ -41,8 +41,7 @@ tor_install() {
 }
 
 tor_service_start() {
-    info "Starting Tor Service..."
-    brew services start tor
+    manage_service "start" "tor"
     
     # Wait a moment for boot
     sleep 2
@@ -54,14 +53,12 @@ tor_service_start() {
 }
 
 tor_service_stop() {
-    info "Stopping Tor Service..."
-    brew services stop tor
+    manage_service "stop" "tor"
     success "Tor Service stopped."
 }
 
 tor_service_restart() {
-    info "Restarting Tor Service..."
-    brew services restart tor
+    manage_service "restart" "tor"
     sleep 2
     tor_status_check
 }
@@ -88,7 +85,21 @@ tor_status() {
     fi
 
     # Proxy Status
-    local target_service="${PLATFORM_ACTIVE_NETWORK_SERVICE:-${PLATFORM_WIFI_SERVICE:-Wi-Fi}}"
+    # Ensure we have a valid network service to check
+    if [ -z "$PLATFORM_ACTIVE_SERVICE" ]; then
+        if type -t detect_active_network >/dev/null; then
+             detect_active_network
+        fi
+    fi
+
+    local target_service="$PLATFORM_ACTIVE_SERVICE"
+    
+    if [ -z "$target_service" ]; then
+        # Last resort fallback with warning
+        target_service="${PLATFORM_WIFI_SERVICE:-Wi-Fi}"
+        warn "Could not detect active network service. Defaulting to '$target_service' for proxy status."
+    fi
+
     local proxy_state
     proxy_state=$(networksetup -getsocksfirewallproxy "$target_service")
 

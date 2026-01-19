@@ -104,11 +104,29 @@ sudo() {
     "$@"
 }
 # Mock pgrep globally to avoid waiting on real processes
-pgrep() { return 1; }
+pgrep() {
+    if [[ "$1" == "-x" && "$2" == "tor" ]]; then
+        if [[ "$MOCK_TOR_RUNNING" == "true" ]]; then
+            echo "1234"
+            return 0
+        else
+            return 1
+        fi
+    fi
+    return 1
+}
 
 # Mock get_airport_bin and check_airport_exists (Core)
 get_airport_bin() { echo "mock_airport"; }
 check_airport_exists() { return 0; }
+
+# Mock detect_active_network (Platform)
+detect_active_network() {
+    # If PLATFORM_ACTIVE_SERVICE is unset, set it to a default
+    if [ -z "$PLATFORM_ACTIVE_SERVICE" ]; then
+        PLATFORM_ACTIVE_SERVICE="Wi-Fi"
+    fi
+}
 
 # Mock manage_service (Core)
 # Since tests expect "EXEC: brew services ...", we simulate that output.
@@ -1298,25 +1316,45 @@ pgrep() {
     fi
 }
 # Reuse brew mock
+
+# Reuse manage_service to simulate state change
+manage_service() {
+    local action="$1"
+    local service="$2"
+    echo "EXEC: brew services $action $service"
+    if [ "$action" == "start" ]; then
+         MOCK_TOR_RUNNING="true"
+    fi
+    if [ "$action" == "stop" ]; then
+         MOCK_TOR_RUNNING="false"
+    fi
+}
+
+# Keep brew mock for status checks (brew services list)
 brew() {
+    # If tor_status_check calls brew services list
+    if [ "$1" == "services" ] && [ "$2" == "list" ]; then
+        if [ "$MOCK_TOR_RUNNING" == "true" ]; then
+             echo "tor started"
+        else
+             echo "tor stopped"
+        fi
+        return 0
+    fi
     echo "BREW_CALL: $*"
-    if [ "$1" == "services" ] && [ "$2" == "start" ]; then
-        MOCK_TOR_RUNNING="true"
-    fi
-    if [ "$1" == "services" ] && [ "$2" == "stop" ]; then
-        MOCK_TOR_RUNNING="false"
-    fi
 }
 
 MOCK_TOR_RUNNING="false"
 OUTPUT=$(tor_service_start)
-assert_contains "$OUTPUT" "BREW_CALL: services start tor" "Should start tor service"
+# manage_service output
+assert_contains "$OUTPUT" "EXEC: brew services start tor" "Should start tor service"
 assert_contains "$OUTPUT" "Tor Service is running" "Should verify running"
 
 MOCK_TOR_RUNNING="true"
 OUTPUT=$(tor_service_stop)
-assert_contains "$OUTPUT" "BREW_CALL: services stop tor" "Should stop tor service"
+assert_contains "$OUTPUT" "EXEC: brew services stop tor" "Should stop tor service"
 assert_contains "$OUTPUT" "Tor Service stopped" "Should verify stopped"
+
 
 # Test 26: Tor Proxy Configuration
 # --------------------------------
@@ -1564,12 +1602,36 @@ start_suite "System State Restore"
     warn() { echo "[WARN] $1"; }
     success() { echo "[SUCCESS] $1"; }
     execute_sudo() { echo "SUDO_EXEC: $*"; }
+    execute_brew() { echo "BREW_WRAPPER: $*"; }
     
     # 1. Test Capture
     # ---------------
     # Mock Scutil/Networksetup/Firewall getters
     scutil() { echo "OriginalMac"; }
-    networksetup() { echo "8.8.8.8 8.8.4.4"; }
+    networksetup() { 
+        if [[ "$1" == "-getwebproxy" ]]; then
+            echo "Enabled: Yes"
+            echo "Server: 127.0.0.1"
+            echo "Port: 8080"
+            echo "Authenticated Proxy Enabled: 0"
+            return 0
+        fi
+        if [[ "$1" == "-getsecurewebproxy" ]]; then
+            echo "Enabled: Yes"
+            echo "Server: 127.0.0.1"
+            echo "Port: 8443"
+            echo "Authenticated Proxy Enabled: 0"
+            return 0
+        fi
+        if [[ "$1" == "-getsocksfirewallproxy" ]]; then
+            echo "Enabled: Yes"
+            echo "Server: 127.0.0.1"
+            echo "Port: 9050"
+            echo "Authenticated Proxy Enabled: 0"
+            return 0
+        fi
+        echo "8.8.8.8 8.8.4.4" 
+    }
     socketfilterfw() { echo "Firewall is enabled. (State = 1)"; }
     
     # Mock defaults read for capture
@@ -1618,19 +1680,25 @@ start_suite "System State Restore"
     
     # Verify Content (Variables)
     # printf %q does not quote simple strings, and escapes spaces
-    assert_contains "$state_content" "export STATE_HOSTNAME=OriginalMac" "Should capture hostname"
-    assert_contains "$state_content" "export STATE_DEF_finder_showall=1" "Should capture finder default"
+    assert_contains "$state_content" "STATE_HOSTNAME=\"OriginalMac\"" "Should capture hostname"
+    assert_contains "$state_content" "STATE_DEF_finder_showall=\"1\"" "Should capture finder default"
     
     # Checking what we mocked with printf %q escaping:
     # socketfilterfw -> STATE_FIREWALL='Firewall is enabled. (State = 1)' -> Firewall\ is\ enabled.\ \(State\ =\ 1\)
-    assert_contains "$state_content" "export STATE_FIREWALL=Firewall\ is\ enabled.\ \(State\ =\ 1\)" "Should capture firewall"
+    assert_contains "$state_content" "STATE_FIREWALL=\"Firewall is enabled. (State = 1)\"" "Should capture firewall"
     
     # ssh -> STATE_SSH='Remote Login: On' -> Remote\ Login:\ On (or not). Loosening check.
-    assert_contains "$state_content" "export STATE_SSH=" "Should capture ssh key"
+    assert_contains "$state_content" "STATE_SSH=" "Should capture ssh key"
     assert_contains "$state_content" "Remote Login" "Should capture ssh value"
     
     # dns -> STATE_DNS='8.8.8.8 8.8.4.4' -> 8.8.8.8\ 8.8.4.4
-    assert_contains "$state_content" "export STATE_DNS=8.8.8.8\ 8.8.4.4" "Should capture dns"
+    assert_contains "$state_content" "STATE_DNS=\"8.8.8.8 8.8.4.4\"" "Should capture dns"
+
+    # Verify Proxy Capture
+    assert_contains "$state_content" "STATE_PROXY_WEB_ENABLED=\"Yes\"" "Should capture web proxy enabled"
+    assert_contains "$state_content" "STATE_PROXY_WEB_SERVER=\"127.0.0.1\"" "Should capture web proxy server"
+    assert_contains "$state_content" "STATE_PROXY_WEB_PORT=\"8080\"" "Should capture web proxy port"
+
     
     # 2. Test Restore
     # ---------------
@@ -1649,10 +1717,12 @@ start_suite "System State Restore"
     assert_contains "$OUTPUT_RESTORE" "Restoring Homebrew Analytics (Enabling)..." "Should announce brew analytics"
     assert_contains "$OUTPUT_RESTORE" "BREW_CALL: analytics on" "Should enable brew analytics"
     
-    # Verify Proxy Reset
-    assert_contains "$OUTPUT_RESTORE" "SUDO_EXEC: Disable SOCKS Proxy networksetup -setsocksfirewallproxystate Wi-Fi off" "Should disable SOCKS proxy"
-    assert_contains "$OUTPUT_RESTORE" "SUDO_EXEC: Disable HTTP Proxy networksetup -setwebproxystate Wi-Fi off" "Should disable HTTP proxy"
-    assert_contains "$OUTPUT_RESTORE" "SUDO_EXEC: Disable HTTPS Proxy networksetup -setsecurewebproxystate Wi-Fi off" "Should disable HTTPS proxy"
+    assert_contains "$OUTPUT_RESTORE" "Restore WEB Proxy networksetup -setwebproxy Wi-Fi 127.0.0.1 8080" "Should restore web proxy"
+    assert_contains "$OUTPUT_RESTORE" "Enable WEB Proxy networksetup -setwebproxystate Wi-Fi on" "Should enable web proxy"
+    assert_contains "$OUTPUT_RESTORE" "Restore SOCKS Proxy networksetup -setsocksfirewallproxy Wi-Fi 127.0.0.1 9050" "Should restore socks proxy"
+
+    
+
 
     # Verify zshrc sed
     # Note: unit test environment might not have sed (BSD vs GNU issue if mocking?)
@@ -1689,8 +1759,14 @@ start_suite "System State Restore"
     OUTPUT_UNINSTALL=$(lifecycle_uninstall 2>&1)
     
     assert_contains "$OUTPUT_UNINSTALL" "Uninstall tracked tools?" "Should detect installed tools"
-    assert_contains "$OUTPUT_UNINSTALL" "BREW_CALL: uninstall test-tool" "Should call brew uninstall"
+    assert_contains "$OUTPUT_UNINSTALL" "Uninstall tracked tools?" "Should detect installed tools"
+    # New assertion for wrapper
+    assert_contains "$OUTPUT_UNINSTALL" "BREW_WRAPPER: Uninstalling test-tool uninstall test-tool" "Should call execute_brew wrapper"
     assert_contains "$OUTPUT_UNINSTALL" "RM_CALL: -f /tmp/mock_file" "Should run rm on tracked file"
+    
+    # Verify BIN_PATH was set correctly
+    assert_contains "$OUTPUT_UNINSTALL" "SUDO_EXEC: Remove better-anonymity rm -f /usr/local/bin/better-anonymity" "Should remove binary from correct path"
+
     
     # Cleanup
     /bin/rm -rf "$HOME"

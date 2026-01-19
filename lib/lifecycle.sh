@@ -63,15 +63,30 @@ setup_advanced_dns_atomic() {
 # State Management for Restore/Undo
 # ---------------------------------
 
-# Helper: Append variable to state file safely
+# Helper: Append variable to state file safely (KEY="VAL" format)
 save_state_var() {
     local key="$1"
     local value="$2"
     local state_file="$HOME/.better-anonymity/state/restore_state.env"
     
-    # Use printf %q for safe shell quoting
-    printf "export %s=%q\n" "$key" "$value" >> "$state_file"
+    # Escape backslashes and double quotes for safe double-quoted string
+    value="${value//\\/\\\\}"
+    value="${value//\"/\\\"}"
+    
+    printf "%s=\"%s\"\n" "$key" "$value" >> "$state_file"
 }
+
+# Helper: Retrieve variable from state file (replacing source)
+get_state_var() {
+    local key="$1"
+    local state_file="$HOME/.better-anonymity/state/restore_state.env"
+    
+    if [ -f "$state_file" ]; then
+        # Grep key, cut value, remove surrounding quotes, unescape
+        grep "^$key=" "$state_file" | head -n1 | cut -d'=' -f2- | sed 's/^"//;s/"$//' | sed 's/\\"/"/g;s/\\\\/\\/g'
+    fi
+}
+
 
 # Helper: Capture a 'defaults read' value
 # Usage: capture_default "domain" "key" "file_suffix"
@@ -91,7 +106,70 @@ capture_default() {
     fi
 }
 
-# Helper: Capture Brew Analytics state
+# Helper: Capture Proxy State
+# Usage: capture_proxy_state "service" "type" "state_suffix"
+# "type" can be: -getwebproxy, -getsecurewebproxy, -getsocksfirewallproxy
+capture_proxy_state() {
+    local service="$1"
+    local proxy_cmd="$2"
+    local suffix="$3"
+    
+    if command -v networksetup &>/dev/null; then
+         local output
+         output=$(networksetup "$proxy_cmd" "$service")
+         local enabled
+         local enabled
+         enabled=$(echo "$output" | grep "Enabled:" | head -n1 | sed 's/Enabled: //' | tr -d '[:space:]')
+         local server
+         server=$(echo "$output" | grep "Server:" | head -n1 | sed 's/Server: //' | tr -d '[:space:]')
+         local port
+         port=$(echo "$output" | grep "Port:" | head -n1 | sed 's/Port: //' | tr -d '[:space:]')
+         
+         # Fallback if empty (some networksetup versions differ)
+         if [ "$enabled" == "Yes" ]; then
+             save_state_var "STATE_PROXY_${suffix}_ENABLED" "Yes"
+             if [ -n "$server" ]; then save_state_var "STATE_PROXY_${suffix}_SERVER" "$server"; fi
+             if [ -n "$port" ]; then save_state_var "STATE_PROXY_${suffix}_PORT" "$port"; fi
+         else
+             save_state_var "STATE_PROXY_${suffix}_ENABLED" "No"
+         fi
+    fi
+}
+
+
+# Helper: Restore Proxy State
+# Usage: restore_proxy_state "service" "set_cmd_base" "state_suffix"
+restore_proxy_state() {
+    local service="$1"
+    local cmd_base="$2" # e.g. -setwebproxy or -setsocksfirewallproxy
+    local suffix="$3"
+    
+    local enabled
+    enabled=$(get_state_var "STATE_PROXY_${suffix}_ENABLED")
+    
+    if [ "$enabled" == "Yes" ]; then
+         local server
+         server=$(get_state_var "STATE_PROXY_${suffix}_SERVER")
+         local port
+         port=$(get_state_var "STATE_PROXY_${suffix}_PORT")
+         
+         if [ -n "$server" ] && [ -n "$port" ]; then
+             execute_sudo "Restore $suffix Proxy" networksetup "$cmd_base" "$service" "$server" "$port"
+             
+             # Also enable state
+             # Determine state command (webproxy -> webproxystate, socksfirewallproxy -> socksfirewallproxystate)
+             local state_cmd="${cmd_base}state"
+             execute_sudo "Enable $suffix Proxy" networksetup "$state_cmd" "$service" on
+         else
+             warn "Could not restore $suffix proxy: Missing state."
+         fi
+    elif [ "$enabled" == "No" ]; then
+         local state_cmd="${cmd_base}state"
+         execute_sudo "Disable $suffix Proxy" networksetup "$state_cmd" "$service" off 2>/dev/null || true
+    fi
+}
+
+# Helper: Capture Brew Analytics state (Moved down needed to preserve order if user prefers)
 capture_brew_analytics() {
     if command -v brew &>/dev/null; then
         local val
@@ -115,8 +193,9 @@ restore_default() {
     # Construct variable name
     local var_name="STATE_DEF_${suffix//./_}"
     
-    # Indirect expansion to get value
-    local val="${!var_name}"
+    # Get value using helper
+    local val
+    val=$(get_state_var "$var_name")
     
     if [ -n "$val" ]; then
         if [ "$val" == "__MISSING__" ]; then
@@ -138,6 +217,10 @@ lifecycle_capture_state() {
     # Initialize State File
     echo "# Better Anonymity System State - $(date)" > "$state_file"
     echo "# DO NOT EDIT MANUALLY" >> "$state_file"
+    
+    # Pre-calculate active service
+    local net_svc="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
+
 
     # 1. Hostname
     local hostname
@@ -145,13 +228,19 @@ lifecycle_capture_state() {
     save_state_var "STATE_HOSTNAME" "$hostname"
 
     # 2. DNS
+    # 2. DNS
     if command -v networksetup &>/dev/null; then
         # Detect Active Service (using platform var if available, else literal fallback)
-        local net_svc="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
         local dns
         dns=$(networksetup -getdnsservers "$net_svc")
         save_state_var "STATE_DNS" "$dns"
+        
+        # 2.5 Proxies
+        capture_proxy_state "$net_svc" "-getwebproxy" "WEB"
+        capture_proxy_state "$net_svc" "-getsecurewebproxy" "SECUREWEB"
+        capture_proxy_state "$net_svc" "-getsocksfirewallproxy" "SOCKS"
     fi
+
 
     # 3. Firewall
     if [ -x "$SOCKETFILTERFW_CMD" ]; then
@@ -206,8 +295,23 @@ lifecycle_restore_state() {
     fi
     
     info "Loading System State from $state_file..."
-    # Source the state file to load variables
-    source "$state_file"
+    
+    # Load Top-Level Variables
+    local STATE_HOSTNAME
+    STATE_HOSTNAME=$(get_state_var "STATE_HOSTNAME")
+    
+    local STATE_DNS
+    STATE_DNS=$(get_state_var "STATE_DNS")
+    
+    local STATE_FIREWALL
+    STATE_FIREWALL=$(get_state_var "STATE_FIREWALL")
+    
+    local STATE_BREW_ANALYTICS
+    STATE_BREW_ANALYTICS=$(get_state_var "STATE_BREW_ANALYTICS")
+    
+    local STATE_SSH
+    STATE_SSH=$(get_state_var "STATE_SSH")
+
     
     info "Restoring System Settings..."
     
@@ -232,11 +336,12 @@ lifecycle_restore_state() {
         fi
     fi
     
-    # 2.5 Proxies (Always disable on restore to ensure connectivity)
-    info "Resetting Network Proxies..."
-    execute_sudo "Disable SOCKS Proxy" networksetup -setsocksfirewallproxystate "$net_svc" off 2>/dev/null || true
-    execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate "$net_svc" off 2>/dev/null || true
-    execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate "$net_svc" off 2>/dev/null || true
+    # 2.5 Proxies (Restore)
+    info "Restoring Network Proxies..."
+    restore_proxy_state "$net_svc" "-setwebproxy" "WEB"
+    restore_proxy_state "$net_svc" "-setsecurewebproxy" "SECUREWEB"
+    restore_proxy_state "$net_svc" "-setsocksfirewallproxy" "SOCKS"
+
 
     # 3. Firewall
     if [ -n "$STATE_FIREWALL" ]; then
@@ -630,6 +735,7 @@ lifecycle_check_update() {
 
 lifecycle_uninstall() {
     header "Uninstalling Better Anonymity CLI..."
+    local BIN_PATH="/usr/local/bin"
     
     if ask_confirmation_with_info "Remove CLI shims?" \
         "This removes the global commands: better-anonymity, better-anon, and b-a." \
@@ -660,8 +766,8 @@ lifecycle_uninstall() {
              sort -u "$installed_log" | while read -r tool; do
                  if [ -n "$tool" ]; then
                      info "Uninstalling $tool..."
-                     # We use 'brew uninstall' (ignoring dependencies? or just normall)
-                     brew uninstall "$tool" || warn "Failed to uninstall $tool"
+                     # We use 'execute_brew' to handle privilege drops
+                     execute_brew "Uninstalling $tool" uninstall "$tool" || warn "Failed to uninstall $tool"
                  fi
              done
              

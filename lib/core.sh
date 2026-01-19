@@ -211,6 +211,30 @@ execute_sudo() {
     fi
 }
 
+# execute_brew "Description" command args...
+# Wraps brew execution to ensure it runs as non-root user if possible.
+execute_brew() {
+    local desc="$1"
+    shift
+    
+    info "$desc" >&2
+    
+    # If we are root (EUID 0)
+    if [[ $EUID -eq 0 ]]; then
+        # Check if we assume a sudo user
+        if [ -n "$SUDO_USER" ]; then
+            # Drop privileges to the invoking user
+            sudo -u "$SUDO_USER" brew "$@"
+        else
+            warn "Running brew as root (SUDO_USER not set). This is not recommended."
+            brew "$@"
+        fi
+    else
+        # Not root, run normally
+        brew "$@"
+    fi
+}
+
 # Check Functions
 # ---------------
 
