@@ -34,7 +34,7 @@ ssh_harden_sshd() {
     fi
 
     local target="/etc/ssh/sshd_config"
-    local backup="/etc/ssh/sshd_config.bak.$(date +%s)"
+
 
     if [ ! -f "$SSHD_CONFIG_SRC" ]; then
         error "Source config not found at $SSHD_CONFIG_SRC"
