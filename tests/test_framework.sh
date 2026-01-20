@@ -64,6 +64,22 @@ assert_contains() {
     fi
 }
 
+assert_match() {
+    local haystack="$1"
+    local regex="$2"
+    local message="$3"
+
+    if [[ "$haystack" =~ $regex ]]; then
+        echo -e "${GREEN}[PASS]${NC} $message"
+        ((PASSED++))
+    else
+        echo -e "${RED}[FAIL]${NC} $message"
+        echo "       Regex '$regex' did not match output"
+        echo "       ACTUAL: $haystack"
+        ((FAILED++))
+    fi
+}
+
 assert_file_exists() {
     local file="$1"
     local message="${2:-File should exist: $file}"

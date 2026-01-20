@@ -63,30 +63,15 @@ wifi_spoof_mac() {
         return 1
     fi
 
-    ensure_root || return 1
-
-    info "Target Interface: $iface"
-    local current_mac
-    current_mac=$(ifconfig "$iface" | awk '/ether/{print $2}')
-    info "Current MAC: $current_mac"
-
-    local new_mac
-    new_mac=$(wifi_generate_mac)
-
-    warn "This will disassociate you from the current Wi-Fi network."
-    # We don't ask for confirmation here if called from a script that already asked, 
-    # but the menu item should probably ask.
-    # We'll assume the caller (CLI) handles the "Are you sure?" or implies it by user action.
-
     info "Disassociating from airport..."
     if [ -x "$AIRPORT_BIN" ]; then
-        "$AIRPORT_BIN" -z
+        execute_sudo "Disassociating from current network..." "$AIRPORT_BIN" -z
     else
         warn "airport utility not found at $AIRPORT_BIN. Spoofing might fail if connected."
     fi
 
     info "Setting new MAC address to $new_mac..."
-    if ifconfig "$iface" ether "$new_mac"; then
+    if execute_sudo "Changing MAC address..." ifconfig "$iface" ether "$new_mac"; then
         success "MAC address changed successfully."
         # Verify
         local verify_mac

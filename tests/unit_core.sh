@@ -209,6 +209,116 @@ else
      ((FAILED++))
 fi
 
+
+
+
+
+# Test 7: execute_brew Root Handling
+# ----------------------------------
+test_execute_brew() {
+    # Mocks
+    local MOCK_ID_UID=1000
+    id() { 
+        if [ "$1" == "-u" ]; then 
+            echo "$MOCK_ID_UID"
+        else
+            command id "$@"
+        fi
+    }
+    
+    local BREW_CALLED=""
+    local SUDO_CALLED=""
+    
+    brew() {
+        BREW_CALLED="$*"
+        return 0
+    }
+    
+    sudo() {
+        SUDO_CALLED="$*"
+        # Simulate sudo running the command? 
+        # For 'sudo -u user brew ...', arguments are: -u, user, brew, ...
+        # We can just check SUDO_CALLED string
+        return 0
+    }
+    
+    warn() { :; }
+    error() { :; }
+    
+    # reset vars
+    unset SUDO_USER
+    unset BETTER_ANONYMITY_ALLOW_ROOT
+    
+    # Case 1: Non-root
+    MOCK_ID_UID=1000
+    execute_brew "Installing" install foo
+    assert_equals "install foo" "$BREW_CALLED" "Non-root should run brew directly"
+    
+    # Case 2: Root with SUDO_USER (Safe)
+    MOCK_ID_UID=0
+    SUDO_USER="realuser"
+    BREW_CALLED=""
+    execute_brew "Installing" install bar
+    # sudo should be called: -u realuser brew install bar
+    assert_contains "$SUDO_CALLED" "-u realuser brew install bar" "Root+SUDO_USER should drop privileges"
+    
+    # Case 3: Root without SUDO_USER (Unsafe) - Should Fail
+    MOCK_ID_UID=0
+    unset SUDO_USER
+    BREW_CALLED=""
+    if execute_brew "Installing" install baz; then
+         fail "execute_brew should fail as root without SUDO_USER"
+    else
+         pass "execute_brew failed as root correctly"
+    fi
+    
+    # Case 4: Root without SUDO_USER + Override (Safe-ish)
+    MOCK_ID_UID=0
+    unset SUDO_USER
+    export BETTER_ANONYMITY_ALLOW_ROOT=1
+    BREW_CALLED=""
+    if execute_brew "Installing" install qux; then
+         pass "execute_brew succeeded with override"
+         assert_equals "install qux" "$BREW_CALLED" "Override should run brew directly"
+    else
+         fail "execute_brew failed despite override"
+    fi
+    unset BETTER_ANONYMITY_ALLOW_ROOT
+}
+test_execute_brew
+
+
+
+# Test 8: check_internet with check_port
+# --------------------------------------
+test_check_internet_latency() {
+    # Mock check_port
+    check_port() {
+        if [ "$1" == "1.1.1.1" ] && [ "$2" -eq 53 ]; then
+             return 1 # Fallback
+        elif [ "$1" == "8.8.8.8" ] && [ "$2" -eq 53 ]; then
+             return 0 # Success
+        fi
+        return 1
+    }
+    
+    # Redefine ping to fail (to ensuring we aren't using it)
+    ping() { fail "check_internet should not call ping"; return 1; }
+    
+    if check_internet; then
+         pass "check_internet succeeded via check_port fallback"
+    else
+         fail "check_internet failed unexpectedly"
+    fi
+    
+    # Mock failure
+    check_port() { return 1; } 
+    if ! check_internet; then
+         pass "check_internet failed correctly when ports unreachable"
+    else
+         fail "check_internet succeeded when ports unreachable"
+    fi
+}
+test_check_internet_latency
+
 end_suite
-
-

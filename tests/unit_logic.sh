@@ -10,6 +10,11 @@ source "$(dirname "$0")/test_framework.sh"
 TEST_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export ROOT_DIR="$(dirname "$TEST_SCRIPT_DIR")"
 
+# SAFETY: Sandbox HOME to prevnt accidental modification of real user files
+TEST_HOME="$(mktemp -d)"
+trap 'rm -rf "$TEST_HOME"' EXIT
+export HOME="$TEST_HOME"
+
 # Mock Constants
 SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
 
@@ -422,22 +427,31 @@ else
     assert_equals "true" "false" "zshrc should contain analytics"
 fi
 
-if grep -q "alias torify=" "$TEST_7_HOME/.zshrc"; then
-    assert_equals "true" "true" "zshrc should contain torify alias"
+# Helper checks
+zshrc_content=$(cat "$TEST_7_HOME/.zshrc")
+
+if grep -q "alias torify='export ALL_PROXY=socks5h://127.0.0.1:9050'" "$TEST_7_HOME/.zshrc"; then
+    pass "zshrc contains correct torify alias"
 else
-    assert_equals "true" "false" "zshrc should contain torify alias"
+    fail "zshrc missing correct torify alias: $zshrc_content"
 fi
 
-if grep -q "alias untorify=" "$TEST_7_HOME/.zshrc"; then
-    assert_equals "true" "true" "zshrc should contain untorify alias"
+if grep -q "alias untorify='unset ALL_PROXY'" "$TEST_7_HOME/.zshrc"; then
+    pass "zshrc contains correct untorify alias"
 else
-    assert_equals "true" "false" "zshrc should contain untorify alias"
+    fail "zshrc missing correct untorify alias"
+fi
+
+if grep -q "alias tor-run='env ALL_PROXY=socks5h://127.0.0.1:9050'" "$TEST_7_HOME/.zshrc"; then
+    pass "zshrc contains correct tor-run alias"
+else
+    fail "zshrc missing correct tor-run alias"
 fi
 
 if grep -q "alias i2pify=" "$TEST_7_HOME/.zshrc"; then
-    assert_equals "true" "true" "zshrc should contain i2pify alias"
+    pass "zshrc contains i2pify alias"
 else
-    assert_equals "true" "false" "zshrc should contain i2pify alias"
+    fail "zshrc missing i2pify alias"
 fi
 
 # Cleanup
@@ -1283,7 +1297,7 @@ wifi_get_interface() { echo "en0"; }
 # Test Spoof
 OUTPUT=$(wifi_spoof_mac)
 rm -f "$MOCK_AIRPORT" # Cleanup
-assert_contains "$OUTPUT" "AIRPORT_DISASSOCIATE" "Should disassociate"
+assert_match "$OUTPUT" "EXEC: .* -z" "Should disassociate"
 assert_contains "$OUTPUT" "IFCONFIG_SET:" "Should set new mac"
 
 # Re-create for Audit (cleanup deleted it)
@@ -2147,6 +2161,7 @@ assert_contains "$OUTPUT" "WARNING: 'i2prouter' command not found" "Should warn 
 
 # Cleanup
 /bin/rm -f "/tmp/better-anonymity-i2p.pid"
+unset -f command kill
 
 
 # end_suite removed to allow continuation
@@ -2156,6 +2171,12 @@ assert_contains "$OUTPUT" "WARNING: 'i2prouter' command not found" "Should warn 
 # Test 19b: Quarantine Cleanup (SQLite)
 # -------------------------------------
 start_suite "Quarantine Cleanup"
+
+# Mock find to prevent filesystem scan
+find() {
+    echo "FIND_CALL: $*"
+    return 0
+}
 
 # Setup dummy db
 mkdir -p "$HOME/Library/Preferences"
@@ -2182,6 +2203,7 @@ OUTPUT=$(cleanup_quarantine 2>&1)
 assert_contains "$OUTPUT" "Attempting to clean Quarantine Database via sqlite3" "Should detect sqlite3"
 assert_contains "$OUTPUT" "SQL: $DB_FILE DELETE FROM LSQuarantineEvent; VACUUM;" "Should run correct SQL"
 assert_contains "$OUTPUT" "Quarantine History cleared (via SQL)" "Should report SQL success"
+assert_contains "$OUTPUT" "FIND_CALL: $HOME/Downloads" "Should verify Downloads cleanup"
 
 # Test 19c: Quarantine Cleanup (Fallback)
 # ---------------------------------------
@@ -2200,6 +2222,7 @@ assert_contains "$OUTPUT" "Quarantine History cleared (file deleted and recreate
 
 # Cleanup
 command rm -f "$DB_FILE"
+unset -f find
 
 # Reset execute_sudo to default logic (recover from Quarantine mock)
 execute_sudo() {

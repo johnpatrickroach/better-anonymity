@@ -51,6 +51,9 @@ To maximize privacy, you can configure individual applications to use the Tor SO
 To route command line traffic through Tor, you can use the built-in aliases (added to `~/.zshrc`):
 
 ```bash
+# One-off command execution (does not affect current shell)
+tor-run curl ifconfig.me
+
 # Enable Tor routing for current session
 torify
 # Check IP (should be different)

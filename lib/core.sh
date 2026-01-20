@@ -173,7 +173,10 @@ ask_confirmation_with_info() {
 # Ensure the script is run as root (auto-elevate)
 # Usage: ensure_root "$@"
 # WARNING: This re-executes the script. You MUST pass "$@" to forward arguments.
-# If called from a function, "$@" are the function's args, which may not match script args.
+# DANGER: If called from a function, "$@" refers to the FUNCTION'S arguments, NOT the script's original arguments.
+# This means re-execution will lose the original command (e.g., 'better-anonymity wifi spoof') and may restart the script with no args (defaulting to menu).
+# RECOMMENDATION: Inside functions, use 'execute_sudo' for specific commands or 'start_sudo_keepalive' instead.
+# Use 'ensure_root' ONLY at the top level of the script or entrypoint handlers where "$@" is preserved.
 # For subcommands, consider using start_sudo_keepalive instead.
 ensure_root() {
     if [ "$EUID" -ne 0 ]; then
@@ -219,15 +222,23 @@ execute_brew() {
     
     info "$desc" >&2
     
-    # If we are root (EUID 0)
-    if [[ $EUID -eq 0 ]]; then
+    # If we are root
+    if [[ $(id -u) -eq 0 ]]; then
+        # Check if we assume a sudo user
         # Check if we assume a sudo user
         if [ -n "$SUDO_USER" ]; then
             # Drop privileges to the invoking user
             sudo -u "$SUDO_USER" brew "$@"
         else
-            warn "Running brew as root (SUDO_USER not set). This is not recommended."
-            brew "$@"
+            if [ -n "$BETTER_ANONYMITY_ALLOW_ROOT" ]; then
+                warn "Running brew as root (SUDO_USER not set). Allowed via override."
+                brew "$@"
+            else
+                error "Homebrew should not be run as root!"
+                error "We could not detect the original user (SUDO_USER is unset)."
+                error "To bypass this safety check (e.g. in containers), set BETTER_ANONYMITY_ALLOW_ROOT=1"
+                return 1
+            fi
         fi
     else
         # Not root, run normally
@@ -245,6 +256,19 @@ is_brew_installed() {
     if ! command -v brew >/dev/null; then return 1; fi
     
     if brew list --formula "$formula" >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+# Check Internet Connectivity via DNS (TCP/53) to minimize latency
+check_internet() {
+    # Try Cloudflare (1.1.1.1)
+    if check_port "1.1.1.1" 53; then
+        return 0
+    fi
+    # Try Google (8.8.8.8) as fallback
+    if check_port "8.8.8.8" 53; then
         return 0
     fi
     return 1
@@ -516,25 +540,7 @@ require_brew() {
     fi
 }
 
-check_internet() {
-    # Check multiple reliable DNS providers (Cloudflare, Google, Quad9)
-    local targets=("1.1.1.1" "8.8.8.8" "9.9.9.9")
-    
-    for target in "${targets[@]}"; do
-        # -c 1: send 1 packet
-        # -W 1000: wait 1000ms (1s) - This is for macOS (BSD) ping where -W is ms, 
-        # but commonly on Linux -W is seconds. 
-        # To be safe and portable-ish without complex logic, we rely on -c 1
-        # or use a simple timeout wrapper if we really wanted to be strict.
-        # But 'ping -c 1' is usually sufficient.
-        if ping -c 1 "$target" &> /dev/null; then
-            return 0
-        fi
-    done
-    
-    warn "No internet connection detected. Network-dependent steps may fail."
-    return 1
-}
+
 
 # Helper to manage Homebrew services quietly and idempotently.
 # Usage: manage_service action service [as_root]
