@@ -3050,4 +3050,38 @@ OUTPUT_2=$("$CLI_BIN" install tor --explain 2>&1)
 assert_contains "$OUTPUT_2" "Explanation for command: 'install' (tor)" "Should explain install tor"
 assert_contains "$OUTPUT_2" "Installs specified privacy tools" "Should show install description"
 
+
+# Test 17: Password Logic
+# -----------------------
+start_suite "Password Logic"
+source "$(dirname "$0")/../lib/password_utils.sh"
+
+# Mock wordlist to prevent file I/O issues or hanging on missing files
+MOCK_WORDLIST="/tmp/mock_wordlist_$$"
+echo "11111   alpha" > "$MOCK_WORDLIST"
+echo "22222   beta" >> "$MOCK_WORDLIST"
+echo "33333   gamma" >> "$MOCK_WORDLIST"
+echo "44444   delta" >> "$MOCK_WORDLIST"
+WORDLIST_PATH="$MOCK_WORDLIST"
+
+# Unset openssl mock to ensure correct random number generation (calls system openssl or fallback)
+unset -f openssl
+
+# 1. Test Strength Heuristic (Repetitive)
+OUTPUT=$(check_strength "correct correct correct correct")
+assert_contains "$OUTPUT" "Passphrase contains repeated words" "Should detect repeated words"
+if [[ "$OUTPUT" == *"Rating: Very Strong"* ]]; then fail "Should NOT rate repetitive as very strong"; else pass "Correctly penalized repetitive"; fi
+
+# 2. Test Strength Heuristic (Unique)
+OUTPUT=$(check_strength "correct horse battery staple")
+if [[ "$OUTPUT" == *"repeated words"* ]]; then fail "Should not warn on unique words"; else pass "Correctly accepted unique words"; fi
+
+# 3. Test Generate Password
+OUTPUT=$(generate_password 4)
+WORD_COUNT=$(echo "$OUTPUT" | wc -w | xargs)
+if [ "$WORD_COUNT" -eq 4 ]; then pass "Generated correct word count"; else fail "Generated wrong word count: $WORD_COUNT. Output: $OUTPUT"; fi
+
+# Cleanup
+rm -f "$MOCK_WORDLIST"
+
 end_suite

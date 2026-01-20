@@ -17,48 +17,57 @@ generate_password() {
         return 1
     fi
     
-    # Check if wordlist has content
-    if [ ! -s "$WORDLIST_PATH" ]; then
-         error "Wordlist is empty."
-         return 1
-    fi
+    # Count total lines efficiently
+    local total_lines
+    total_lines=$(wc -l < "$WORDLIST_PATH" | tr -d ' ')
     
-
-
-    local words=()
-    # Read words into array. The EFF list format is usually "11111   abacus"
-    # We strip the numbers
-    while read -r line; do
-        # Extract the second column (the word)
-        word=$(echo "$line" | awk '{print $2}')
-        if [[ -n "$word" ]]; then
-            words+=("$word")
-        fi
-    done < "$WORDLIST_PATH"
-    
-    local count=${#words[@]}
-    if [ "$count" -eq 0 ]; then
-        error "No words parsed from wordlist."
+    if [ "$total_lines" -eq 0 ]; then
+        error "Wordlist is empty."
         return 1
     fi
     
     for (( i=0; i<num_words; i++ )); do
-        # Get random index (CSPRNG)
-        local rand_idx
+        # Get random line number (1 to total_lines)
+        local rand_line
+        
+        # Generate 4 random bytes for a large integer space
         if command -v openssl >/dev/null 2>&1; then
-             # Use OpenSSL (standard on macOS)
              local hex
              hex=$(openssl rand -hex 4)
-             rand_idx=$(( 0x$hex % count ))
+             # modulo arithmetic to get range 0..(total_lines-1), then +1
+             rand_line=$(( (0x$hex % total_lines) + 1 ))
         else
-             # Fallback to /dev/urandom via od
-             # Read 4 bytes as unsigned integer
+             # Fallback
              local rand_int
              rand_int=$(od -An -N4 -tu4 /dev/urandom | awk '{print $1}')
-             rand_idx=$(( rand_int % count ))
+             rand_line=$(( (rand_int % total_lines) + 1 ))
         fi
-        local selected_word="${words[$rand_idx]}"
         
+        # Extract specific line using head/tail (more robust than sed in some envs)
+        # Use read to parse the line
+        local raw_line
+        raw_line=$(head -n "$rand_line" "$WORDLIST_PATH" | tail -n 1)
+        
+        local selected_word=""
+        if [ -n "$raw_line" ]; then
+            # Ensure standard IFS for splitting
+            IFS=$' \t\n' read -r _ selected_word <<< "$raw_line"
+        fi
+        
+        if [ -z "$selected_word" ]; then
+             # Should practically never happen if wc -l is correct and file isn't changing
+             # Safety break to prevent infinite loops
+             local attempts=${attempts:-0}
+             ((attempts++))
+             if [ "$attempts" -gt 100 ]; then
+                 error "Failed to extract words from wordlist after 100 attempts."
+                 return 1
+             fi
+             
+             i=$((i-1)) # Retry
+             continue
+        fi
+
         # Capitalize first letter? The prompt says "without a hint" but usually capitalization helps strength slightly
         # For simplicity and diceware purity, we often just use lower case separate by spaces or dashes.
         # EFF recommends spaces. Let's use spaces.
@@ -121,6 +130,20 @@ check_strength() {
              ((score-=1))
              warn "Passphrase uses very short words. Avoid predictable sentences (e.g. 'I am a cat')."
         fi
+
+        # Check for repeated words (low entropy)
+        # We generally expect all words to be unique in a short passphrase
+        local unique_count
+        unique_count=$(echo "$pwd" | tr ' ' '\n' | sort | uniq | wc -l | xargs)
+        
+        if [ "$unique_count" -lt "$word_count" ]; then
+            ((score-=2))
+            warn "Passphrase contains repeated words. This reduces security significantly."
+        fi
+        
+        # Note: This is detailed heuristic scoring, not a rigorous entropy calculation.
+        # A true 4-word diceware phrase from a 7776-word list has ~51 bits of entropy.
+        # This check ensures we don't accidentally rate "correct correct correct correct" as strong.
     else
         # Normal password complexity
         if [[ "$pwd" =~ [A-Z] ]]; then ((score++)); fi
