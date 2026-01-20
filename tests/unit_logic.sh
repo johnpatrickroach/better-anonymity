@@ -44,7 +44,7 @@ execute_sudo() {
         echo "EXEC: $*"
     fi
 }
-die() { echo "DIED: $1"; }
+die() { echo "DIED: $1"; exit 1; }
 # Mock require_brew
 require_brew() { :; }
 
@@ -159,14 +159,31 @@ sed_in_place() {
 bash() {
     if [[ "$1" == "updater.sh" ]]; then
         echo "MOCK: Executing updater.sh with args: $*"
-        # Simulate creating user.js
-        touch user.js
+        
+        # SAFETY: Prevent creating user.js in project root
+        local target="user.js"
+        local safe="false"
+        
+        # Check if PWD is safe (temp dir)
+        if [[ "$PWD" == *"/tmp/"* ]] || [[ "$PWD" == *"/private/var/folders/"* ]]; then
+            safe="true"
+        elif declare -f get_firefox_profile > /dev/null; then
+            # If PWD is unsafe (e.g. repo root), try to find the intended mock profile path
+            local prof_path
+            prof_path=$(get_firefox_profile)
+            if [[ -n "$prof_path" && -d "$prof_path" ]]; then
+                target="$prof_path/user.js"
+                safe="true"
+            fi
+        fi
+
+        if [[ "$safe" == "true" ]]; then
+            touch "$target"
+        else
+            echo "WARN: Test attempted to create file in unsafe path ($PWD). Skipped."
+        fi
         return 0
     else
-        # Fallback to real bash for other things? 
-        # Actually in tests we should be careful. 
-        # But 'bash' is rarely called directly except for scripts.
-        # Let's just echo for safety in this scope.
         echo "MOCK: bash $*"
     fi
 }
@@ -191,7 +208,7 @@ networksetup() {
 # The expected output string needs to match exactly what echo "SET_DNS: ..." produces.
 # Arguments passed: -setdnsservers "Wi-Fi" 9.9.9.9 149.112.112.112
 OUTPUT=$(network_set_dns "quad9" | tr -d '\n')
-# echo "DEBUG OUTPUT: $OUTPUT"
+
 assert_contains "$OUTPUT" "SET_DNS: -setdnsserversWi-Fi9.9.9.9 149.112.112.112" "Should set Quad9 for Wi-Fi"
 
 OUTPUT=$(network_set_dns "localhost" | tr -d '\n')
@@ -406,7 +423,7 @@ OUTPUT=$(hardening_secure_homebrew)
 # Restore HOME
 export HOME="$OLD_HOME"
 
-# echo "DEBUG OUTPUT (Brew): $OUTPUT"
+
 assert_contains "$OUTPUT" "Disabling Homebrew Analytics" "Should try to disable analytics"
 assert_contains "$OUTPUT" "brew called with: analytics off" "Should run brew analytics off"
 assert_contains "$OUTPUT" "Set HOMEBREW_NO_INSECURE_REDIRECT=1" "Should set env var"
@@ -836,10 +853,19 @@ touch "$TEST_PROFILE_DIR/prefs.js"
 # Mock curl
 curl() {
     echo "CURL: $*"
-    if [[ "$*" == *"-o"* ]]; then
-        # Create dummy user.js
-        # $3 is output path
-        echo "// Arkenfox user.js" > "$3"
+    local output_file=""
+    local prev_arg=""
+    for arg in "$@"; do
+        if [ "$prev_arg" == "-o" ]; then
+            output_file="$arg"
+            break
+        fi
+        prev_arg="$arg"
+    done
+
+    if [ -n "$output_file" ]; then
+        # Create dummy content based on filename
+        echo "// Arkenfox user.js" > "$output_file"
     fi
 }
 
@@ -2693,7 +2719,15 @@ export PINGBAR_APP_PATH
 
 # Define shared mocks
 swift() { return 0; }
-git() { echo "EXEC: git $*"; if [ "$1" == "clone" ]; then mkdir -p "${PINGBAR_APP_PATH%/*}/../pingbar"; fi; return 0; }
+git() { 
+    echo "EXEC: git $*"
+    if [ "$1" == "clone" ]; then
+        # Create destination directory (last arg)
+        for last; do true; done
+        mkdir -p "$last"
+    fi
+    return 0
+}
 make() { echo "EXEC: make $*"; return 0; }
 pkill() { echo "EXEC: pkill $*"; return 0; }
 killall() { echo "EXEC: killall $*"; return 0; }
@@ -2835,8 +2869,11 @@ echo "Running Test Suite: Firefox Arkenfox Flow"
 echo "----------------------------------------"
 
 # Mock get_firefox_profile to return our test path
+# Mock get_firefox_profile to return our test path
 get_firefox_profile() {
-    echo "$TEST_HOME/Library/Application Support/Firefox/Profiles/test.default-release"
+    local prof_dir="$TEST_HOME/Library/Application Support/Firefox/Profiles/test.default-release"
+    mkdir -p "$prof_dir"
+    echo "$prof_dir"
 }
 export -f get_firefox_profile
 
@@ -2900,8 +2937,8 @@ curl() {
         done
         if [[ "$output_file" == *"updater.sh" ]]; then
              echo "#!/bin/bash" > "$output_file"
-             # Simulate updater creating user.js
-             echo "echo '// arkenfox user.js' > user.js" >> "$output_file"
+             # Simulate updater creating user.js relative to script location
+             echo "echo '// arkenfox user.js' > \"\$(dirname \"\$0\")/user.js\"" >> "$output_file"
         elif [[ "$output_file" == *"prefsCleaner.sh" ]]; then
              touch "$output_file"
         else
@@ -3217,6 +3254,9 @@ if [ ! -f "$CAPTIVE_PID_FILE" ]; then
 else
     fail "PID file NOT removed"
 fi
+
+# Final Cleanup
+rm -f "$CAPTIVE_PID_FILE" "$CAPTIVE_LOG_FILE"
 
 # 8. Service: Status (Stopped)
 captive_status >/dev/null 2>&1

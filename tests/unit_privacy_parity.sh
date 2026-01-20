@@ -142,7 +142,7 @@ assert_contains "$OUTPUT" "DEFAULTS_CALL: write com.microsoft.office.telemetry Z
 ZSHRC_CONTENT=$(cat "$HOME/.zshrc")
 assert_contains "$ZSHRC_CONTENT" "DOTNET_CLI_TELEMETRY_OPTOUT" "Should export DOTNET var"
 
-command rm -rf "$test_home_tel"
+command rm -rf "$test_home_tel" "$test_app_dir"
 export HOME="$USER_HOME_BACKUP"
 
 end_suite

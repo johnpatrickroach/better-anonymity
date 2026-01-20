@@ -130,6 +130,7 @@ detect_active_network() {
 setup_path_mocks() {
     ORIGINAL_PATH="$PATH"
     MOCK_BIN=$(mktemp -d)
+    trap 'rm -rf "$MOCK_BIN"' EXIT
     export PATH="$MOCK_BIN:$PATH"
     
     # Create mock grep

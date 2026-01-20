@@ -25,6 +25,7 @@ fi
 
 # Setup Mock Sudo to prevent password prompt
 MOCK_DIR=$(mktemp -d)
+trap 'rm -rf "$MOCK_DIR"' EXIT
 echo '#!/bin/sh' > "$MOCK_DIR/sudo"
 echo 'echo "MOCK SUDO: $*"' >> "$MOCK_DIR/sudo"
 chmod +x "$MOCK_DIR/sudo"

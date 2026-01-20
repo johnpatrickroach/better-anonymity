@@ -102,6 +102,7 @@ fi
 # Test is_app_installed
 # Use a temporary HOME to avoid writing to system /Applications
 TEST_HOME="$(mktemp -d)"
+trap 'rm -rf "$TEST_HOME"' EXIT
 OLD_HOME="$HOME"
 export HOME="$TEST_HOME"
 mkdir -p "$TEST_HOME/Applications/MockApp.app"
