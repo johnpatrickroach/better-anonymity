@@ -2,6 +2,11 @@
 
 # lib/diagnosis.sh
 # System Diagnosis and Scoring Module
+#
+# Dependencies:
+#   - core.sh (for logging, is_brew_installed, check_airport_exists)
+#   - platform.sh (for network detection)
+#   - External commands: socketfilterfw, fdesetup, csrutil, spctl, defaults, brew, gpg
 
 # Score Weights (Total 100 per category)
 # These are arbitrary but prioritize critical items.

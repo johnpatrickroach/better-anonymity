@@ -529,9 +529,9 @@ case "$COMMAND" in
     diagnose)
         load_module "diagnosis"
 
-        # Diagnosis uses is_brew_installed, which is in core.
-        # It uses check_airport_exists which calls [ -x ].
-        # It uses networksetup (system).
+        # Diagnosis relies on 'is_brew_installed' (core.sh) and 'check_airport_exists' (core.sh).
+        # It also relies on 'networksetup' and platform detection from platform.sh.
+        # These are sourced globally at the top of this script, so they are available here.
         diagnosis_run
         ;;
     generate-password)
