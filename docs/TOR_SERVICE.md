@@ -15,6 +15,7 @@ better-anonymity menu -> 4. Install Tor Service & Browser -> 2. Install Tor Serv
 ## Usage
 
 ### Managing the Service
+
 The Tor service runs in the background using `brew services`.
 
 ```bash
@@ -26,11 +27,18 @@ better-anonymity tor stop
 
 # Check Status
 better-anonymity tor status
+
+# Request New Identity (New Circuit)
+better-anonymity tor new-id
+
+# Restart Service
+better-anonymity tor restart
 # Note: If your active network interface cannot be reliably detected, 
 # this command may warn you that it safely fell back to checking Wi-Fi status.
 ```
 
 ### System SOCKS Proxy ("Torify" System)
+
 You can configure macOS to use Tor (127.0.0.1:9050) as the SOCKS proxy for your Wi-Fi connection.
 
 > [!WARNING]
@@ -45,6 +53,7 @@ better-anonymity tor proxy-off
 ```
 
 ### Application Configuration
+
 To maximize privacy, you can configure individual applications to use the Tor SOCKS5 proxy (`127.0.0.1:9050`).
 
 **Terminal (CLI)**
@@ -63,30 +72,37 @@ untorify
 ```
 
 Or manually:
+
 ```bash
 export ALL_PROXY=socks5h://127.0.0.1:9050
 ```
 
 **Messengers & Wallets**
 Configure **SOCKS5** Proxy in settings (Telegram, Signal, Bitcoin, etc.):
+
 - **Server**: `127.0.0.1`
 - **Port**: `9050`
 - **DNS**: Enable "Resolve queries via proxy" (sometimes called SOCKS5h) if available.
 
 ### Verification
+
 To verify your traffic is routing through Tor:
 
 1. Enable the System Proxy: `better-anonymity tor proxy-on`
 2. Run a secure check (forces remote DNS):
+
    ```bash
    curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org | grep "Congratulations"
    ```
+
 3. Visit [check.torproject.org](https://check.torproject.org) in Safari.
 
 ## Configuration
+
 The configure file is located at:
 `/usr/local/etc/tor/torrc` (Intel) or `/opt/homebrew/etc/tor/torrc` (Apple Silicon).
 
 Default settings applied:
+
 - `ControlPort 9051`
 - `CookieAuthentication 1`

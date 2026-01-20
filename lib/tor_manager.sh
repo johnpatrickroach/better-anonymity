@@ -31,8 +31,11 @@ tor_install() {
         if ! grep -q "ControlPort 9051" "$TORRC"; then
              echo "ControlPort 9051" >> "$TORRC"
         fi
-        if ! grep -q "CookieAuthentication 1" "$TORRC"; then
-             echo "CookieAuthentication 1" >> "$TORRC"
+        # Disable Cookie Auth to allow local nc control easier
+        if ! grep -q "CookieAuthentication 0" "$TORRC"; then
+             # Remove existing line if 1
+             sed -i '' '/CookieAuthentication/d' "$TORRC"
+             echo "CookieAuthentication 0" >> "$TORRC"
         fi
     fi
 
@@ -43,12 +46,46 @@ tor_install() {
 tor_service_start() {
     manage_service "start" "tor"
     
-    # Wait a moment for boot
-    sleep 2
-    if tor_status_check; then
-        success "Tor Service is running."
+    # Wait for bootstrap
+    if tor_wait_for_bootstrap; then
+        success "Tor Service is running and bootstrapped."
     else
-        error "Tor Service failed to start."
+        error "Tor Service started but failed to bootstrap (Port 9050 closed)."
+    fi
+}
+
+tor_wait_for_bootstrap() {
+    info "Waiting for Tor to bootstrap..."
+    local retries=20 # 10 seconds total
+    while [ $retries -gt 0 ]; do
+        # Check if SOCKS port is open using nc
+        if nc -z 127.0.0.1 9050 2>/dev/null; then
+            return 0
+        fi
+        sleep 0.5
+        ((retries--))
+    done
+    return 1
+}
+
+tor_new_identity() {
+    # Send NEWNYM signal to ControlPort 9051
+    info "Requesting new identity (New Circuit)..."
+    
+    # Verify Tor running first
+    if ! tor_status_check; then
+         error "Tor is not running."
+         return 1
+    fi
+
+    # Using nc to send signal
+    # -N shutdown write after EOF (optional depends on netcat version, safe to omit usually)
+    # We send "AUTHENTICATE" (empty password) then "SIGNAL NEWNYM"
+    if echo -e 'AUTHENTICATE ""\r\nSIGNAL NEWNYM\r\nQUIT' | nc 127.0.0.1 9051 >/dev/null 2>&1; then
+        success "New Identity requested. Circuit should cycle shortly."
+    else
+        warn "Failed to communicate with Tor Control Port (9051). Is it enabled?"
+        warn "Check $BREW_PREFIX/etc/tor/torrc for 'ControlPort 9051' and 'CookieAuthentication 0'."
     fi
 }
 
@@ -59,8 +96,9 @@ tor_service_stop() {
 
 tor_service_restart() {
     manage_service "restart" "tor"
-    sleep 2
-    tor_status_check
+    if tor_wait_for_bootstrap; then
+        success "Tor Service restarted."
+    fi
 }
 
 tor_status_check() {
@@ -151,4 +189,59 @@ tor_info() {
         "" \
         "To test connection:" \
         "  curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org"
+}
+
+tor_help() {
+    echo "Usage: better-anonymity tor [command]"
+    echo ""
+    echo "Commands:"
+    echo "  start    Start Tor service (waits for bootstrap)."
+    echo "  stop     Stop Tor service."
+    echo "  restart  Restart Tor service."
+    echo "  status   Check service status."
+    echo "  new-id   Request New Identity (signals NEWNYM to ControlPort)."
+    echo "  install  Install Tor and verify configuration."
+}
+
+tor_dispatcher() {
+    local cmd="$1"
+    
+    if [ -z "$cmd" ]; then
+        tor_help
+        return
+    fi
+    
+    case "$cmd" in
+        start)
+            tor_service_start
+            ;;
+        stop)
+            tor_service_stop
+            ;;
+        restart)
+            tor_service_restart
+            ;;
+        status)
+            tor_status
+            ;;
+        new-id)
+            tor_new_identity
+            ;;
+        install)
+            tor_install
+            ;;
+        proxy-on)
+            tor_enable_system_proxy
+            ;;
+        proxy-off)
+            tor_disable_system_proxy
+            ;;
+        help|--help|-h)
+            tor_help
+            ;;
+        *)
+            error "Unknown tor command: $cmd"
+            tor_help
+            ;;
+    esac
 }

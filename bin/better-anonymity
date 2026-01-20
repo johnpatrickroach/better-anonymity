@@ -94,7 +94,8 @@ usage() {
     echo ""
     echo "Tools & Services:"
     echo "  install [tool]    Install tools (tor, i2p, privoxy, gpg, signal, etc.)"
-    echo "  tor [cmd]         Manage Tor service (start, stop, status)"
+    echo "  tor [cmd]         Manage Tor service (start, stop, restart, new-id, proxy-on/off, status)"
+    echo "  captive [cmd]     Manage captive portal monitor (monitor, run, status)"
     echo "  i2p [cmd]         Manage I2P service (start, stop, console)"
     echo "  vault [cmd]       Manage password vault (read, write)"
     echo "  backup [cmd]      Secure backup tools (encrypt, decrypt)"
@@ -105,6 +106,13 @@ usage() {
     echo "  uninstall         Remove global CLI aliases"
     echo "  test              Run unit tests"
     echo "  --version         Show version information"
+    echo ""
+    echo "Convenience Aliases (Available after 'install'):"
+    echo "  torify            Enable Tor proxy (export ALL_PROXY=socks5h://...)"
+    echo "  untorify          Disable Tor proxy (unset ALL_PROXY)"
+    echo "  tor-run [cmd]     Run single command through Tor (tor-run curl ...)"
+    echo "  stay-connected    Launch Captive Portal Monitor (alias to 'captive monitor')"
+    echo "  i2pify            Enable I2P HTTP proxy (export http_proxy=...)"
     echo ""
 }
 
@@ -198,7 +206,18 @@ show_explanation() {
             ;;
         daily)
             echo "Runs the Daily Health Check."
-            echo "Verifies security status, updates blocklists, and checks service health."
+            echo "Verifies all security settings and updates blocklists."
+            ;;
+        captive-monitor) 
+            echo "Captive Portal Monitor (Legacy). Use 'captive run' or 'captive monitor'."
+            ;;
+        captive)
+            echo "Captive Portal Management."
+            echo "Subcommands: start, stop, status, monitor, run."
+            ;;
+        tor)
+            echo "Tor Service Management."
+            echo "Subcommands: start, stop, restart, new-id, status, install."
             ;;
         update)
             echo "Updates the 'better-anonymity' codebase from git."
@@ -220,10 +239,7 @@ show_explanation() {
             echo "SSH Hardening Tools."
             echo "Can audit sshd config or harden client/server configurations."
             ;;
-        tor)
-            echo "Tor Service Management."
-            echo "Manage the background Tor service (start/stop) or toggle system-wide proxying."
-            ;;
+
         i2p)
             echo "I2P Service Management."
             echo "Manage the generic Invisible Internet Project router (start/stop/console)."
@@ -441,23 +457,7 @@ case "$COMMAND" in
             *) echo "Usage: better-anonymity ssh [audit-sshd|harden-sshd|harden-client|hash-hosts]" ;;
          esac
          ;;
-    tor)
-         load_module "tor_manager"
-         shift
-         case "$1" in
-            install) tor_install ;;
-            start)   tor_service_start ;;
-            stop)    tor_service_stop ;;
-            restart) tor_service_restart ;;
-            proxy-on|enable-proxy) tor_enable_system_proxy ;;
-            proxy-off|disable-proxy) tor_disable_system_proxy ;;
-            status)  tor_status ;;
-            info)    tor_info ;;
-            *) 
-               echo "Usage: better-anonymity tor [install|start|stop|restart|status|proxy-on|proxy-off]" 
-               ;;
-         esac
-         ;;
+
     i2p)
          load_module "i2p_manager"
          shift
@@ -533,6 +533,20 @@ case "$COMMAND" in
         # It also relies on 'networksetup' and platform detection from platform.sh.
         # These are sourced globally at the top of this script, so they are available here.
         diagnosis_run
+        ;;
+    captive-monitor)
+        load_module "captive"
+        captive_dispatcher monitor
+        ;;
+    captive)
+        load_module "captive"
+        shift
+        captive_dispatcher "$@"
+        ;;
+    tor)
+        shift
+        load_module "tor_manager"
+        tor_dispatcher "$1"
         ;;
     generate-password)
         load_module "password_utils"

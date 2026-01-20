@@ -424,6 +424,12 @@ hardening_secure_homebrew() {
                      info "Added 'tor-run' alias to $profile"
                 fi
                 
+                # Captive Monitor Alias (Launches separate terminal)
+                if ! grep -q "alias stay-connected=" "$profile"; then
+                     echo "alias stay-connected='better-anonymity captive monitor'" >> "$profile"
+                     info "Added 'stay-connected' alias to $profile"
+                fi
+
                 # I2P Alias (HTTP Proxy 4444)
                 if ! grep -q "alias i2pify=" "$profile"; then
                      echo "alias i2pify='export http_proxy=http://127.0.0.1:4444 https_proxy=http://127.0.0.1:4445'" >> "$profile"

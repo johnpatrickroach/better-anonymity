@@ -87,6 +87,7 @@ menu_network() {
         echo "4. Update Hosts Blocklist"
         echo "5. Restore Network Defaults (Disable Proxies)"
         echo "6. Enable Anonymity Mode (All Services)"
+        echo "7. Captive Portal Monitor"
         echo "b. Back"
         echo
         echo -n "Select an option: "
@@ -136,6 +137,20 @@ menu_network() {
                 load_module "network"
                 network_enable_anonymity
                 ;;
+            7)
+                load_module "captive"
+                echo "Captive Portal Monitor"
+                echo "1) Start (Monitor in new window)"
+                echo "2) Stop"
+                echo "3) Status"
+                read -r cchoice
+                case $cchoice in
+                    1) captive_dispatcher monitor ;;
+                    2) captive_dispatcher stop ;;
+                    3) captive_dispatcher status ;;
+                    *) error "Invalid option" ;;
+                esac
+                ;;
             b|back) return ;;
             *) error "Invalid option" ;;
         esac
@@ -167,6 +182,7 @@ menu_installers() {
             1)
                  echo "1) Install Tor Browser (App)"
                  echo "2) Install Tor Service (CLI)"
+                 echo "3) Manage Tor Service (Start/Stop/New Identity)"
                  read -p "Select: " tchoice
                  case $tchoice in
                     1) 
@@ -175,6 +191,28 @@ menu_installers() {
                     2) 
                         load_module "tor_manager"
                         tor_install ;;
+                    3)
+                        load_module "tor_manager"
+                        echo "Tor Service Management:"
+                        echo "  1) Start (and wait for bootstrap)"
+                        echo "  2) Stop"
+                        echo "  3) Restart"
+                        echo "  4) Status"
+                        echo "  5) Request New Identity (New Circuit)"
+                        echo "  6) Enable System Proxy"
+                        echo "  7) Disable System Proxy"
+                        read -r tschoice
+                        case $tschoice in
+                            1) tor_dispatcher start ;;
+                            2) tor_dispatcher stop ;;
+                            3) tor_dispatcher restart ;;
+                            4) tor_dispatcher status ;;
+                            5) tor_dispatcher new-id ;;
+                            6) tor_dispatcher proxy-on ;;
+                            7) tor_dispatcher proxy-off ;;
+                            *) error "Invalid option" ;;
+                        esac
+                        ;;
                     *) error "Invalid option" ;;
                  esac
                  ;;

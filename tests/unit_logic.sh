@@ -448,6 +448,12 @@ else
     fail "zshrc missing correct tor-run alias"
 fi
 
+if grep -q "alias stay-connected='better-anonymity captive monitor'" "$TEST_7_HOME/.zshrc"; then
+    pass "zshrc contains stay-connected alias (captive monitor)"
+else
+    fail "zshrc missing correct stay-connected alias"
+fi
+
 if grep -q "alias i2pify=" "$TEST_7_HOME/.zshrc"; then
     pass "zshrc contains i2pify alias"
 else
@@ -1477,6 +1483,11 @@ brew() {
         return 0
     fi
     echo "BREW_CALL: $*"
+}
+
+# Mock nc
+nc() {
+    return 0
 }
 
 MOCK_TOR_RUNNING="false"
@@ -3107,4 +3118,177 @@ if [ "$WORD_COUNT" -eq 4 ]; then pass "Generated correct word count"; else fail 
 # Cleanup
 rm -f "$MOCK_WORDLIST"
 
+# Test 43: Captive Portal Monitor
+# -------------------------------
+start_suite "Captive Portal Monitor"
+
+# Source the module
+source "$ROOT_DIR/lib/captive.sh" || fail "Could not source lib/captive.sh"
+
+# Mock curl for connectivity checks
+curl() {
+    local url="${@: -1}" # Last arg is URL
+    if [[ "$url" == *"captive.apple.com"* ]]; then
+        if [ "$MOCK_CURL_STATE" == "offline" ]; then
+            return 1 # Fail
+        elif [ "$MOCK_CURL_STATE" == "portal" ]; then
+             echo "<html><head><title>Login</title></head><body>Login</body></html>"
+             return 0
+        else
+             echo "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>"
+             return 0
+        fi
+    fi
+    echo "CURL_CALL: $*"
+    return 0
+}
+
+# 1. Test CHECK: Success
+MOCK_CURL_STATE="online"
+captive_check_state
+RET=$?
+if [ $RET -eq 0 ]; then pass "Should detect ONLINE state"; else fail "Failed to detect ONLINE (got $RET)"; fi
+
+# 2. Test CHECK: Portal
+MOCK_CURL_STATE="portal"
+captive_check_state
+RET=$?
+if [ $RET -eq 2 ]; then pass "Should detect PORTAL state"; else fail "Failed to detect PORTAL (got $RET)"; fi
+
+# 3. Test CHECK: Offline
+MOCK_CURL_STATE="offline"
+captive_check_state
+RET=$?
+if [ $RET -eq 1 ]; then pass "Should detect OFFLINE state"; else fail "Failed to detect OFFLINE (got $RET)"; fi
+
+# 4. Service: Start
+# Clean up any leaking mocks
+unset -f rm
+
+# Mock globals
+CAPTIVE_PID_FILE=$(mktemp)
+CAPTIVE_LOG_FILE=$(mktemp)
+echo "99999" > "$CAPTIVE_PID_FILE" # Pre-fill with dead PID
+
+# Mock ensure_root
+ensure_root() { :; }
+
+# Mock nohup
+nohup() {
+    echo "Starting background process..."
+    sleep 0.1
+}
+
+# Mock ps
+# Fail for 99999 (dead), Succeed for anything else (running)
+ps() {
+    local pid_arg="${@: -1}"
+    if [ "$pid_arg" == "99999" ]; then return 1; fi
+    return 0
+}
+
+captive_start >/dev/null 2>&1
+# Should have removed old PID and written new one
+if [ -f "$CAPTIVE_PID_FILE" ]; then 
+    PID=$(cat "$CAPTIVE_PID_FILE")
+    if [ "$PID" != "99999" ]; then 
+        pass "PID file updated ($PID)"
+    else 
+        fail "PID file NOT updated (still 99999)"
+    fi
+else
+    fail "PID file missing"
+fi
+
+# 5. Service: Status (Running)
+captive_status >/dev/null 2>&1
+RET=$?
+if [ $RET -eq 0 ]; then pass "Status reported RUNNING"; else fail "Status failed (got $RET)"; fi
+
+# 6. Service: Stop
+# Mock kill
+kill() {
+    :
+}
+
+captive_stop >/dev/null 2>&1
+if [ ! -f "$CAPTIVE_PID_FILE" ]; then
+    pass "PID file removed"
+else
+    fail "PID file NOT removed"
+fi
+
+# 8. Service: Status (Stopped)
+captive_status >/dev/null 2>&1
+RET=$?
+if [ $RET -eq 3 ]; then pass "Status reported STOPPED"; else fail "Status failed (got $RET)"; fi
+
+# Cleanup mocks
+unset -f curl nohup ps kill ensure_root
+
+# Cleanup
+unset -f curl
+
+start_suite "Tor Service Interactions"
+# Mock nc
+nc() {
+    local cmd="$*"
+    # Simulate bootstrap check (port 9050)
+    if [[ "$cmd" == *"-z 127.0.0.1 9050"* ]]; then
+        if [ "$MOCK_TOR_BOOTSTRAP" == "1" ]; then return 0; else return 1; fi
+    fi
+    
+    # Simulate Control Port (port 9051)
+    if [[ "$cmd" == *"9051"* ]]; then
+        # Check if authenticating and signaling
+        # We can't easily check stdin content here easily without read, but we assume success if port valid
+        return 0
+    fi
+    
+    return 1
+}
+
+# Mock manage_service
+manage_service() {
+    :
+}
+
+# Mock tor_status_check
+tor_status_check() {
+    return 0 # Always running
+}
+
+# Test 1: Bootstrap Wait Success
+MOCK_TOR_BOOTSTRAP=1
+if tor_wait_for_bootstrap >/dev/null 2>&1; then
+    pass "Tor bootstrap detected success"
+else
+    fail "Tor bootstrap failed (when mock=1)"
+fi
+
+# Test 2: Bootstrap Wait Fail
+MOCK_TOR_BOOTSTRAP=0
+# We want this to fail fast for test, but the function has 10s timeout
+# We'll temporarily override wait in function for test speed? 
+# Better: Just test new-id for now or rely on short timeout manually?
+# Actually, let's redefine tor_wait_for_bootstrap locally to test only the nc check logic?
+# No, we can rely on the fact that our mock is instant so it hits 20 retries fast (20 * 0.5s = 10s wait in test).
+# That's too slow for unit test. We'll skip the failure test or mock sleep.
+sleep() { :; }
+
+if ! tor_wait_for_bootstrap >/dev/null 2>&1; then
+    pass "Tor bootstrap detected failure"
+else
+    fail "Tor bootstrap succeeded (when mock=0)"
+fi
+unset -f sleep
+
+# Test 3: New Identity Success
+if tor_new_identity >/dev/null; then
+     pass "New Identity requested successfully"
+else
+     fail "New Identity failed"
+fi
+
 end_suite
+exit 0
