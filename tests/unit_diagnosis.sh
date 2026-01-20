@@ -178,6 +178,31 @@ check_path() {
     return 1
 }
 
+# Mock grep to intercept sshd_config reads
+grep() {
+    local last_arg="${!#}"
+    if [[ "$last_arg" == "/etc/ssh/sshd_config" ]]; then
+        # Remove the last argument (the filename) and pipe mock content
+        # usage: grep [options] pattern filename
+        # We want: echo "$MOCK_SSH_CONFIG" | grep [options] pattern
+        
+        # Get all args except the last one
+        local args=("${@:1:$#-1}")
+        
+        # We must use 'command grep' or 'builtin grep' (if available, usually not).
+        # 'command grep' ensures we call the system grep, avoiding infinite recursion if we didn't check filename.
+        # But we are mocking grep, so 'grep' calls us.
+        # We need to call the REAL grep.
+        if echo "$MOCK_SSH_CONFIG" | command grep "${args[@]}"; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+    # Pass through normal grep usage
+    command grep "$@"
+}
+
 # Mock section (Core)
 section() {
     echo "SECTION: $1"
@@ -222,6 +247,86 @@ if echo "$OUTPUT" | grep -q "Security: .*20/100" || echo "$OUTPUT" | grep -q "Se
 else
     fail "Low Security Score failed. Got:"
     echo "$OUTPUT" | grep "Security:"
+fi
+
+# Test 3: Firefox Not Installed (Privacy Bonus)
+# ---------------------------------------------
+# Reset to full pass state first
+export MOCK_FW="on"
+export MOCK_FW_STEALTH="on"
+export MOCK_FV="on"
+export MOCK_SIP="on"
+export MOCK_GK="on"
+export MOCK_SSH_OFF="on"
+export MOCK_ANALYTICS="0"
+export MOCK_ADLIMIT="1"
+export MOCK_FF_TEL="1"
+export MOCK_USER_JS="on"
+export MOCK_SIGNAL="on"
+export MOCK_KEEPASSXC="on"
+export MOCK_TOR="on"
+export MOCK_TOR_BROWSER="on"
+export MOCK_I2P="on"
+export MOCK_PRIVOXY="on"
+export MOCK_GPG="on"
+export MOCK_OPENSSL="on"
+export MOCK_DNS_OUT="127.0.0.1"
+export MOCK_SERVICE_RUNNING="on"
+
+# Set Firefox to NOT installed
+export MOCK_FF_INSTALLED="off"
+
+OUTPUT=$(diagnosis_run)
+if echo "$OUTPUT" | grep -q "Privacy.*: .*100/100"; then
+    pass "Privacy Score 100 detected with Firefox not installed (Bonus applied)"
+else
+    fail "Privacy Score failed for Firefox bonus. Got:"
+    echo "$OUTPUT" | grep "Privacy"
+fi
+
+
+
+# Test 4: SSH Hardening Scoring
+# -----------------------------
+# Case A: Remote Login OFF (Score 10)
+export MOCK_SSH_OFF="on"
+OUTPUT=$(diagnosis_run)
+if echo "$OUTPUT" | grep -q "Security: .*100/100"; then
+    pass "SSH: Off -> Full Score"
+else
+    fail "SSH: Off failed. Got:"
+    echo "$OUTPUT" | grep "Security"
+fi
+
+# Case B: Remote Login ON + Weak Config (Score 0 or Partial)
+export MOCK_SSH_OFF="off"
+export MOCK_SSH_CONFIG=""
+OUTPUT=$(diagnosis_run)
+if echo "$OUTPUT" | grep -q "Security: .*90/100"; then # Lost 10 pts
+    pass "SSH: On + Weak -> Correctly penalized"
+else
+    fail "SSH: On + Weak failed. Got:"
+    echo "$OUTPUT" | grep "Security"
+fi
+
+# Case C: Remote Login ON + Partial Config (PermitRootLogin only) (Score 5)
+export MOCK_SSH_CONFIG="PermitRootLogin no"
+OUTPUT=$(diagnosis_run)
+if echo "$OUTPUT" | grep -q "Security: .*95/100"; then # Lost 5 pts
+    pass "SSH: On + Partial -> Correctly scored (5/10)"
+else
+    fail "SSH: On + Partial failed. Got:"
+    echo "$OUTPUT" | grep "Security"
+fi
+
+# Case D: Remote Login ON + Full Hardening (Score 10)
+export MOCK_SSH_CONFIG=$'PermitRootLogin no\nPasswordAuthentication no'
+OUTPUT=$(diagnosis_run)
+if echo "$OUTPUT" | grep -q "Security: .*100/100"; then
+    pass "SSH: On + Hardened -> Full Score"
+else
+    fail "SSH: On + Hardened failed. Got:"
+    echo "$OUTPUT" | grep "Security"
 fi
 
 end_suite

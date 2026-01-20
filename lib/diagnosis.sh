@@ -6,11 +6,6 @@
 # Score Weights (Total 100 per category)
 # These are arbitrary but prioritize critical items.
 
-
-
-
-
-
 diagnosis_run() {
     header "System Diagnosis & Scoring"
     info "Analyzing system configuration..."
@@ -84,11 +79,19 @@ diagnosis_run() {
     if echo "$remote_login_status" | grep -i -q "Off"; then
         ((sec_passed+=10))
     else
-        # If On, check config
+        # If On, check strictly for BOTH PermitRootLogin no AND PasswordAuthentication no
+        local ssh_score=0
         if grep -q "^PermitRootLogin no" /etc/ssh/sshd_config 2>/dev/null; then
-             ((sec_passed+=10))
-        else
-             warn "  [FAIL] Remote Login is ON and potentially weak (PermitRootLogin not clearly 'no')."
+             ((ssh_score+=5))
+        fi
+        if grep -q "^PasswordAuthentication no" /etc/ssh/sshd_config 2>/dev/null; then
+             ((ssh_score+=5))
+        fi
+        
+        ((sec_passed+=ssh_score))
+        
+        if [ "$ssh_score" -lt 10 ]; then
+             warn "  [FAIL] Remote Login is ON but not fully hardened (Score: $ssh_score/10). Needs 'PermitRootLogin no' AND 'PasswordAuthentication no'."
         fi
     fi
     
