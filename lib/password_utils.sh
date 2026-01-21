@@ -26,6 +26,18 @@ generate_password() {
         return 1
     fi
     
+    # Strategy 1: Python 3 (secrets module) - Cryptographically strong & fast
+    if command -v python3 >/dev/null 2>&1; then
+         # Extract the LAST column (split()[-1]) to handle "12345 word" or just "word" formats.
+         local py_script="import secrets, sys; print(' '.join(secrets.choice([line.strip().split()[-1] for line in open(sys.argv[1]) if line.strip()]) for _ in range(int(sys.argv[2]))))"
+         # We try to run it. If it succeeds, return. If it fails (e.g. some weird env), fall back.
+         if python3 -c "$py_script" "$WORDLIST_PATH" "$num_words" 2>/dev/null; then
+             return 0
+         fi
+    fi
+
+    # Strategy 2: Shell / OpenSSL / urandom Fallback
+    
     for (( i=0; i<num_words; i++ )); do
         # Get random line number (1 to total_lines)
         local rand_line

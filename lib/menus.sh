@@ -294,8 +294,29 @@ menu_privacy() {
             1)
                  load_module "password_utils"
                  pwd=$(generate_password 6)
-                 info "Generated Password: $pwd"
+                 
+                 # Show strength analysis first (it doesn't print the password)
                  check_strength "$pwd"
+                 echo
+                 
+                 # Offer clipboard support if available
+                 if command -v pbcopy >/dev/null 2>&1; then
+                     read -p "Copy to clipboard instead of printing? (y/n) [y]: " -r copy_choice
+                     # Default to yes
+                     copy_choice=${copy_choice:-y}
+                     
+                     if [[ "$copy_choice" =~ ^[Yy]$ ]]; then
+                         echo -n "$pwd" | pbcopy
+                         info "Password copied to clipboard!"
+                     else
+                         info "Generated Password: $pwd"
+                     fi
+                 else
+                     info "Generated Password: $pwd"
+                 fi
+                 
+                 # Clear variable from memory
+                 unset pwd
                  ;;
             2)
                  load_module "vault"

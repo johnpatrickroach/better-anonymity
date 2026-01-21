@@ -59,4 +59,33 @@ OUTPUT=$(check_strength "correct horse battery staple one two")
 assert_contains "$OUTPUT" "Rating: ${GREEN}Excellent${NC}" "6 words is excellent"
 
 
+
+# Test 3: Python Integration & Fallback
+# -------------------------------------
+
+# 1. Force Fallback (Simulate no Python)
+# Save original function if any (probably not defined but `command -v` checks binary)
+# To mock `python3`, we define a function. `command -v` in bash returns true for functions too usually?
+# Actually `command -v` might return true for function, but valid usage in script is `if command -v python3`.
+# Code: `if command -v python3 >/dev/null 2>&1; then`
+# If I define `python3() { return 0; }`, `command -v` finds it.
+
+python3() { return 127; } # Mock failure
+PWD_FALLBACK=$(generate_password 4)
+SPACES=$(echo "$PWD_FALLBACK" | grep -o " " | wc -l | xargs)
+assert_equals "3" "$SPACES" "Fallback generation should work (4 words)"
+
+# 2. Mock Python Success
+python3() {
+    # script is passed as -c arg, effectively.
+    # The actual script calls: python3 -c "..." wordlist num_words
+    # We just echo a dummy result
+    echo "mocked python password output"
+}
+# We need `command -v` to succeed. It should.
+PWD_PYTHON=$(generate_password 4)
+assert_equals "mocked python password output" "$PWD_PYTHON" "Should use python if available"
+
+# Restore? No need, end of suite.
+
 end_suite
