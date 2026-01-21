@@ -54,6 +54,14 @@ network_set_dns() {
         fi
 
         info "Configuring $service..."
+        
+        # Explain strict reset if we see the target servers but also extras
+        if [[ "$dns_servers" != "empty" ]] && [[ "$current_dns" == *"$dns_servers"* ]]; then
+             info "Detected extra/unwanted DNS servers ($current_dns). Resetting to strict list..."
+        elif [[ "$dns_servers" != "empty" ]]; then
+             info "DNS mismatch ($current_dns != $dns_servers). Overwriting..."
+        fi
+
         # Requires sudo
         execute_sudo "Set DNS for $service" networksetup -setdnsservers "$service" $dns_servers
     done
@@ -65,16 +73,20 @@ network_set_dns() {
 }
 
 network_update_hosts() {
-    info "Updating /etc/hosts with StevenBlack blocklist..."
+    local HOSTS_FILE="${HOSTS_FILE:-"$HOSTS_FILE"}"
+    info "Updating "$HOSTS_FILE" with StevenBlack blocklist..."
     local START_MARKER="### BETTER-ANONYMITY-START"
     local END_MARKER="### BETTER-ANONYMITY-END"
-    local LOCAL_BLOCKLIST="config/hosts"
+    
+    # Use configurable config directory (defaults to config)
+    local CONFIG_DIR="${CONFIG_DIR:-config}"
+    local LOCAL_BLOCKLIST="$CONFIG_DIR/hosts"
     local BLOCKLIST_URL="https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
 
     # 1. Download Blocklist
-    info "Downloading blocklist to config/hosts..."
+    info "Downloading blocklist to $LOCAL_BLOCKLIST..."
     # Ensure config dir exists
-    if [ ! -d "config" ]; then mkdir -p config; fi
+    if [ ! -d "$CONFIG_DIR" ]; then mkdir -p "$CONFIG_DIR"; fi
     
     # Try downloading
     if curl -sS -o "$LOCAL_BLOCKLIST" "$BLOCKLIST_URL"; then
@@ -98,27 +110,53 @@ network_update_hosts() {
     cat "$LOCAL_BLOCKLIST" >> "$TEMP_BLOCKLIST"
     echo "$END_MARKER" >> "$TEMP_BLOCKLIST"
     
-    # 3. Apply to /etc/hosts
-    # Check if markers exist
-    if grep -q "$START_MARKER" /etc/hosts; then
-        info "Removing old blocklist..."
-        # Remove old block (safely using sed in-place logic via temp file typically, or using perl for in-place)
-        # MacOS sed -i requires extension. 'sed -i ""'
-        # BUT we need to insert the new one.
-        # Strategy: Delete old block, then append new block? Or replace?
-        # Robust strategy:
-        # a) Remove old block
-        execute_sudo "Remove old blocklist" sh -c "sed -i '' '/$START_MARKER/,/$END_MARKER/d' /etc/hosts"
-        # b) Append new block
-        info "Applying blocklist..."
-        execute_sudo "Append new blocklist" sh -c "cat '$TEMP_BLOCKLIST' | tee -a /etc/hosts > /dev/null"
+    # 3. Apply to "$HOSTS_FILE" via Build & Swap
+    local TEMP_HOSTS
+    TEMP_HOSTS=$(mktemp)
+    
+    info "Preparing new hosts file..."
+    
+    # Check if markers exist to strip old block
+    if grep -q "$START_MARKER" "$HOSTS_FILE"; then
+        info "Stripping old blocklist from existing hosts..."
+        # Use sed to delete the block range and write remainder to TEMP_HOSTS
+        # We run this as current user since we only need read access to "$HOSTS_FILE"
+        sed "/$START_MARKER/,/$END_MARKER/d" "$HOSTS_FILE" > "$TEMP_HOSTS"
     else
-        # Append for the first time
-        info "Applying blocklist (First Run)..."
-        execute_sudo "Append blocklist" sh -c "cat '$TEMP_BLOCKLIST' | tee -a /etc/hosts > /dev/null"
+        info "No existing blocklist found. Using current hosts..."
+        cat "$HOSTS_FILE" > "$TEMP_HOSTS"
     fi
     
-    rm -f "$TEMP_BLOCKLIST"
+    # Sanity Check: If original hosts wasn't empty, new one shouldn't be empty (unless it was ONLY the block)
+    if [ ! -s "$TEMP_HOSTS" ] && [ -s "$HOSTS_FILE" ]; then
+        # It's possible the file was only the block, or sed failed.
+        # But commonly "$HOSTS_FILE" has localhost.
+        # Let's check if it has localhost.
+        if ! grep -q "localhost" "$HOSTS_FILE"; then
+             # Original was weird, but okay.
+             true
+        elif ! grep -q "localhost" "$TEMP_HOSTS"; then
+             warn "New hosts file seems corrupted (missing localhost). strict mode prevention."
+             # Fallback: re-copy original
+             cat "$HOSTS_FILE" > "$TEMP_HOSTS"
+             # But this means we might double-append if the strip failed. 
+             # Abort is safer?
+             error "Failed to generate clean hosts file. Aborting."
+             rm -f "$TEMP_BLOCKLIST" "$TEMP_HOSTS"
+             return 1
+        fi
+    fi
+
+    # Append new block
+    info "Appending new blocklist..."
+    cat "$TEMP_BLOCKLIST" >> "$TEMP_HOSTS"
+    
+    # Atomic Swap
+    info "Applying new "$HOSTS_FILE" (requires sudo)..."
+    execute_sudo "Update hosts file" cp "$TEMP_HOSTS" "$HOSTS_FILE"
+    execute_sudo "Set hosts permissions" chmod 644 "$HOSTS_FILE"
+    
+    rm -f "$TEMP_BLOCKLIST" "$TEMP_HOSTS"
     
     # Flush cache
     execute_sudo "Flush DNS cache" dscacheutil -flushcache
@@ -314,11 +352,9 @@ network_verify_anonymity() {
     info "Verifying Anonymity Network (DNS, Proxy, Tor)..."
     
     # Detect active network service
-    local net_service="Wi-Fi"
-    if type -t detect_active_network | grep -q "function"; then
-        detect_active_network
-        net_service="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
-    fi
+    local net_service
+    net_service=$(get_safe_network_service) || return 1
+    info "Targeting Network Service: $net_service"
 
     # 1. Check Service Status
     network_check_services "$net_service"
@@ -355,11 +391,8 @@ network_restore_default() {
     fi
 
     # 2. Disable Proxies on Active Service
-    local net_service="Wi-Fi"
-    if type -t detect_active_network | grep -q "function"; then
-        detect_active_network
-        net_service="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
-    fi
+    local net_service
+    net_service=$(get_safe_network_service) || return 1
     info "Disabling Proxies on $net_service..."
     execute_sudo "Disable HTTP Proxy" networksetup -setwebproxystate "$net_service" off
     execute_sudo "Disable HTTPS Proxy" networksetup -setsecurewebproxystate "$net_service" off
@@ -394,11 +427,8 @@ network_enable_anonymity() {
     network_set_dns "localhost"
     
     # Detect active network service for Proxy
-    local net_service="Wi-Fi"
-    if type -t detect_active_network | grep -q "function"; then
-        detect_active_network
-        net_service="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
-    fi
+    local net_service
+    net_service=$(get_safe_network_service) || return 1
 
     # 3. Enable Proxies (Privoxy)
     info "Enabling Privoxy on $net_service (127.0.0.1:8118)..."
@@ -415,4 +445,41 @@ network_enable_anonymity() {
     # I2P should be used via browser config or 'i2pify' alias.
     
     success "Anonymity mode enabled."
+}
+
+# Helper: Get Safe Network Service
+get_safe_network_service() {
+    # Try auto-detection via platform.sh
+    if type -t detect_active_network | grep -q "function"; then
+        detect_active_network >/dev/null # Suppress info logs from detection
+    fi
+    
+    if [ -n "$PLATFORM_ACTIVE_SERVICE" ]; then
+        echo "$PLATFORM_ACTIVE_SERVICE"
+        return 0
+    fi
+    
+    # Fallback: Prompts
+    warn "Could not auto-detect active network service." >&2
+    echo "Available services:" >&2
+    
+    local services
+    # Get raw list, exclude headers
+    services=$(networksetup -listallnetworkservices | grep -v 'An asterisk' | grep -v 'Start using')
+    
+    if [ -z "$services" ]; then
+        error "No network services found!" >&2
+        return 1
+    fi
+
+    # Interactive Selection
+    # We use select which prints to stderr by default (good for us)
+    PS3="Select active service: "
+    select s in $services; do
+        if [ -n "$s" ]; then
+            echo "$s"
+            return 0
+        fi
+        echo "Invalid selection." >&2
+    done
 }

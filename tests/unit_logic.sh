@@ -217,12 +217,18 @@ assert_contains "$OUTPUT" "SET_DNS: -setdnsserversWi-Fi127.0.0.1" "Should set Lo
 # Test 2: Installer Logic
 # -----------------------
 # Setup environment mocks
+ORIG_ROOT_DIR="$ROOT_DIR"
+MOCK_ROOT=$(mktemp -d)
+export ROOT_DIR="$MOCK_ROOT"
+
+# Create dummy source config/actions so cp works
+mkdir -p "$ROOT_DIR/config/privoxy"
+mkdir -p "$ROOT_DIR/config/unbound"
+touch "$ROOT_DIR/config/privoxy/config" "$ROOT_DIR/config/privoxy/user.action"
+touch "$ROOT_DIR/config/unbound/unbound.conf"
+
 BREW_PREFIX="/tmp/mock_brew"
 mkdir -p "$BREW_PREFIX/etc/privoxy"
-# Create dummy source config/actions so cp works
-# Use ROOT_DIR from env
-mkdir -p "$ROOT_DIR/config/privoxy"
-touch "$ROOT_DIR/config/privoxy/config" "$ROOT_DIR/config/privoxy/user.action"
 
 # Mock cmp to force update (simulating missing destination)
 cmp() { return 1; }
@@ -245,6 +251,12 @@ assert_contains "$OUTPUT" "brew called with: services restart privoxy" "Should r
 assert_contains "$OUTPUT" "Updating user.action" "Should copy user.action"
 assert_contains "$OUTPUT" "SET_DNS: -setwebproxy Wi-Fi 127.0.0.1 8118" "Should set HTTP proxy"
 assert_contains "$OUTPUT" "SET_DNS: -setsecurewebproxy Wi-Fi 127.0.0.1 8118" "Should set HTTPS proxy"
+
+# Cleanup Installer logic mocks
+if [ -n "$MOCK_ROOT" ] && [ -d "$MOCK_ROOT" ]; then
+    rm -rf "$MOCK_ROOT"
+fi
+export ROOT_DIR="$ORIG_ROOT_DIR"
 
 # Test 3: Hostname Anonymization
 # ------------------------------
@@ -2965,6 +2977,7 @@ export HOME
 # Test 15: Network Restore & Anonymize
 # ------------------------------------
 start_suite "Network Restore & Anonymize"
+export PLATFORM_ACTIVE_SERVICE="Wi-Fi"
 
 # Restore logic-aware execute_sudo (recovering from previous test overrides)
 execute_sudo() { 
@@ -3314,6 +3327,12 @@ if tor_new_identity >/dev/null; then
      pass "New Identity requested successfully"
 else
      fail "New Identity failed"
+fi
+
+
+# Cleanup isolated environment
+if [ -n "$MOCK_ROOT" ] && [ -d "$MOCK_ROOT" ]; then
+    rm -rf "$MOCK_ROOT"
 fi
 
 end_suite

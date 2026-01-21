@@ -250,63 +250,85 @@ MOCK_PGREP_DNSCRYPT="false" # Reset
 
 # Test 6: Network Update Hosts (Clean Install)
 # --------------------------------------------
-MOCK_HOSTS_CONTENT="127.0.0.1 localhost"
+# Create a real temp file for hosts to verify Build & Swap logic
+TEST_HOSTS=$(mktemp)
+echo "127.0.0.1 localhost" > "$TEST_HOSTS"
+export HOSTS_FILE="$TEST_HOSTS"
+
 # Mock curl success
 curl() { return 0; }
-# Mock file read of config/hosts
-cat() {
-    if [[ "$*" == *"config/hosts"* ]]; then
-        echo "0.0.0.0 ads.example.com"
-    elif [[ "$*" == "/etc/hosts" ]]; then
-        echo "$MOCK_HOSTS_CONTENT"
-    else
-        # In the update logic, we do `cat '$TEMP_BLOCKLIST'`.
-        # Real cat would cat the file.
-        # We need to simulate that or mock cat to return something predictable.
-        # But wait, mktemp creates a real file in /tmp.
-        # We should allow cat to work on /tmp files.
-        if [[ "$*" == *"/tmp/"* ]] || [[ "$*" == *"/var/folders/"* ]]; then
-             /bin/cat "$@"
-        else
-             echo "$*"
-        fi
-    fi
-}
-# Mock execute_sudo to capture the write
+# Mock execute_sudo to allow cp/chmod on our temp file
 execute_sudo() {
     shift # Remove description
-    local cmd_str="$*"
-    echo "EXEC: $cmd_str"
-    
-    # Simulate side effects for logic flow
-    if [[ "$cmd_str" == *"sed"* ]]; then
-        # Simulate marker removal
-        MOCK_HOSTS_CONTENT=$(echo "$MOCK_HOSTS_CONTENT" | sed '/### BETTER-ANONYMITY-START/,/### BETTER-ANONYMITY-END/d')
+    CMD="$1"
+    shift
+    # If command is cp or chmod, execute it for real on our temp file
+    if [[ "$CMD" == "cp" ]] || [[ "$CMD" == "chmod" ]]; then
+       "$CMD" "$@"
+    else
+       echo "EXEC: $CMD $*"
     fi
 }
-# grep function mock removed in favor of PATH mock
-export -f cat
-export -f curl
-export -f execute_sudo
-export MOCK_HOSTS_CONTENT
+
+# Create temp config dir explicitly to avoid touching repo config
+TEST_CONFIG_DIR=$(mktemp -d)
+export CONFIG_DIR="$TEST_CONFIG_DIR"
+mkdir -p "$TEST_CONFIG_DIR"
+echo "0.0.0.0 ads.example.com" > "$TEST_CONFIG_DIR/hosts"
 
 OUTPUT=$(network_update_hosts)
-assert_contains "$OUTPUT" "Updating /etc/hosts" "Should announce update"
-# The actual command string captured is: execute_sudo "Append blocklist" sh -c "cat '$TEMP_BLOCKLIST' | tee -a /etc/hosts > /dev/null"
-# So checking for "tee -a /etc/hosts" should work if we check the EXEC output line.
-assert_contains "$OUTPUT" "tee -a /etc/hosts" "Should trigger append"
+
+assert_contains "$OUTPUT" "Updating $TEST_HOSTS" "Should announce update"
+assert_contains "$OUTPUT" "Applying new $TEST_HOSTS" "Should announce swap"
+
+# Verify content
+if grep -q "### BETTER-ANONYMITY-START" "$TEST_HOSTS"; then
+    pass "Hosts file contains start marker"
+else
+    fail "Hosts file missing start marker"
+fi
+
+if grep -q "0.0.0.0 ads.example.com" "$TEST_HOSTS"; then
+    pass "Hosts file contains blocklist content"
+else
+    fail "Hosts file missing blocklist content"
+fi
+
+# Cleanup
+rm -f "$TEST_HOSTS"
 
 # Test 7: Network Update Hosts (Update Existing)
 # ----------------------------------------------
-MOCK_HOSTS_CONTENT="127.0.0.1 localhost
+TEST_HOSTS_EXISTING=$(mktemp)
+cat <<EOF > "$TEST_HOSTS_EXISTING"
+127.0.0.1 localhost
 ### BETTER-ANONYMITY-START
 0.0.0.0 old.ads.com
-### BETTER-ANONYMITY-END"
-export MOCK_HOSTS_CONTENT
+### BETTER-ANONYMITY-END
+EOF
+export HOSTS_FILE="$TEST_HOSTS_EXISTING"
 
 OUTPUT=$(network_update_hosts)
-assert_contains "$OUTPUT" "Removing old blocklist" "Should announce removal of old list"
-assert_contains "$OUTPUT" "Applying blocklist" "Should apply new list"
+assert_contains "$OUTPUT" "Stripping old blocklist" "Should announce removal of old list"
+assert_contains "$OUTPUT" "Applying new $TEST_HOSTS_EXISTING" "Should apply new list"
+
+# Verify old content is gone and new is present
+if grep -q "old.ads.com" "$TEST_HOSTS_EXISTING"; then
+    fail "Old blocklist content should be gone"
+else
+    pass "Old blocklist content removed"
+fi
+
+if grep -q "ads.example.com" "$TEST_HOSTS_EXISTING"; then
+     pass "New blocklist content present"
+else
+     fail "New blocklist content missing"
+fi
+
+# Cleanup
+rm -f "$TEST_HOSTS_EXISTING"
+rm -rf "$TEST_CONFIG_DIR"
+unset CONFIG_DIR
 
 
 teardown_path_mocks
@@ -386,6 +408,75 @@ fi
 MOCK_CURRENT_DNS="empty"
 OUTPUT=$(network_set_dns "default")
 assert_contains "$OUTPUT" "DNS for Wi-Fi is already set to default" "Should detect existing default"
+
+# Test 13: Detect Extra DNS Servers
+# --------------------------------------------------
+# Reset any previous variables
+unset MOCK_CURRENT_DNS
+
+# Override networksetup to return Extra servers + Target (Cloudflare has 1.1.1.1 1.0.0.1)
+networksetup() {
+    if [[ "$1" == "-listallnetworkservices" ]]; then
+        echo "Wi-Fi"
+    elif [[ "$1" == "-getdnsservers" ]]; then
+        # Return Cloudflare (Both IPs) + Google (Extra)
+        echo "1.1.1.1"
+        echo "1.0.0.1"
+        echo "8.8.8.8"
+    else
+        return 0
+    fi
+}
+
+OUTPUT=$(network_set_dns "cloudflare")
+assert_contains "$OUTPUT" "Setting DNS to Cloudflare" "Should announce setting Cloudflare"
+assert_contains "$OUTPUT" "Detected extra/unwanted DNS servers" "Should warn about extra servers"
+# Ensure it actually calls the set command (Using EXEC_SUDO marker from mock)
+assert_contains "$OUTPUT" "EXEC_SUDO: networksetup -setdnsservers Wi-Fi 1.1.1.1 1.0.0.1" "Should execute strict reset"
+
+
+# Test 14: Safe Network Service Fallback
+# --------------------------------------------------
+# Reset any mocks
+unset PLATFORM_ACTIVE_SERVICE
+unset MOCK_CURRENT_DNS
+
+# Mock detect_active_network to fail auto-detection
+detect_active_network() {
+    export PLATFORM_ACTIVE_SERVICE=""
+}
+export -f detect_active_network
+
+# Mock networksetup to list multiple services
+networksetup() {
+    if [[ "$*" == *"-listallnetworkservices"* ]]; then
+        echo "An asterisk (*) denotes that a network service is disabled."
+        echo "Ethernet"
+        echo "Wi-Fi"
+        echo "Thunderbolt Bridge"
+    fi
+}
+export -f networksetup
+
+# Test Interactive Selection (Select 1: Ethernet)
+# PS3 is sent to stderr, select output to stderr, echo $s to stdout.
+# We pipe "1\n" to select "Ethernet"
+SERVICE=$(echo "1" | get_safe_network_service 2>/dev/null)
+
+if [ "$SERVICE" == "Ethernet" ]; then
+    pass "Fallback prompt selected correct service (Ethernet)"
+else
+    fail "Fallback prompt failed. Expected 'Ethernet', got '$SERVICE'"
+fi
+
+# Test Interactive Selection (Select 2: Wi-Fi)
+SERVICE_2=$(echo "2" | get_safe_network_service 2>/dev/null)
+
+if [ "$SERVICE_2" == "Wi-Fi" ]; then
+    pass "Fallback prompt selected correct service (Wi-Fi)"
+else
+    fail "Fallback prompt failed. Expected 'Wi-Fi', got '$SERVICE_2'"
+fi
 
 teardown_path_mocks
 end_suite
