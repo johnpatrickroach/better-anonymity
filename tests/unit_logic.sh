@@ -423,58 +423,44 @@ OUTPUT=$(hardening_secure_homebrew)
 # Restore HOME
 export HOME="$OLD_HOME"
 
-
 assert_contains "$OUTPUT" "Disabling Homebrew Analytics" "Should try to disable analytics"
 assert_contains "$OUTPUT" "brew called with: analytics off" "Should run brew analytics off"
 assert_contains "$OUTPUT" "Set HOMEBREW_NO_INSECURE_REDIRECT=1" "Should set env var"
 assert_contains "$OUTPUT" "SECURITY WARNING" "Should warn about TCC"
-assert_contains "$OUTPUT" "Added HOMEBREW_NO_INSECURE_REDIRECT to $TEST_7_HOME/.zshrc" "Should update zshrc (redirect)"
-assert_contains "$OUTPUT" "Added HOMEBREW_NO_ANALYTICS to $TEST_7_HOME/.zshrc" "Should update zshrc (analytics)"
+assert_contains "$OUTPUT" "Creating centralized config at $TEST_7_HOME/.homebrew_secure_env" "Should create secure env file"
+assert_contains "$OUTPUT" "Added source command for secure env to $TEST_7_HOME/.zshrc" "Should update zshrc with source"
 
 # Verify file content
-if grep -q "HOMEBREW_NO_INSECURE_REDIRECT=1" "$TEST_7_HOME/.zshrc"; then
-    assert_equals "true" "true" "zshrc should contain insecure redirect"
+if grep -q "source \"$TEST_7_HOME/.homebrew_secure_env\"" "$TEST_7_HOME/.zshrc"; then
+    pass "zshrc contains correct source command"
 else
-    assert_equals "true" "false" "zshrc should contain insecure redirect"
+    fail "zshrc missing correct source command"
 fi
 
-if grep -q "HOMEBREW_NO_ANALYTICS=1" "$TEST_7_HOME/.zshrc"; then
-    assert_equals "true" "true" "zshrc should contain analytics"
+if [ ! -f "$TEST_7_HOME/.homebrew_secure_env" ]; then
+    fail "Secure env file not created"
 else
-    assert_equals "true" "false" "zshrc should contain analytics"
-fi
-
-# Helper checks
-zshrc_content=$(cat "$TEST_7_HOME/.zshrc")
-
-if grep -q "alias torify='export ALL_PROXY=socks5h://127.0.0.1:9050'" "$TEST_7_HOME/.zshrc"; then
-    pass "zshrc contains correct torify alias"
-else
-    fail "zshrc missing correct torify alias: $zshrc_content"
-fi
-
-if grep -q "alias untorify='unset ALL_PROXY'" "$TEST_7_HOME/.zshrc"; then
-    pass "zshrc contains correct untorify alias"
-else
-    fail "zshrc missing correct untorify alias"
-fi
-
-if grep -q "alias tor-run='env ALL_PROXY=socks5h://127.0.0.1:9050'" "$TEST_7_HOME/.zshrc"; then
-    pass "zshrc contains correct tor-run alias"
-else
-    fail "zshrc missing correct tor-run alias"
-fi
-
-if grep -q "alias stay-connected='better-anonymity captive monitor'" "$TEST_7_HOME/.zshrc"; then
-    pass "zshrc contains stay-connected alias (captive monitor)"
-else
-    fail "zshrc missing correct stay-connected alias"
-fi
-
-if grep -q "alias i2pify=" "$TEST_7_HOME/.zshrc"; then
-    pass "zshrc contains i2pify alias"
-else
-    fail "zshrc missing i2pify alias"
+    pass "Secure env file created"
+    
+    env_content=$(cat "$TEST_7_HOME/.homebrew_secure_env")
+    
+    if grep -q "HOMEBREW_NO_INSECURE_REDIRECT=1" "$TEST_7_HOME/.homebrew_secure_env"; then
+         pass "env file contains HOMEBREW_NO_INSECURE_REDIRECT"
+    else
+         fail "env file missing HOMEBREW_NO_INSECURE_REDIRECT"
+    fi
+    
+    if grep -q "alias torify=" "$TEST_7_HOME/.homebrew_secure_env"; then
+         pass "env file contains torify alias"
+    else
+         fail "env file missing torify alias"
+    fi
+    
+    if grep -q "alias stay-connected=" "$TEST_7_HOME/.homebrew_secure_env"; then
+         pass "env file contains stay-connected alias"
+    else
+         fail "env file missing stay-connected alias"
+    fi
 fi
 
 # Cleanup

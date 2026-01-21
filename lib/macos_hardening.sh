@@ -159,29 +159,47 @@ hardening_disable_parallels() {
 hardening_configure_privacy() {
     info "Configuring Spotlight and Privacy..."
     # Disable Spotlight suggestions
-    defaults write com.apple.spotlight orderedItems -array \
-        '{"enabled" = 1;"name" = "APPLICATIONS";}' \
-        '{"enabled" = 1;"name" = "SYSTEM_PREFS";}' \
-        '{"enabled" = 1;"name" = "DIRECTORIES";}' \
-        '{"enabled" = 1;"name" = "PDF";}' \
-        '{"enabled" = 1;"name" = "FONTS";}' \
-        '{"enabled" = 0;"name" = "DOCUMENTS";}' \
-        '{"enabled" = 0;"name" = "MESSAGES";}' \
-        '{"enabled" = 0;"name" = "CONTACTS";}' \
-        '{"enabled" = 0;"name" = "EVENT_TODO";}' \
-        '{"enabled" = 0;"name" = "IMAGES";}' \
-        '{"enabled" = 0;"name" = "BOOKMARKS";}' \
-        '{"enabled" = 0;"name" = "MUSIC";}' \
-        '{"enabled" = 0;"name" = "MOVIES";}' \
-        '{"enabled" = 0;"name" = "PRESENTATIONS";}' \
-        '{"enabled" = 0;"name" = "SPREADSHEETS";}' \
-        '{"enabled" = 0;"name" = "SOURCE";}' \
-        '{"enabled" = 0;"name" = "MENU_DEFINITION";}' \
-        '{"enabled" = 0;"name" = "MENU_OTHER";}' \
-        '{"enabled" = 0;"name" = "MENU_CONVERSION";}' \
-        '{"enabled" = 0;"name" = "MENU_EXPRESSION";}' \
-        '{"enabled" = 0;"name" = "WEB_VIDEO";}' \
-        '{"enabled" = 0;"name" = "MENU_SPOTLIGHT_SUGGESTIONS";}'
+    # Disable Spotlight suggestions (Non-destructive update of orderedItems)
+    # We use Python to surgically disable 'MENU_SPOTLIGHT_SUGGESTIONS' and 'MENU_WEBSEARCH'
+    # without resetting the user's custom sort order or other categories.
+    
+    if command -v python3 >/dev/null 2>&1; then
+        local plist_path="$HOME/Library/Preferences/com.apple.Spotlight.plist"
+        # Helper script to modify the specialized array-of-dicts
+        python3 -c "
+import plistlib, os, sys
+
+path = os.path.expanduser('$plist_path')
+if not os.path.exists(path):
+    sys.exit(0) # Nothing to modify
+
+try:
+    with open(path, 'rb') as f:
+        pl = plistlib.load(f)
+    
+    changed = False
+    if 'orderedItems' in pl:
+        for item in pl['orderedItems']:
+            # Target specific privacy-invasive categories
+            if item.get('name') in ['MENU_SPOTLIGHT_SUGGESTIONS', 'MENU_WEBSEARCH', 'MENU_OTHER']:
+                if item.get('enabled') != False:
+                    item['enabled'] = False
+                    changed = True
+    
+    if changed:
+        with open(path, 'wb') as f:
+            plistlib.dump(pl, f)
+        print('Updated Spotlight preferences.')
+except Exception as e:
+    print(f'Error updating Spotlight plist: {e}')
+"
+    else
+        # Fallback if Python is missing: Just warn, don't overwrite user config destructively.
+        warn "Python3 not found. Skipping granular Spotlight configuration to preserve user settings."
+    fi
+    
+    # 2. Disable 'Look up' & Suggestions at the system level (Global key)
+    defaults write com.apple.lookup.shared LookupEnabled -bool false 2>/dev/null || true
     
     killall mds > /dev/null 2>&1 || true
     execute_sudo "Re-enable indexing" mdutil -i on / > /dev/null
@@ -391,49 +409,39 @@ hardening_secure_homebrew() {
     info "Set HOMEBREW_NO_INSECURE_REDIRECT=1 for this session."
     
     # Persistence
+    # Persistence (Centralized File)
+    local brew_env_file="$HOME/.homebrew_secure_env"
+    
     if ask_confirmation "Add Homebrew security variables and proxy aliases to shell profiles?"; then
+        info "Creating centralized config at $brew_env_file..."
+        
+        {
+            echo "# Better Anonymity - Homebrew & Proxy Hardening"
+            echo "export HOMEBREW_NO_ANALYTICS=1"
+            echo "export HOMEBREW_NO_INSECURE_REDIRECT=1"
+            echo "export HOMEBREW_CASK_OPTS=--require-sha"
+            echo ""
+            echo "# Tor/I2P Aliases"
+            echo "alias torify='export ALL_PROXY=socks5h://127.0.0.1:9050'"
+            echo "alias untorify='unset ALL_PROXY'"
+            echo "alias tor-run='env ALL_PROXY=socks5h://127.0.0.1:9050'"
+            echo "alias stay-connected='better-anonymity captive monitor'"
+            echo "alias i2pify='export http_proxy=http://127.0.0.1:4444 https_proxy=http://127.0.0.1:4445'"
+        } > "$brew_env_file"
+        
         local profiles=("$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc")
         for profile in "${profiles[@]}"; do
             if [ -f "$profile" ] || { [ "$SHELL" = "/bin/zsh" ] && [ "$profile" = "$HOME/.zshrc" ]; } || { [ "$SHELL" = "/bin/bash" ] && [ "$profile" = "$HOME/.bash_profile" ]; }; then
-                info "Ensuring persistence in $profile..."
                 if [ ! -f "$profile" ]; then touch "$profile"; fi
                 
-                if ! grep -q "HOMEBREW_NO_INSECURE_REDIRECT=1" "$profile"; then
-                    echo "export HOMEBREW_NO_INSECURE_REDIRECT=1" >> "$profile"
-                    info "Added HOMEBREW_NO_INSECURE_REDIRECT to $profile"
-                fi
-                
-                if ! grep -q "HOMEBREW_NO_ANALYTICS=1" "$profile"; then
-                    echo "export HOMEBREW_NO_ANALYTICS=1" >> "$profile"
-                    info "Added HOMEBREW_NO_ANALYTICS to $profile"
-                fi
-                
-                # Torify Aliases
-                if ! grep -q "alias torify=" "$profile"; then
-                     echo "alias torify='export ALL_PROXY=socks5h://127.0.0.1:9050'" >> "$profile"
-                     info "Added 'torify' alias to $profile"
-                fi
-                if ! grep -q "alias untorify=" "$profile"; then
-                     echo "alias untorify='unset ALL_PROXY'" >> "$profile"
-                     info "Added 'untorify' alias to $profile"
-                fi
-                
-                # Single Command Alias
-                if ! grep -q "alias tor-run=" "$profile"; then
-                     echo "alias tor-run='env ALL_PROXY=socks5h://127.0.0.1:9050'" >> "$profile"
-                     info "Added 'tor-run' alias to $profile"
-                fi
-                
-                # Captive Monitor Alias (Launches separate terminal)
-                if ! grep -q "alias stay-connected=" "$profile"; then
-                     echo "alias stay-connected='better-anonymity captive monitor'" >> "$profile"
-                     info "Added 'stay-connected' alias to $profile"
-                fi
-
-                # I2P Alias (HTTP Proxy 4444)
-                if ! grep -q "alias i2pify=" "$profile"; then
-                     echo "alias i2pify='export http_proxy=http://127.0.0.1:4444 https_proxy=http://127.0.0.1:4445'" >> "$profile"
-                     info "Added 'i2pify' alias to $profile"
+                # Source the centralized file if not already present
+                if ! grep -q "source.*$brew_env_file" "$profile" && ! grep -q "\. .*$brew_env_file" "$profile"; then
+                    echo "" >> "$profile"
+                    echo "# Better Anonymity Hardening" >> "$profile"
+                    echo "[ -f \"$brew_env_file\" ] && source \"$brew_env_file\"" >> "$profile"
+                    info "Added source command for secure env to $profile"
+                else
+                    info "Profile $profile already sources secure env."
                 fi
             fi
         done
@@ -444,7 +452,6 @@ hardening_secure_homebrew() {
     # TCC Warning
     warn "SECURITY WARNING: Homebrew requests 'App Management' or 'Full Disk Access'. Granting this is dangerous."
     warn "It allows any non-sandboxed app to execute code with Terminal's permissions."
-    warn "Do NOT grant full disk access to Terminal for Homebrew if likely to run untrusted code."
     warn "Do NOT grant full disk access to Terminal for Homebrew if likely to run untrusted code."
 }
 
@@ -508,7 +515,115 @@ hardening_reset_tcc() {
     fi
 }
 
+
+hardening_backup() {
+    local backup_root="$HOME/.better-anonymity/backups"
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_dir="${backup_root}/hardening_${timestamp}"
+    
+    info "Creating hardening backup at $backup_dir..."
+    mkdir -p "$backup_dir"
+    
+    # 1. Defaults Domains
+    local domains=(
+        "com.apple.spotlight"
+        "com.apple.loginwindow"
+        "com.apple.alf"
+        "com.apple.mDNSResponder"
+        "com.apple.CrashReporter"
+        "com.apple.AdLib"
+        "com.apple.assistant.support"
+        "com.apple.lookup.shared"
+    )
+    
+    for domain in "${domains[@]}"; do
+        if defaults read "$domain" &>/dev/null; then
+            defaults export "$domain" "$backup_dir/$domain.plist"
+        fi
+    done
+    
+    # 2. Hostname
+    scutil --get ComputerName > "$backup_dir/ComputerName.txt"
+    scutil --get LocalHostName > "$backup_dir/LocalHostName.txt"
+    scutil --get HostName > "$backup_dir/HostName.txt"
+    
+    # 3. Files
+    if [ -f "$HOME/.homebrew_secure_env" ]; then
+        cp "$HOME/.homebrew_secure_env" "$backup_dir/homebrew_secure_env"
+    fi
+    
+    info "Backup complete."
+}
+
+hardening_restore() {
+    local backup_root="$HOME/.better-anonymity/backups"
+    if [ ! -d "$backup_root" ]; then
+        warn "No backups found."
+        return 1
+    fi
+    
+    echo "Available backups:"
+    ls -1 "$backup_root" | grep "hardening_"
+    echo ""
+    
+    local selected_backup
+    read -p "Enter backup directory name to restore (e.g., hardening_2023...): " selected_backup
+    local restore_path="$backup_root/$selected_backup"
+    
+    if [ ! -d "$restore_path" ]; then
+        warn "Backup not found: $restore_path"
+        return 1
+    fi
+    
+    if ask_confirmation "Restore system settings from $selected_backup? This requires sudo."; then
+        info "Restoring defaults from plists..."
+        for plist in "$restore_path"/*.plist; do
+            if [ -f "$plist" ]; then
+                local domain
+                domain=$(basename "$plist" .plist)
+                info "Restoring defaults for $domain..."
+                # defaults import is safer than write
+                defaults import "$domain" "$plist"
+            fi
+        done
+        
+        info "Restoring Hostnames..."
+        if [ -f "$restore_path/ComputerName.txt" ]; then
+             execute_sudo "Restore ComputerName" scutil --set ComputerName "$(cat "$restore_path/ComputerName.txt")"
+        fi
+         if [ -f "$restore_path/LocalHostName.txt" ]; then
+             execute_sudo "Restore LocalHostName" scutil --set LocalHostName "$(cat "$restore_path/LocalHostName.txt")"
+        fi
+         if [ -f "$restore_path/HostName.txt" ]; then
+             execute_sudo "Restore HostName" scutil --set HostName "$(cat "$restore_path/HostName.txt")"
+        fi
+        
+        info "Restoring Homebrew Env..."
+        if [ -f "$restore_path/homebrew_secure_env" ]; then
+            cp "$restore_path/homebrew_secure_env" "$HOME/.homebrew_secure_env"
+        elif [ -f "$HOME/.homebrew_secure_env" ]; then
+            # If it didn't exist in backup but exists now, maybe remove it?
+            # Or just leave it. Let's just restore if present.
+             true
+        fi
+        
+        # Reload services
+        info "Reloading services..."
+        killall cfprefsd &>/dev/null || true
+        killall SystemUIServer &>/dev/null || true
+        execute_sudo "Reload Firewall" pkill -HUP socketfilterfw &>/dev/null || true
+        execute_sudo "Reload mDNSResponder" killall -HUP mDNSResponder &>/dev/null || true
+        
+        warn "Restore complete. A restart is recommended to ensure all changes take effect."
+    fi
+}
+
 hardening_run_all() {
+    if ask_confirmation "Create a backup of system settings before hardening?"; then
+        hardening_backup
+    fi
+
     hardening_update_system
     hardening_enable_firewall
     hardening_disable_analytics
