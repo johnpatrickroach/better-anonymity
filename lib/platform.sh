@@ -38,7 +38,8 @@ check_macos() {
 
 # Helper: Check for battery presence (indicates laptop)
 has_battery() {
-    ioreg -c AppleSmartBattery -r | grep -q "BatteryInstalled"
+    # Check for InternalBattery explicitly to avoid UPS false positives
+    pmset -g batt | grep -q "InternalBattery"
 }
 
 detect_model() {
@@ -53,8 +54,9 @@ detect_model() {
         export PLATFORM_TYPE="Laptop"
         info "Detected Model: $model_id (Laptop)"
     elif [[ "$model_id" == *"Macmini"* ]] || [[ "$model_id" == *"iMac"* ]] || [[ "$model_id" == *"MacPro"* ]] || [[ "$model_id" == *"Mac1"* ]]; then
-        # 'Mac1,x' or generic 'Mac' identifiers could be anything.
-        # Check battery to disambiguate.
+        # 'Mac1,x' (common on M1/M2/M3 chips) or generic 'Mac' identifiers are ambiguous.
+        # They don't encode form factor (Laptop vs Desktop) like legacy 'MacBookPro' strings.
+        # We must check for a battery to definitively classify them as Laptops.
         if has_battery; then
             export PLATFORM_TYPE="Laptop"
             info "Detected Model: $model_id (Laptop - Battery Detected)"
@@ -97,10 +99,14 @@ get_wifi_device() {
     dev=$(networksetup -listallhardwareports | grep -A 1 -E "Hardware Port: (Wi-Fi|AirPort|WLAN)" | grep "Device:" | awk '{print $2}')
     
     if [ -z "$dev" ]; then
-        # Fallback for some systems: check for en0 if explicitly wireless??
-        # Safe default fallback
-        warn "Could not detect Wi-Fi device from hardware ports. Defaulting to en0 (heuristic)."
-        dev="en0" 
+        # Check common wireless interface en0 explicitly
+        if networksetup -getairportpower en0 >/dev/null 2>&1; then
+            warn "Could not detect Wi-Fi device from hardware ports. Defaulting to en0 (heuristic - validated)."
+            dev="en0"
+        else
+            warn "Could not detect valid Wi-Fi device."
+            dev=""
+        fi 
     fi
     echo "$dev"
 }
@@ -122,7 +128,8 @@ get_wifi_service() {
         elif networksetup -listallnetworkservices | grep -q "^WLAN$"; then
             sname="WLAN"
         else
-            sname="Wi-Fi"
+            warn "Could not determine Wi-Fi service name."
+            sname=""
         fi
     fi
     echo "$sname"
@@ -182,8 +189,8 @@ detect_active_network() {
              # Assume "Ethernet" or use device name as fallback?
              # Networksetup commands usually NEED the Service Name, not device.
              # If we can't find it, we might be in trouble for changing settings.
-             warn "Could not verify service name for $active_dev. Assuming 'Ethernet' for networksetup commands."
-             sname="Ethernet"
+     warn "Could not verify service name for $active_dev. Network configuration features will be skipped."
+             sname=""
         fi
     fi
     export PLATFORM_ACTIVE_SERVICE="$sname"

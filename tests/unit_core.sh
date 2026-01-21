@@ -320,6 +320,187 @@ test_check_internet_latency() {
          fail "check_internet succeeded when ports unreachable"
     fi
 }
+
 test_check_internet_latency
+
+# Test 9: Wi-Fi Device Detection Fallback
+# ---------------------------------------
+test_wifi_fallback() {
+    # Source platform.sh to test get_wifi_device
+    # We must mock networksetup primarily.
+    
+    # 1. Standard Detection Success
+    networksetup() {
+        if [[ "$*" == *"-listallhardwareports"* ]]; then
+            echo "Hardware Port: Wi-Fi"
+            echo "Device: en0"
+        fi
+    }
+    # Reset helper var
+    PLATFORM_WIFI_DEVICE=""
+    
+    # We need to source platform.sh, but it might have been sourced by core.sh?
+    # Let's ensure functions are available.
+    source "$(dirname "$0")/../lib/platform.sh"
+
+    DECT=$(get_wifi_device)
+    assert_equals "en0" "$DECT" "Should detect en0 via hardware port scan"
+
+    # 2. Heuristic Fallback Success
+    # Mock hardware ports failing to find "Wi-Fi" string (maybe localization issue)
+    networksetup() {
+        if [[ "$*" == *"-listallhardwareports"* ]]; then
+            echo "Hardware Port: Ethernet"
+            echo "Device: en1"
+        elif [[ "$*" == *"-getairportpower en0"* ]]; then
+            return 0 # Success, it's a wifi device
+        fi
+        return 1
+    }
+    PLATFORM_WIFI_DEVICE=""
+    DECT=$(get_wifi_device 2>/dev/null) # Suppress warning
+    assert_equals "en0" "$DECT" "Should fallback to en0 if it accepts airport power"
+
+    # 3. Fallback Failure (en0 is Ethernet)
+    networksetup() {
+        if [[ "$*" == *"-listallhardwareports"* ]]; then
+            echo "Hardware Port: Ethernet"
+            echo "Device: en0"
+        elif [[ "$*" == *"-getairportpower en0"* ]]; then
+            echo "Error: en0 is not a Wi-Fi interface"
+            return 1 # Fail
+        fi
+        return 1
+    }
+    PLATFORM_WIFI_DEVICE=""
+    DECT=$(get_wifi_device 2>/dev/null)
+    assert_equals "" "$DECT" "Should return empty if fallback en0 validation fails"
+}
+test_wifi_fallback
+
+# Test 10: Active Network Service Detection
+# -----------------------------------------
+test_active_network_detection() {
+    source "$(dirname "$0")/../lib/platform.sh"
+
+    # Mock route to return a device
+    route() { 
+        echo "   interface: en0"
+    }
+
+    # Mock networksetup for service mapping
+    networksetup() {
+        if [[ "$*" == *"-listnetworkserviceorder"* ]]; then
+            # Format:
+            # (1) Wi-Fi
+            # (Hardware Port: Wi-Fi, Device: en0)
+            echo "(1) Wi-Fi"
+            echo "(Hardware Port: Wi-Fi, Device: en0)"
+        fi
+    }
+    
+    # 1. Success Case
+    PLATFORM_ACTIVE_SERVICE=""
+    detect_active_network
+    assert_equals "Wi-Fi" "$PLATFORM_ACTIVE_SERVICE" "Should map en0 to Wi-Fi"
+
+
+    # 2. Failure/Unmapped Case (Non-WiFi)
+    # Mock route to return a different device (en5)
+    route() { 
+        echo "   interface: en5"
+    }
+
+    networksetup() {
+        if [[ "$*" == *"-listnetworkserviceorder"* ]]; then
+            echo "(1) Bluetooth PAN"
+            echo "(Hardware Port: Bluetooth PAN, Device: en3)"
+            # en5 is missing
+        fi
+    }
+    
+    # get_wifi_device is still en0 (from source), so active_dev (en5) != wifi_dev (en0)
+    # This should hit the 'else' block where Ethernet fallback used to be.
+    
+    PLATFORM_ACTIVE_SERVICE=""
+    detect_active_network 2>/dev/null
+    assert_equals "" "$PLATFORM_ACTIVE_SERVICE" "Should return empty if mapping fails (Not Ethernet)"
+}
+test_active_network_detection
+
+# Test 11: Battery Detection Strategy
+# -----------------------------------
+test_battery_detection() {
+    source "$(dirname "$0")/../lib/platform.sh"
+
+    # Mock pmset
+    pmset() {
+        if [[ "$1" == "-g" ]] && [[ "$2" == "batt" ]]; then
+            if [ "$MOCK_PMSET_MODE" == "laptop" ]; then
+                echo "Now drawing from 'Battery Power'"
+                echo " -InternalBattery-0 (id=1234567) 100%; discharging; (no estimate)"
+            elif [ "$MOCK_PMSET_MODE" == "ups" ]; then
+                echo "Now drawing from 'AC Power'"
+                echo " -UPS-0 (id=9999999) 100%; charged; 4:00 remaining"
+            else
+                echo "Now drawing from 'AC Power'"
+                echo "No battery information available"
+            fi
+        fi
+    }
+
+    # 1. Laptop Detection
+    MOCK_PMSET_MODE="laptop"
+    if has_battery; then
+        pass "Detected Laptop Battery correctly"
+    else
+        fail "Failed to detect Laptop Battery"
+    fi
+
+    # 2. Desktop (UPS) Detection
+    MOCK_PMSET_MODE="ups"
+    if ! has_battery; then
+        pass "Correctly ignored UPS"
+    else
+        fail "Incorrectly identified UPS as Laptop Battery"
+    fi
+
+    # 3. Desktop (No Info)
+    MOCK_PMSET_MODE="none"
+    if ! has_battery; then
+        pass "Correctly ignored No Battery"
+    else
+        fail "Incorrectly identified No Battery as Laptop"
+    fi
+}
+test_battery_detection
+
+# Test 12: Wi-Fi Service Fallback Safety
+# --------------------------------------
+test_wifi_service_fallback() {
+    source "$(dirname "$0")/../lib/platform.sh"
+    
+    # Needs get_wifi_device to return something valid but unmapped
+    get_wifi_device() { echo "en0"; }
+
+
+    # Mock networksetup to FAIL mapping and FAIL finding default names
+    networksetup() {
+        if [[ "$*" == *"-listnetworkserviceorder"* ]]; then
+            echo "(1) Ethernet"
+            echo "(Hardware Port: Ethernet, Device: en4)"
+        elif [[ "$*" == *"-listallnetworkservices"* ]]; then
+            echo "Ethernet"
+            echo "Bluetooth PAN"
+            echo "Thunderbolt Bridge"
+            # No Wi-Fi or WLAN here
+        fi
+    }
+    
+    PLATFORM_WIFI_SERVICE=""
+    SERVICE=$(get_wifi_service 2>/dev/null)
+    assert_equals "" "$SERVICE" "Should return empty if Wi-Fi service cannot be found"
+}
+test_wifi_service_fallback
 
 end_suite
