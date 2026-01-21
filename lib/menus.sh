@@ -100,12 +100,14 @@ menu_network() {
                 echo "2) Quad9"
                 echo "3) Mullvad"
                 echo "4) Cloudflare"
+                echo "b) Back"
                 read -r dns_choice
                 case $dns_choice in
                     1) network_set_dns "dnscrypt-proxy" ;;
                     2) network_set_dns "quad9" ;;
                     3) network_set_dns "mullvad" ;;
                     4) network_set_dns "cloudflare" ;;
+                    b|back) continue ;;
                     *) error "Invalid choice" ;;
                 esac
                 ;;
@@ -118,10 +120,12 @@ menu_network() {
                 echo "Wi-Fi Tools:"
                 echo "  1) Audit Connection"
                 echo "  2) Spoof MAC Address"
+                echo "  b) Back"
                 read -p "Select: " wchoice
                 case $wchoice in
                     1) wifi_audit ;;
                     2) wifi_spoof_mac ;;
+                    b|back) continue ;;
                     *) error "Invalid option" ;;
                 esac
                 ;;
@@ -143,11 +147,13 @@ menu_network() {
                 echo "1) Start (Monitor in new window)"
                 echo "2) Stop"
                 echo "3) Status"
+                echo "b) Back"
                 read -r cchoice
                 case $cchoice in
                     1) captive_dispatcher monitor ;;
                     2) captive_dispatcher stop ;;
                     3) captive_dispatcher status ;;
+                    b|back) continue ;;
                     *) error "Invalid option" ;;
                 esac
                 ;;
@@ -183,6 +189,7 @@ menu_installers() {
                  echo "1) Install Tor Browser (App)"
                  echo "2) Install Tor Service (CLI)"
                  echo "3) Manage Tor Service (Start/Stop/New Identity)"
+                 echo "b) Back"
                  read -p "Select: " tchoice
                  case $tchoice in
                     1) 
@@ -201,6 +208,7 @@ menu_installers() {
                         echo "  5) Request New Identity (New Circuit)"
                         echo "  6) Enable System Proxy"
                         echo "  7) Disable System Proxy"
+                        echo "  b) Back"
                         read -r tschoice
                         case $tschoice in
                             1) tor_dispatcher start ;;
@@ -210,9 +218,11 @@ menu_installers() {
                             5) tor_dispatcher new-id ;;
                             6) tor_dispatcher proxy-on ;;
                             7) tor_dispatcher proxy-off ;;
+                            b|back) continue ;;
                             *) error "Invalid option" ;;
                         esac
                         ;;
+                    b|back) continue ;;
                     *) error "Invalid option" ;;
                  esac
                  ;;
@@ -222,12 +232,14 @@ menu_installers() {
                  echo "2) Start I2P"
                  echo "3) Stop I2P"
                  echo "4) Console"
+                 echo "b) Back"
                  read -p "Select: " ichoice
                  case $ichoice in
                     1) i2p_install ;;
                     2) i2p_start ;;
                     3) i2p_stop ;;
                     4) i2p_console ;;
+                    b|back) continue ;;
                     *) error "Invalid option" ;;
                  esac
                  ;;
@@ -259,11 +271,13 @@ menu_installers() {
                 echo "1) DNSCrypt"
                 echo "2) Unbound"
                 echo "3) PingBar"
+                echo "b) Back"
                 read -p "Select: " ochoice
                 case $ochoice in
                     1) install_dnscrypt ;;
                     2) install_unbound ;;
                     3) install_pingbar ;;
+                    b|back) continue ;;
                     *) error "Invalid option" ;;
                 esac
                 ;;
@@ -325,19 +339,23 @@ menu_privacy() {
                  echo "  w - Write/Create"
                  echo "  r - Read"
                  echo "  l - List"
+                 echo "  b - Back"
                  read -p "Action (w/r/l): " vaction
                   case $vaction in
                     w) 
                         echo -n "Enter secret name (e.g. github): "
                         read -r vname
+                        [ -z "$vname" ] && continue
                         vault_write "$vname" 
                         ;;
                     r) 
                         echo -n "Enter secret name to read: "
                         read -r vname
+                        [ -z "$vname" ] && continue
                         vault_read "$vname" 
                         ;;
                     l) vault_list ;;
+                    b|back) continue ;;
                     *) error "Invalid option" ;;
                  esac
                  ;;
@@ -348,26 +366,32 @@ menu_privacy() {
                  echo "  decrypt - Decrypt Archive"
                  echo "  volume  - Create Encrypted DMG"
                  echo "  audit   - Audit Time Machine"
+                 echo "  b       - Back"
                  read -p "Action: " baction
                   case $baction in
                     encrypt) 
                         echo -n "Enter source directory to backup: "
                         read -r bsrc
+                        [ -z "$bsrc" ] && continue
                         backup_encrypt_dir "$bsrc" 
                         ;;
                     decrypt) 
                         echo -n "Enter backup file to decrypt: "
                         read -r bfile
+                        [ -z "$bfile" ] && continue
                         backup_decrypt_dir "$bfile" 
                         ;;
                     volume) 
                         echo -n "Enter Volume Name (e.g. SecretStuff): "
                         read -r vname
+                        [ -z "$vname" ] && continue
                         echo -n "Enter Volume Size (e.g. 100M, 1G): "
                         read -r vsize
+                        [ -z "$vsize" ] && continue
                         backup_create_volume "$vname" "$vsize" 
                         ;;
                     audit) backup_audit_timemachine ;;
+                    b|back) continue ;;
                     *) error "Invalid option" ;;
                  esac
                  ;;
