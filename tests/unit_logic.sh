@@ -1895,6 +1895,25 @@ start_suite "System State Restore"
 
     
 
+    # 3. Test Network Service Persistence
+    # -----------------------------------
+    # Mock Capture saved Wi-Fi (implicit from above calls since PLATFORM_ACTIVE_SERVICE defaults to Wi-Fi if unset)
+    assert_contains "$state_content" "STATE_NETWORK_SERVICE=\"Wi-Fi\"" "Should capture network service name"
+    
+    # Mock Restore with CHANGED active service
+    export PLATFORM_ACTIVE_SERVICE="Ethernet" # Simulate user switched to Ethernet
+    
+    OUTPUT_RESTORE_PERSISTENCE=$(lifecycle_restore_state 2>&1)
+    
+    # Should warn about mismatch
+    assert_contains "$OUTPUT_RESTORE_PERSISTENCE" "Restoring state to original service 'Wi-Fi'" "Should warn about service mismatch"
+    
+    # Should targeted Wi-Fi (Original) despite Ethernet being active
+    assert_contains "$OUTPUT_RESTORE_PERSISTENCE" "Restoring state to original service 'Wi-Fi' (Current active: 'Ethernet')" 
+    # Actually checking the networksetup call:
+    assert_contains "$OUTPUT_RESTORE_PERSISTENCE" "Restore WEB Proxy networksetup -setwebproxy Wi-Fi 127.0.0.1 8080" "Should restore to Original (Wi-Fi)"
+    assert_contains "$OUTPUT_RESTORE_PERSISTENCE" "Enable WEB Proxy networksetup -setwebproxystate Wi-Fi on" "Should enable on Original (Wi-Fi)"
+
 
     # Verify zshrc sed
     # Note: unit test environment might not have sed (BSD vs GNU issue if mocking?)

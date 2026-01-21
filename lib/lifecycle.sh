@@ -220,6 +220,7 @@ lifecycle_capture_state() {
     
     # Pre-calculate active service
     local net_svc="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
+    save_state_var "STATE_NETWORK_SERVICE" "$net_svc"
 
 
     # 1. Hostname
@@ -324,7 +325,15 @@ lifecycle_restore_state() {
     fi
 
     # 2. DNS
-    local net_svc="${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}"
+    local STATE_NETWORK_SERVICE
+    STATE_NETWORK_SERVICE=$(get_state_var "STATE_NETWORK_SERVICE")
+    
+    # Target original service if known, else fallback to current active
+    local net_svc="${STATE_NETWORK_SERVICE:-${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}}"
+    
+    if [ -n "$STATE_NETWORK_SERVICE" ] && [ "$STATE_NETWORK_SERVICE" != "${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}" ]; then
+         warn "Restoring state to original service '$STATE_NETWORK_SERVICE' (Current active: '${PLATFORM_ACTIVE_SERVICE:-Wi-Fi}')"
+    fi
     
     if [ -n "$STATE_DNS" ]; then
         if [[ "$STATE_DNS" == *"There aren't any DNS Servers set"* ]] || [[ -z "$STATE_DNS" ]]; then
