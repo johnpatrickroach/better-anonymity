@@ -147,12 +147,17 @@ backup_audit_timemachine() {
     local is_running=0
     # Use plutil to parse -plist output cleanly
     if status_plist=$(tmutil status -plist 2>/dev/null); then
-        # extracting value of Running key (0 or 1)
-        # We can use plutil's -extract if available on modern macOS
-        # Or simplistic parsing since it's a flat dict usually
-        if echo "$status_plist" | grep -A 1 "<key>Running</key>" | grep -q "<true/>" || \
-           echo "$status_plist" | grep -A 1 "<key>Running</key>" | grep -q "<integer>1</integer>"; then
-            is_running=1
+        # Extract raw value of Running key (true/false)
+        local run_val
+        if run_val=$(echo "$status_plist" | plutil -extract Running raw -o - - 2>/dev/null); then
+            if [[ "$run_val" == "true" || "$run_val" == "1" ]]; then
+                is_running=1
+            fi
+        else
+            # Fallback to text parsing if key missing or plutil fails
+             if echo "$status_plist" | grep -q "<key>Running</key>.*<true/>"; then
+                is_running=1
+             fi
         fi
     else
         # Fallback to text parsing "Running = 1;"
@@ -178,10 +183,23 @@ backup_audit_timemachine() {
         return 0
     fi
 
-    # Parse MountPoints using simplified XML parsing suitable for this specific plist structure.
-    # We look for <key>MountPoint</key> then the next <string> value.
-    local mount_points
-    mount_points=$(echo "$dest_plist" | grep -A 1 "<key>MountPoint</key>" | grep "<string>" | sed -E 's/.*<string>(.*)<\/string>.*/\1/')
+    # Parse MountPoints using robust JSON conversion + Python
+    # We convert the plist to JSON and extract the array of MountPoints
+    local mount_points=""
+    
+    if command -v python3 >/dev/null; then
+         # Python 3 is available, use it for safe parsing
+         mount_points=$(echo "$dest_plist" | plutil -convert json -r -o - - | python3 -c "import sys, json; print('\n'.join([d.get('MountPoint','') for d in json.load(sys.stdin).get('Destinations',[])]))" 2>/dev/null)
+    fi
+    
+    # Fallback to legacy parsing if python failed or is missing, but ensure we don't duplicate
+    if [ -z "$mount_points" ]; then
+        # Check if we have destinations at least
+        if echo "$dest_plist" | grep -q "<key>Destinations</key>"; then
+            # Legacy regex parsing (fragile but better than nothing)
+            mount_points=$(echo "$dest_plist" | grep -A 1 "<key>MountPoint</key>" | grep "<string>" | sed -E 's/.*<string>(.*)<\/string>.*/\1/')
+        fi
+    fi
     
     if [ -z "$mount_points" ]; then
         warn "No mounted destinations found."

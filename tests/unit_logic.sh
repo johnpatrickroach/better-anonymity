@@ -1211,7 +1211,7 @@ tar() { echo "TAR_CALL: $*" >&2; return 0; }
 hdiutil() { echo "HDIUTIL_CALL: $*"; return 0; }
 tmutil() {
     # echo "TMUTIL_CALL: $*" >&2
-    if [[ "$*" == *"-plist"* ]]; then
+    if [[ "$*" == *"destinationinfo -plist"* ]]; then
         cat <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -1236,6 +1236,18 @@ tmutil() {
             <string>/Volumes/InsecureBackup</string>
         </dict>
     </array>
+</dict>
+</plist>
+EOF
+        return 0
+    elif [[ "$*" == *"status -plist"* ]]; then
+        cat <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Running</key>
+    <integer>1</integer>
 </dict>
 </plist>
 EOF
