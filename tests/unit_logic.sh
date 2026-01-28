@@ -18,6 +18,8 @@ export HOME="$TEST_HOME"
 # Mock Constants
 SOCKETFILTERFW_CMD="/usr/libexec/ApplicationFirewall/socketfilterfw"
 
+# Global Mocks
+sysadminctl() { echo "EXEC: sysadminctl $*"; return 0; }
 
 # Mock core info/error
 info() { echo "[INFO] $*"; }
@@ -247,8 +249,8 @@ networksetup() {
 
 OUTPUT=$(install_privoxy)
 assert_contains "$OUTPUT" "brew called with: install privoxy" "Should call brew install privoxy"
-assert_contains "$OUTPUT" "brew called with: services restart privoxy" "Should restart privoxy"
-assert_contains "$OUTPUT" "Updating user.action" "Should copy user.action"
+assert_contains "$OUTPUT" "brew called with: services start privoxy" "Should start privoxy"
+assert_contains "$OUTPUT" "CHECK_CALL" "Should copy config via helper"
 assert_contains "$OUTPUT" "SET_DNS: -setwebproxy Wi-Fi 127.0.0.1 8118" "Should set HTTP proxy"
 assert_contains "$OUTPUT" "SET_DNS: -setsecurewebproxy Wi-Fi 127.0.0.1 8118" "Should set HTTPS proxy"
 
@@ -627,7 +629,10 @@ touch "$TEST_PROJ_UNBOUND/config/unbound/unbound.conf"
 cd "$TEST_PROJ_UNBOUND" || exit 1
 
 # Mocks
-# Mocks
+id() {
+    if [ "$1" == "_unbound" ]; then return 1; fi
+    return 0
+}
 dscl() {
     # Check if we are checking for user existence
     if [[ "$*" == *"-list"* ]] && ([[ "$*" == *"/Users/unbound"* ]] || [[ "$*" == *"/Users/_unbound"* ]]); then
@@ -661,10 +666,13 @@ sed() {
 OUTPUT=$(install_unbound)
 
 assert_contains "$OUTPUT" "Installing Unbound" "Should install"
-assert_contains "$OUTPUT" "EXEC: brew install unbound" "Should brew install"
-assert_contains "$OUTPUT" "Finding available User ID" "Should find UID"
-assert_contains "$OUTPUT" "Using UID 333" "Should use UID 333"
-assert_contains "$OUTPUT" "EXEC: dscl . -create /Users/_unbound UniqueID 333" "Should create user with ID 333"
+assert_contains "$OUTPUT" "brew called with: install unbound" "Should brew install"
+
+# New behavior: sysadminctl
+assert_contains "$OUTPUT" "Creating _unbound system user" "Should announce user creation"
+assert_contains "$OUTPUT" "EXEC: sysadminctl -addUser _unbound" "Should use sysadminctl"
+assert_contains "$OUTPUT" "-UID 333" "Should use UID 333"
+
 assert_contains "$OUTPUT" "EXEC: unbound-anchor -a" "Should fetch root key"
 assert_contains "$OUTPUT" "EXEC: unbound-control-setup -d" "Should setup control"
 assert_contains "$OUTPUT" "Copying configuration" "Should copy config"
@@ -672,13 +680,14 @@ assert_contains "$OUTPUT" "EXEC: unbound-checkconf" "Should check config"
 assert_contains "$OUTPUT" "EXEC: chown -R _unbound:staff" "Should chown"
 assert_contains "$OUTPUT" "EXEC: brew services restart unbound" "Should start service"
 
+# Verify Config Helper usage
+# check_config_and_backup is mocked globally to return CHECK_CALL:
+assert_contains "$OUTPUT" "CHECK_CALL:" "Should call config helper"
+assert_contains "$OUTPUT" "unbound.conf sudo" "Should target unbound config with sudo"
 
-# Verify Copy Command execution
-assert_contains "$OUTPUT" "EXEC: cp" "Should run cp command base"
 # Verify Patching
 # Since we set BREW_PREFIX to a temp dir in this test suite (which is not /usr/local)
 # The patch logic SHOULD trigger.
-# assert_contains "$OUTPUT" "Patching Unbound config" "Should announce patching"
 assert_contains "$OUTPUT" "EXEC: sed -i" "Should run sed"
 assert_contains "$OUTPUT" "unbound.conf" "Should contain unbound.conf"
 
@@ -3500,6 +3509,61 @@ if grep -q "Bridge obfs4" "$MOCK_TORRC"; then
 else
     fail "Bridge Setup (Default) missing bridges"
 fi
+
+# Test 29: Refactored Installers
+# ------------------------------
+# We source installers.sh again to override the global mocks for this test scope
+# inside a subshell to avoid polluting global state
+(
+    # Source real implementation
+    source "$ROOT_DIR/lib/installers.sh"
+    
+    # Mock sysadminctl
+    sysadminctl() { echo "EXEC: sysadminctl $*"; return 0; }
+    
+    # Mock id (user check)
+    id() { return 1; } # User "does not exist"
+    
+    # Mock dscl (for group fix)
+    dscl() { echo "EXEC: dscl $*"; }
+    
+    # Test create_unbound_user
+    OUTPUT=$(create_unbound_user)
+    assert_contains "$OUTPUT" "EXEC: sysadminctl -addUser _unbound" "Should use sysadminctl for user creation"
+    assert_contains "$OUTPUT" "-fullName Unbound DNS Server" "Should set full name"
+    assert_contains "$OUTPUT" "-UID 333" "Should set UID 333"
+    
+    # Mock check_config_and_backup to verify install_privoxy usage
+    check_config_and_backup() {
+        echo "CHECK_CONFIG: src=$1 dest=$2 sudo=$3"
+        return 0
+    }
+    
+    # Mock install_brew_package
+    install_brew_package() { :; }
+    
+    # Mock networksetup
+    networksetup() { echo "Enabled: Yes"; }
+    
+    # Mock pgrep/brew services
+    pgrep() { return 0; } # Running
+    
+    # Mock brew services
+    brew() { echo "restarting"; }
+    
+    # Mock directories
+    BREW_PREFIX="/tmp/mock_brew"
+    mkdir -p "$BREW_PREFIX/etc/privoxy"
+    mkdir -p "$ROOT_DIR/config/privoxy"
+    touch "$ROOT_DIR/config/privoxy/config"
+    touch "$ROOT_DIR/config/privoxy/default.action"
+    
+    # Test install_privoxy
+    OUTPUT_INSTALL=$(install_privoxy)
+    assert_contains "$OUTPUT_INSTALL" "CHECK_CONFIG: src=" "Should call check_config_and_backup"
+    assert_contains "$OUTPUT_INSTALL" "dest=/tmp/mock_brew/etc/privoxy/config" "Should target correct config"
+
+)
 
 # Cleanup isolated environment
 if [ -n "$MOCK_ROOT" ] && [ -d "$MOCK_ROOT" ]; then
