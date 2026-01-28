@@ -1346,10 +1346,10 @@ AIRPORT_BIN="$MOCK_AIRPORT"
 wifi_get_interface() { echo "en0"; }
 
 # Test Spoof
-OUTPUT=$(wifi_spoof_mac)
+OUTPUT=$(wifi_spoof_mac "02:00:00:00:00:01")
 rm -f "$MOCK_AIRPORT" # Cleanup
 assert_match "$OUTPUT" "EXEC: .* -z" "Should disassociate"
-assert_contains "$OUTPUT" "IFCONFIG_SET:" "Should set new mac"
+assert_contains "$OUTPUT" "IFCONFIG_SET: 02:00:00:00:00:01" "Should set new mac"
 
 # Re-create for Audit (cleanup deleted it)
 cat <<EOF > "$MOCK_AIRPORT"

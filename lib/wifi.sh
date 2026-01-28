@@ -54,7 +54,15 @@ wifi_generate_mac() {
 
 # wifi_spoof_mac
 # Disassociates from the current network and changes the MAC address.
+# Usage: wifi_spoof_mac <new_mac_address>
 wifi_spoof_mac() {
+    local new_mac="$1"
+
+    if [ -z "$new_mac" ]; then
+        error "Usage: wifi_spoof_mac <mac_address>"
+        return 1
+    fi
+
     local iface
     iface=$(wifi_get_interface)
 

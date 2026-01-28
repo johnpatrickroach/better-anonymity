@@ -124,7 +124,11 @@ menu_network() {
                 read -p "Select: " wchoice
                 case $wchoice in
                     1) wifi_audit ;;
-                    2) wifi_spoof_mac ;;
+                    2) 
+                        local mac
+                        mac=$(wifi_generate_mac)
+                        wifi_spoof_mac "$mac" 
+                        ;;
                     b|back) continue ;;
                     *) error "Invalid option" ;;
                 esac

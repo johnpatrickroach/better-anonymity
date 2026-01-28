@@ -438,7 +438,11 @@ case "$COMMAND" in
          shift
          case "$1" in
             audit) wifi_audit ;;
-            spoof-mac|spoof) wifi_spoof_mac ;;
+            spoof-mac|spoof)
+                 local mac
+                 mac=$(wifi_generate_mac)
+                 wifi_spoof_mac "$mac"
+                 ;;
             *) echo "Usage: better-anonymity wifi [audit|spoof-mac]" ;;
          esac
          ;;
