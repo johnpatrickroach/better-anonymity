@@ -116,8 +116,10 @@ function i2p_stop() {
     # Heuristic Fallback (Safety Net)
     # ALWAYS check for process cleanup even if PID file was missing
     # This ensures backward compatibility or manual start cleanup
+    # Use stricter pattern to avoid killing unrelated Java processes
+    local i2p_pattern="net\.i2p\.router\.Router.*-Di2p\.dir\.base"
     local pids
-    pids=$(pgrep -u "$(id -u)" -f "net.i2p.router.Router")
+    pids=$(pgrep -u "$(id -u)" -f "$i2p_pattern")
     
     if [ -n "$pids" ]; then
         if [ "$standard_stop_ok" = true ]; then
@@ -133,7 +135,7 @@ function i2p_stop() {
         sleep 2
         
         # Double check
-        pids=$(pgrep -u "$(id -u)" -f "net.i2p.router.Router")
+        pids=$(pgrep -u "$(id -u)" -f "$i2p_pattern")
         if [ -n "$pids" ]; then
              local pid_array_kill=($pids)
              kill -9 "${pid_array_kill[@]}" 2>/dev/null
@@ -179,9 +181,10 @@ function i2p_status() {
 
     # Fallback process info (Heuristic)
     if [ "$is_running" = false ]; then
-        if pgrep -u "$(id -u)" -f "net.i2p.router.Router" >/dev/null; then
+        local i2p_pattern="net\.i2p\.router\.Router.*-Di2p\.dir\.base"
+        if pgrep -u "$(id -u)" -f "$i2p_pattern" >/dev/null; then
             local pids
-            pids=$(pgrep -u "$(id -u)" -f "net.i2p.router.Router" | tr '\n' ',' | sed 's/,$//')
+            pids=$(pgrep -u "$(id -u)" -f "$i2p_pattern" | tr '\n' ',' | sed 's/,$//')
             lines+=("NOTE: I2P appears to be running via fallback (Java process matched).")
             lines+=("PID: $pids")
             is_running=true

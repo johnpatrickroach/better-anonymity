@@ -470,6 +470,7 @@ check_config_and_backup() {
 
     info "Installing config to $dest..."
     $cp_cmd "$src" "$dest"
+    return 10
 }
 
 # Sudo Keep-Alive

@@ -44,7 +44,8 @@ install_privoxy() {
         fi
         
         # Use Core Helper
-        if ! check_config_and_backup "$TEMP_CONFIG" "$CONF_DIR/config"; then
+        check_config_and_backup "$TEMP_CONFIG" "$CONF_DIR/config"
+        if [ $? -eq 10 ]; then
              RESTART_NEEDED="true"
         fi
         rm -f "$TEMP_CONFIG"
@@ -63,7 +64,8 @@ install_privoxy() {
         [ -f "$file_path" ] || continue
 
         # Use Core Helper (no patching needed for these usually)
-        if ! check_config_and_backup "$file_path" "$CONF_DIR/$file"; then
+        check_config_and_backup "$file_path" "$CONF_DIR/$file"
+        if [ $? -eq 10 ]; then
              RESTART_NEEDED="true"
         fi
     done
@@ -103,39 +105,12 @@ install_privoxy() {
     # This is safer anyway.
     
     if [ "$is_running" == "true" ]; then
-        # Should we restart blindly? It's safer to ensure config apply.
-        # But user asked to avoid "unnecessary writes and restarts".
-        # My implementation of check_config_and_backup avoids writes.
-        # To avoid restarts, we need to know if write happened.
-        #
-        # Let's customize loop slightly or trust that brew services restart is fast.
-        # However, I can grep the output of the function? No, that's messy.
-        #
-        # Better: Restart only if we detect modification.
-        # Since I can't easily get return code from helper for "changed vs checked",
-        # I will assume "check_config_and_backup" is opaque.
-        #
-        # Actually, let's look at `install_unbound` logic I'm replacing.
-        # It tracked `config_changed`.
-        #
-        # I will stick to the plan: Use helper. If restart is slightly aggressive, it's acceptable for "Install",
-        # provided the helper avoided the WRITE.
-        #
-        # But wait, restarting without write is silly.
-        # `check_config_and_backup` does NOT return distinction.
-        # I will check file mtime of config before/after?
-        # Or just restart. "avoid unnecessary writes" was the key constraint. Helper satisfies that.
-        # "and restarts" was also mentioned.
-        #
-        # OK, I will modify logic to restart if `brew services restart` is called only if needed?
-        # Actually, `install_privoxy` used to set `RESTART_NEEDED`.
-        # I can just assume restarts are cheap enough OR I can check if files differ BEFORE helper call?
-        # That defeats the purpose of helper.
-        #
-        # Let's proceed with helper. It manages the WRITE efficiency.
-        # I'll restart if the service is running, just to be safe. It's an "Installer" after all.
-        info "Restarting Privoxy to ensure config is applied..."
-        brew services restart privoxy
+        if [ "$RESTART_NEEDED" == "true" ]; then
+            info "Restarting Privoxy to ensure config is applied..."
+            brew services restart privoxy
+        else
+            info "Privoxy is running and config is unchanged. Skipping restart."
+        fi
     else
         info "Privoxy is not running. Starting..."
         brew services start privoxy
@@ -447,17 +422,22 @@ install_unbound() {
     local ROOT_KEY="$BREW_PREFIX/etc/unbound/root.key"
     if [ ! -f "$ROOT_KEY" ]; then
         execute_sudo "Fetch Root Key" unbound-anchor -a "$ROOT_KEY" || true
+    else
+        info "Root key already exists."
     fi
 
     info "Generating Control Certificates..."
     local CERT_DIR="$BREW_PREFIX/etc/unbound"
     if [ ! -f "$CERT_DIR/unbound_control.key" ]; then
         execute_sudo "Setup Control" unbound-control-setup -d "$CERT_DIR"
+    else
+        info "Control certificates already exist."
     fi
 
     info "Copying configuration..."
     local CONF_SRC="$ROOT_DIR/config/unbound/unbound.conf"
     local CONF_DEST="$BREW_PREFIX/etc/unbound/unbound.conf"
+    local RESTART_NEEDED="false"
 
     if [ ! -f "$CONF_SRC" ]; then
         die "Configuration file not found: $CONF_SRC"
@@ -474,6 +454,9 @@ install_unbound() {
     
     # Use Helper with sudo
     check_config_and_backup "$TEMP_CONF" "$CONF_DEST" "sudo"
+    if [ $? -eq 10 ]; then
+        RESTART_NEEDED="true"
+    fi
     rm -f "$TEMP_CONF"
 
     info "Verifying configuration..."
@@ -486,8 +469,18 @@ install_unbound() {
     execute_sudo "Chmod Unbound" chmod 640 "$BREW_PREFIX/etc/unbound"/*
 
     info "Directing Unbound (Brew) to start on boot..."
-    # Always restart during install to ensure fresh config/perms pick up
-    manage_service "restart" "unbound" "true"
+    
+    # Check if running to determine idempotency
+    local is_running=false
+    if brew services list | grep "unbound" | grep -q "started"; then
+        is_running=true
+    fi
+    
+    if [ "$is_running" == "true" ] && [ "$RESTART_NEEDED" == "false" ]; then
+        info "Unbound is already running with latest config. Skipping restart."
+    else
+        manage_service "restart" "unbound" "true"
+    fi
 
     info "Unbound installed and configured."
 }
