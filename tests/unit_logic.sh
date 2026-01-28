@@ -1468,6 +1468,11 @@ touch "$ROOT_DIR/config/ssh/sshd_config" "$ROOT_DIR/config/ssh/ssh_config"
 start_suite "Tor Manager"
 source "$(dirname "$0")/../lib/tor_manager.sh"
 
+# Mock network safe service to prevent interactive prompt
+get_safe_network_service() {
+    echo "Wi-Fi"
+}
+
 # Test 25: Tor Service Management
 # -------------------------------
 # Mock pgrep
@@ -1909,7 +1914,7 @@ start_suite "System State Restore"
     assert_contains "$OUTPUT_RESTORE_PERSISTENCE" "Restoring state to original service 'Wi-Fi'" "Should warn about service mismatch"
     
     # Should targeted Wi-Fi (Original) despite Ethernet being active
-    assert_contains "$OUTPUT_RESTORE_PERSISTENCE" "Restoring state to original service 'Wi-Fi' (Current active: 'Ethernet')" 
+    assert_contains "$OUTPUT_RESTORE_PERSISTENCE" "Restoring state to original service 'Wi-Fi' (Current active: 'Ethernet')" "Should log persistence warning" 
     # Actually checking the networksetup call:
     assert_contains "$OUTPUT_RESTORE_PERSISTENCE" "Restore WEB Proxy networksetup -setwebproxy Wi-Fi 127.0.0.1 8080" "Should restore to Original (Wi-Fi)"
     assert_contains "$OUTPUT_RESTORE_PERSISTENCE" "Enable WEB Proxy networksetup -setwebproxystate Wi-Fi on" "Should enable on Original (Wi-Fi)"
@@ -2587,8 +2592,12 @@ touch "$ROOT_DIR/config/gpg/gpg.conf"
 # Helper to assert file content for agent conf
 cat_agent_conf() { cat "$HOME/.gnupg/gpg-agent.conf"; }
 
-# Scenario 3: GPG Config Differs
+# Scenario 3: GPG Config Differs (Update)
 MOCK_FILES_SAME="false"
+# Pre-create gpg.conf so it triggers "Updating..." path
+mkdir -p "$HOME/.gnupg"
+touch "$HOME/.gnupg/gpg.conf"
+
 OUTPUT=$(install_gpg 2>&1)
 assert_contains "$OUTPUT" "Updating gpg.conf..." "Should update gpg.conf"
 assert_contains "$OUTPUT" "Reloading gpg-agent..." "Should reload agent"
@@ -3341,13 +3350,156 @@ else
 fi
 unset -f sleep
 
-# Test 3: New Identity Success
-if tor_new_identity >/dev/null; then
-     pass "New Identity requested successfully"
+# Test 3: New Identity Success (Logic Check)
+# Setup mock password file
+mkdir -p "$HOME/.better-anonymity"
+echo "test_mock_password" > "$HOME/.better-anonymity/tor_control_password"
+
+# Update nc mock to verify input
+nc() { 
+    local input
+    # Read stdin if pipe available (using timeout to avoid hang if empty)
+    # But shell read is tricky with binary/nc.
+    # We can just read cat.
+    input=$(cat)
+    
+    # Check for authentication
+    if [[ "$input" == *"AUTHENTICATE \"test_mock_password\""* ]]; then
+        return 0
+    elif [[ "$input" == *"-z 127.0.0.1 9050"* ]]; then
+        return 0
+    else
+        echo "NC MOCK RECEIVED: $input" >&2
+        return 1
+    fi
+}
+
+OUTPUT=$(tor_new_identity 2>&1)
+if [[ "$OUTPUT" == *"New Identity requested"* ]]; then
+     pass "New Identity requested successfully (Authenticated)"
 else
-     fail "New Identity failed"
+     fail "New Identity failed to authenticate. Output: $OUTPUT"
 fi
 
+
+# Test 4: Tor Status Network Scanning
+# -----------------------------------
+# Source real library to bypass global tor_status mock
+source "$(dirname "$0")/../lib/tor_manager.sh"
+
+# Reset active service to force scan
+export PLATFORM_ACTIVE_SERVICE=""
+detect_active_network() { :; } # Mock detection failure
+
+# Mock networksetup for scanning
+networksetup() {
+    local cmd="$1"
+    if [[ "$cmd" == "-listallnetworkservices" ]]; then
+        echo "An asterisk (*) denotes that a network service is disabled."
+        echo "Ethernet"
+        echo "Wi-Fi"
+        echo "Thunderbolt Bridge"
+    elif [[ "$cmd" == "-getsocksfirewallproxy" ]]; then
+        local svc="$2"
+        if [[ "$svc" == "Ethernet" ]]; then
+             echo "Enabled: Yes"
+             echo "Server: 127.0.0.1"
+             echo "Port: 9050"
+        else
+             echo "Enabled: No"
+        fi
+    fi
+}
+
+OUTPUT_STATUS=$(tor_status 2>&1)
+if echo "$OUTPUT_STATUS" | grep -q "System SOCKS Proxy is ON for 'Ethernet'"; then
+    pass "Tor Status correctly scan and found Ethernet proxy"
+else
+    fail "Tor Status failed to find Ethernet proxy via scan. Output: $OUTPUT_STATUS"
+fi
+
+# Test 5: Tor Proxy Targeting (Ethernet)
+# --------------------------------------
+# Mock get_safe_network_service to return Ethernet
+get_safe_network_service() { echo "Ethernet"; }
+
+# Mock networksetup to verify calls
+networksetup() {
+    local cmd="$1"
+    if [[ "$cmd" == "-setsocksfirewallproxy" ]]; then
+        local svc="$2"
+        echo "NETSETUP_SOCKS: $svc"
+    elif [[ "$cmd" == "-setsocksfirewallproxystate" ]]; then
+        local svc="$2"
+        echo "NETSETUP_STATE: $svc"
+    elif [[ "$cmd" == "-getsocksfirewallproxy" ]]; then
+        echo "Enabled: No"
+    else
+        :
+    fi
+}
+
+# Run enable
+OUTPUT_ENABLE=$(tor_enable_system_proxy 2>&1)
+
+if [[ "$OUTPUT_ENABLE" == *"System Proxy Enabled on 'Ethernet'"* ]]; then
+    pass "Tor Proxy correctly targeted Ethernet"
+else
+    fail "Tor Proxy failed to target Ethernet. Output: $OUTPUT_ENABLE"
+fi
+
+# Verify networksetup called on Ethernet
+if echo "$OUTPUT_ENABLE" | grep -q "NETSETUP_SOCKS: Ethernet"; then
+    pass "Networksetup set SOCKS on Ethernet verified"
+else
+    fail "Networksetup set SOCKS on Ethernet NOT found"
+fi
+
+# Test 6: Tor Bridge Configuration
+# --------------------------------
+# Create mock environment
+MOCK_TOR_DIR="$TEST_HOME/etc/tor"
+mkdir -p "$MOCK_TOR_DIR"
+MOCK_TORRC="$MOCK_TOR_DIR/torrc"
+touch "$MOCK_TORRC"
+
+# Override BREW_PREFIX for this test
+export BREW_PREFIX="$TEST_HOME"
+
+# Mock obfs4proxy check
+check_installed() {
+    if [ "$1" == "obfs4proxy" ]; then return 0; fi # Simulate installed
+    return 1
+}
+
+# Mock which
+which() {
+    if [ "$1" == "obfs4proxy" ]; then echo "/usr/local/bin/obfs4proxy"; fi
+}
+
+# Mock tor_service_restart
+tor_service_restart() { echo "TOR_RESTART"; }
+
+# Test Default Mode
+OUTPUT_BRIDGE=$(tor_configure_bridges "default")
+
+if grep -q "UseBridges 1" "$MOCK_TORRC"; then
+    pass "Bridge Setup enabled UseBridges"
+else
+    fail "Bridge Setup failed to set UseBridges"
+fi
+
+if grep -q "ClientTransportPlugin obfs4 exec /usr/local/bin/obfs4proxy" "$MOCK_TORRC"; then
+    pass "Bridge Setup configured ClientTransportPlugin"
+else
+    fail "Bridge Setup configuration invalid ClientTransportPlugin"
+fi
+
+if grep -q "Bridge obfs4" "$MOCK_TORRC"; then
+    pass "Bridge Setup (Default) added built-in bridges"
+else
+    fail "Bridge Setup (Default) missing bridges"
+fi
 
 # Cleanup isolated environment
 if [ -n "$MOCK_ROOT" ] && [ -d "$MOCK_ROOT" ]; then

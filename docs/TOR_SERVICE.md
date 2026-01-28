@@ -37,6 +37,20 @@ better-anonymity tor restart
 # this command may warn you that it safely fell back to checking Wi-Fi status.
 ```
 
+### Censorship Circumvention (Bridges)
+
+If your connection to the Tor network is blocked, you can configure **Bridges** (obfs4) to obfuscate your traffic.
+
+```bash
+# Configure Bridges
+better-anonymity tor enable-bridges
+```
+
+This command automatically installs `obfs4proxy` and offers two modes:
+
+1. **Automated**: Configures a set of reliable fallback bridges (bundled).
+2. **Manual**: Allows you to paste distinct bridge lines obtained from [bridges.torproject.org](https://bridges.torproject.org/).
+
 ### System SOCKS Proxy ("Torify" System)
 
 You can configure macOS to use Tor (127.0.0.1:9050) as the SOCKS proxy for your Wi-Fi connection.

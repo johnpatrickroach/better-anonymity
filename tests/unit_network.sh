@@ -112,6 +112,36 @@ dig() {
     fi
 }
 
+# Mock curl to prevent network access
+curl() {
+    # Check what we are downloading
+    if [[ "$*" == *"google.com"* ]]; then
+        return 0 # Simulate online
+    elif [[ "$*" == *"raw.githubusercontent.com"* ]]; then
+         # Return mock hosts content
+         echo "# Title: StevenBlack/hosts"
+         echo "0.0.0.0 ads.example.com"
+         return 0
+    fi
+    echo "CURL_MOCK: $*"
+    return 0
+}
+
+# Mock nc for port checks
+nc() {
+    local port="${@: -1}" # Last arg is usually port
+    # Mock specific ports
+    if [[ "$*" == *"-z"* ]]; then
+        if [[ "$port" == "53" || "$port" == "5355" ]]; then
+             if [ "${MOCK_ROOT_SERVICES_RUNNING:-false}" == "true" ]; then return 0; fi
+        elif [[ "$port" == "8118" || "$port" == "9050" ]]; then
+             if [ "${MOCK_USER_SERVICES_RUNNING:-false}" == "true" ]; then return 0; fi
+        fi
+        return 1
+    fi
+    return 0
+}
+
 # Mock is_brew_installed
 is_brew_installed() {
     if [[ "$1" == "i2p" ]]; then
