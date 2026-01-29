@@ -474,22 +474,49 @@ hardening_disable_bonjour() {
 
 hardening_secure_sudoers() {
     info "Auditing sudoers for env_keep..."
-    # Check for any env_keep directives in sudoers or included files
+    
+    # 1. Define Whitelist (Standard macOS defaults)
+    # Based on /etc/sudoers standard install and user feedback
+    local whitelist="BLOCKSIZE COLORFGBG COLORTERM __CF_USER_TEXT_ENCODING CHARSET LANG LANGUAGE LC_ALL LC_COLLATE LC_CTYPE LC_MESSAGES LC_MONETARY LC_NUMERIC LC_TIME LINES COLUMNS LSCOLORS SSH_AUTH_SOCK TZ DISPLAY XAUTHORIZATION XAUTHORITY EDITOR VISUAL HOME MAIL"
+    
+    # 2. Capture env_keep directives
     local matches
     matches=$(sudo grep -rE "^\s*Defaults.*env_keep" /etc/sudoers /etc/sudoers.d 2>/dev/null)
     
     if [ -n "$matches" ]; then
-        warn "Found 'env_keep' directives which preserve environment variables:"
-        echo "$matches" | awk '{$1=$1};1' | while read -r line; do
-            warn "  $line"
-        done
+        local found_risks=0
         
-        if echo "$matches" | grep -qE "HOME|MAIL"; then
-             warn "Risk: HOME or MAIL variables are preserved. This is common on macOS but reduces isolation."
-             warn "Consider using 'visudo' to remove or comment out these lines."
+        # 3. Parse each line
+        while read -r line; do
+             # Extract variables inside quotes: Defaults env_keep += "VAR1 VAR2"
+             if [[ "$line" =~ \"(.*)\" ]]; then
+                 local vars="${BASH_REMATCH[1]}"
+                 for v in $vars; do
+                     local safe=0
+                     for wl in $whitelist; do
+                         if [ "$v" == "$wl" ]; then
+                             safe=1
+                             break
+                         fi
+                     done
+                     
+                     if [ $safe -eq 0 ]; then
+                         warn "  [RISK] Unknown/Unsafe env_keep variable preserved: '$v'"
+                         # warn "         Source: $line" # Optional verbose 
+                         found_risks=1
+                     fi
+                 done
+             fi
+        done <<< "$matches"
+        
+        if [ $found_risks -eq 0 ]; then
+             info "Sudoers audit passed. (Standard macOS defaults detected and verified safe)."
+        else
+             warn "Audit complete. Review potential risks above."
+             warn "Use 'sudo visudo' to edit if necessary."
         fi
     else
-        info "Sudoers looks clean (no obvious env_keep exceptions)."
+        info "Sudoers looks clean (no env_keep directives found)."
     fi
 }
 

@@ -10,17 +10,41 @@ SSHD_CONFIG_SRC="$ROOT_DIR/config/ssh/sshd_config"
 # Checks if Remote Login is enabled.
 ssh_check_sshd_status() {
     info "Checking SSH Server (Remote Login) status..."
-    if command -v systemsetup >/dev/null; then
-        # macOS specific
-        systemsetup -getremotelogin
+    
+    local status="Unknown"
+    local detail=""
+    
+    # Method 1: Ask macOS systemsetup (Requires Root)
+    # Use 'sudo -n' to check only if we already have privileges, fail silently otherwise.
+    if sudo -n systemsetup -getremotelogin 2>/dev/null | grep -q "On"; then
+        status="On"
+        detail="(Confirmed via systemsetup)"
+    elif sudo -n systemsetup -getremotelogin 2>/dev/null | grep -q "Off"; then
+         status="Off"
+         detail="(Confirmed via systemsetup)"
     else
-        # Generic check (using connection test instead of process listing)
-        # This avoids needing sudo if lsof is restricted.
-        if check_port "localhost" 22; then
-            echo "Remote Login: On (Listening on localhost:22)"
+        # Method 2: Check standard launchd service (Non-Root)
+        # com.openssh.sshd is the standard label
+        if launchctl list com.openssh.sshd &>/dev/null; then
+             status="On"
+             detail="(Service com.openssh.sshd is loaded)"
         else
-            echo "Remote Login: Off (Locahost:22 not reachable)"
+             # Method 3: Port Check (Network)
+             if check_port "localhost" 22; then
+                 status="On"
+                 detail="(Listening on Port 22)"
+             else
+                 status="Off"
+                 detail="(Port 22 closed and service not loaded)"
+             fi
         fi
+    fi
+    
+    if [ "$status" == "On" ]; then
+        echo -e "Remote Login: ${GREEN}On${NC} $detail"
+        warn "Security Risk: Ensure 'Harden SSHD Config' has been run if this is intended."
+    else
+        echo -e "Remote Login: ${GREEN}Off${NC} $detail"
     fi
 }
 

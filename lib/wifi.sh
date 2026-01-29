@@ -11,13 +11,27 @@ AIRPORT_BIN="${AIRPORT_BIN:-$(get_airport_bin)}"
 # wifi_get_interface
 # Returns the name of the primary Wi-Fi interface (e.g., en0).
 wifi_get_interface() {
-    # Delegate to platform helper for consistency
+    local candidates
+    # Delegate to platform helper if available, otherwise use direct networksetup
     if command -v get_wifi_device >/dev/null 2>&1; then
-        get_wifi_device
+        candidates=$(get_wifi_device)
     else
-        # Fallback in case platform.sh wasn't loaded for some reason
-        networksetup -listallhardwareports | awk '/Wi-Fi|AirPort|WLAN/{getline; print $2}'
+        candidates=$(networksetup -listallhardwareports | awk '/Wi-Fi|AirPort|WLAN/{getline; print $2}')
     fi
+    
+    # Iterate to find the connected one (active association)
+    for dev in $candidates; do
+         if networksetup -getairportnetwork "$dev" 2>/dev/null | grep -q "Current Wi-Fi Network"; then
+             echo "$dev"
+             return 0
+         fi
+    done
+
+    # If none are connected, return the first one found (default)
+    for dev in $candidates; do
+        echo "$dev"
+        return 0
+    done
 }
 
 # wifi_generate_mac
@@ -64,7 +78,6 @@ wifi_spoof_mac() {
         new_mac=$(wifi_generate_mac)
     fi
 
-
     local iface
     iface=$(wifi_get_interface)
 
@@ -72,31 +85,69 @@ wifi_spoof_mac() {
         error "No Wi-Fi interface found."
         return 1
     fi
-
-    info "Disassociating from airport..."
+    
+    info "Target Interface: $iface"
+    
+    local current_mac
+    current_mac=$(ifconfig "$iface" | awk '/ether/{print $2}')
+    # Privacy: Do not log current MAC
+    
+    info "Setting new MAC address..."
+    
+    # Method 1: Disassociate via airport (Fast, keeps radio on)
     if [ -x "$AIRPORT_BIN" ]; then
+        info "Disassociating from airport..."
         execute_sudo "Disassociating from current network..." "$AIRPORT_BIN" -z
-    else
-        warn "airport utility not found at $AIRPORT_BIN. Spoofing might fail if connected."
-    fi
-
-    info "Setting new MAC address to $new_mac..."
-    if execute_sudo "Changing MAC address..." ifconfig "$iface" ether "$new_mac"; then
-        success "MAC address changed successfully."
-        # Verify
-        local verify_mac
-        verify_mac=$(ifconfig "$iface" | awk '/ether/{print $2}')
-        if [ "$verify_mac" == "$new_mac" ]; then
-            success "Verified active MAC is now $new_mac"
+        
+        if execute_sudo "Changing MAC address..." ifconfig "$iface" ether "$new_mac"; then
+             success "MAC address changed (via airport disassociate)."
         else
-            error "Verification failed. Active MAC is $verify_mac"
+             error "Failed to change MAC address."
+             return 1
         fi
         
-        # Note: changing MAC often turns off Wi-Fi power or similar on some OS versions? 
-        # Usually it just disconnects.
+    else
+        # Method 3: Power Cycle Race
+        # On Apple Silicon / newer macOS, we can't change MAC if DOWN, and can't if ASSOCIATED.
+        # We need "UP but NOT ASSOCIATED".
+        # We achieve this by cycling power and racing against the auto-connect.
+        warn "airport utility not found. Using Power Cycle Race method."
+        
+        # Pre-authorize sudo so we don't get prompted during the critical race window
+        execute_sudo "Pre-authorizing sudo for race condition..." true
+        
+        info "Cycling Wi-Fi Power..."
+        networksetup -setairportpower "$iface" off
+        sleep 1
+        networksetup -setairportpower "$iface" on
+        
+        # No sleep here! We must catch it before it associates.
+        info "Changing MAC address (Race condition)..."
+        
+        if execute_sudo "Change MAC" ifconfig "$iface" ether "$new_mac"; then
+             success "MAC address updated."
+        else
+             error "Failed to change MAC address."
+             error "Your network card may block MAC spoofing completely."
+             return 1
+        fi
+    fi
+    
+    # Verify (Wait a moment for interface to come up if cycled)
+    sleep 1 
+    local verify_mac
+    verify_mac=$(ifconfig "$iface" | awk '/ether/{print $2}')
+    
+    if [ "$verify_mac" == "$new_mac" ]; then
+        if [ "$verify_mac" != "$current_mac" ]; then
+             success "Verified: MAC address successfully changed."
+        else
+             warn "Target MAC applied but matches original MAC."
+        fi
+        
         info "You may need to manually reconnect to your Wi-Fi network."
     else
-        error "Failed to change MAC address."
+        error "Verification failed. MAC address check mismatch."
         return 1
     fi
 }
@@ -104,55 +155,82 @@ wifi_spoof_mac() {
 # wifi_audit
 # Checks the security of the current Wi-Fi connection.
 wifi_audit() {
-    if [ ! -x "$AIRPORT_BIN" ]; then
-        error "airport utility not found. Cannot perform audit."
-        return 1
-    fi
-
-    info "Auditing current Wi-Fi connection..."
-    
     local iface
     iface=$(wifi_get_interface)
+    
+    info "Auditing current Wi-Fi connection (Interface: ${iface:-Unknown})..."
     
     # 1. Check Power Status forcefully via networksetup (Robust)
     if [ -n "$iface" ]; then
         local power_status
         power_status=$(networksetup -getairportpower "$iface" 2>/dev/null)
         if [[ "$power_status" == *": Off"* ]]; then
-             warn "Wi-Fi interface ($iface) is powered OFF."
+             error "Wi-Fi Status: OFF (Interface: $iface)"
              return 0
         fi
     fi
 
-    local info_out
-    info_out=$("$AIRPORT_BIN" -I)
-    
-    # 2. Check association (SSID)
-    local ssid
-    ssid=$(echo "$info_out" | awk -F': ' '/ SSID/ {print $2}')
-    
-    if [ -z "$ssid" ]; then
-        warn "Not connected to any Wi-Fi network."
-        return 0
-    fi
+    # 2. Detailed Audit (Try 'airport' utility first)
+    if [ -x "$AIRPORT_BIN" ]; then
+        local info_out
+        info_out=$("$AIRPORT_BIN" -I)
+        
+        # Check association (SSID)
+        local ssid
+        ssid=$(echo "$info_out" | awk -F': ' '/ SSID/ {print $2}')
+        
+        if [ -z "$ssid" ]; then
+            error "Wi-Fi Status: DISCONNECTED (No SSID found)"
+            return 0
+        fi
 
-    info "Connected to: $ssid"
-    
-    local auth
-    auth=$(echo "$info_out" | awk -F': ' '/link auth/ {print $2}')
-    info "Security Type: $auth"
+        success "Wi-Fi Status: CONNECTED (SSID: $ssid)"
+        
+        local auth
+        auth=$(echo "$info_out" | awk -F': ' '/link auth/ {print $2}')
+        info "Security Type: $auth"
 
-    if [[ "$auth" == *"wpa2"* ]] || [[ "$auth" == *"wpa3"* ]]; then
-        success "Encryption ($auth) appears modern."
-    elif [[ "$auth" == "none" ]]; then
-        error "Network is OPEN (Unsecured)! Traffic is visible to everyone nearby."
-    elif [[ "$auth" == *"wep"* ]]; then
-        error "Network uses WEP (Insecure)! Easily cracked."
+        if [[ "$auth" == *"wpa2"* ]] || [[ "$auth" == *"wpa3"* ]]; then
+            success "Encryption ($auth) appears modern."
+        elif [[ "$auth" == "none" ]]; then
+            error "Network is OPEN (Unsecured)! Traffic is visible to everyone nearby."
+        elif [[ "$auth" == *"wep"* ]]; then
+            error "Network uses WEP (Insecure)! Easily cracked."
+        else
+            warn "Unknown or weak security type: $auth"
+        fi
     else
-        warn "Unknown or weak security type: $auth"
+        # Fallback: Use networksetup
+        warn "airport utility not found. Using basic audit (SSID only)."
+        
+        local net_out
+        net_out=$(networksetup -getairportnetwork "$iface" 2>/dev/null)
+        # Output format: "Current Wi-Fi Network: MySSID" or "You are not associated..."
+        
+        local ssid=""
+        if [[ "$net_out" == *"You are not associated"* ]] || [[ -z "$net_out" ]]; then
+             # Deep Fallback: system_profiler (Slow but reliable)
+             info "networksetup reports not associated. Trying system_profiler..."
+             local prof_out
+             prof_out=$(system_profiler SPAirPortDataType 2>/dev/null)
+             
+             # Parse 'Current Network Information: \n SSID:'
+             # We grab the first block's second line (the SSID)
+             ssid=$(echo "$prof_out" | grep -A 1 "Current Network Information:" | head -n 2 | tail -n 1 | sed 's/://g' | xargs)
+             
+             if [ -z "$ssid" ]; then
+                 error "Wi-Fi Status: DISCONNECTED (Confirmed via system_profiler)"
+                 return 0
+             fi
+        else
+             ssid=$(echo "$net_out" | sed 's/^Current Wi-Fi Network: //')
+        fi
+        
+        if [ -n "$ssid" ]; then
+            success "Wi-Fi Status: CONNECTED (SSID: $ssid)"
+            warn "Detailed encryption info unavailable."
+        else
+             error "Wi-Fi Status: UNKNOWN (Could not determine SSID)"
+        fi
     fi
-
-    # Check for hidden network?
-    # Actually airport -I doesn't strictly tell us if it's hidden easily without scanning. 
-    # But we can warn the user generally.
 }

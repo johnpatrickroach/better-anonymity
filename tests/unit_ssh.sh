@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# tests/unit_ssh.sh
+# Unit tests for SSH Logic (Status Checking)
+
+source "$(dirname "$0")/test_framework.sh"
+
+# Helper functions for reporting
+pass() { echo -e "${GREEN}[PASS]${NC} $1"; ((PASSED++)); }
+fail() { echo -e "${RED}[FAIL]${NC} $1"; ((FAILED++)); }
+
+# Mocks
+info() { echo "INFO: $*"; }
+warn() { echo "WARN: $*"; }
+
+# Mock sudo: Fail by default (simulating non-root with no password)
+sudo() {
+    return 1
+}
+
+# Mock launchctl
+# We verify fallback logic by controlling output
+launchctl() {
+    if [[ "$1" == "list" ]] && [[ "$2" == "com.openssh.sshd" ]]; then
+        if [ "$MOCK_LAUNCHCTL_SSH" == "on" ]; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+    return 1
+}
+
+# Mock check_port (lib/core.sh usually provides this, we mock for isolation)
+check_port() {
+    if [ "$MOCK_PORT_SSH" == "on" ]; then return 0; else return 1; fi
+}
+
+
+start_suite "SSH Status Logic"
+
+# Source library
+# We need to make sure core.sh is not re-sourcing check_port if we mocked it,
+# but lib/ssh.sh doesn't source core.sh itself usually, better-anonymity main does.
+# We will define CORE mocks if needed.
+source "$(dirname "$0")/../lib/ssh.sh"
+
+# Test 1: Sudo fails, Launchctl succeeds (Service On)
+# ---------------------------------------------------
+MOCK_LAUNCHCTL_SSH="on"
+MOCK_PORT_SSH="off"
+
+OUTPUT=$(ssh_check_sshd_status)
+if echo "$OUTPUT" | grep -q "Remote Login:.*On.*Service com.openssh.sshd is loaded"; then
+    pass "Sudo Fail + Launchctl Success -> Detected ON"
+else
+    fail "Sudo Fail + Launchctl Success failed. Output:"
+    echo "$OUTPUT"
+fi
+
+# Test 2: Sudo fails, Launchctl fails, Port succeeds (Service On via Port)
+# ------------------------------------------------------------------------
+MOCK_LAUNCHCTL_SSH="off"
+MOCK_PORT_SSH="on"
+
+OUTPUT=$(ssh_check_sshd_status)
+if echo "$OUTPUT" | grep -q "Remote Login:.*On.*Listening on Port 22"; then
+    pass "Launchctl Fail + Port Success -> Detected ON"
+else
+    fail "Launchctl Fail + Port Success failed. Output:"
+    echo "$OUTPUT"
+fi
+
+# Test 3: All Fail (Service Off)
+# ------------------------------
+MOCK_LAUNCHCTL_SSH="off"
+MOCK_PORT_SSH="off"
+
+OUTPUT=$(ssh_check_sshd_status)
+if echo "$OUTPUT" | grep -q "Remote Login:.*Off"; then
+    pass "All Fail -> Detected OFF"
+else
+    fail "All Fail failed. Output:"
+    echo "$OUTPUT"
+fi
+
+end_suite
