@@ -249,8 +249,8 @@ else
     echo "$OUTPUT" | grep "Security:"
 fi
 
-# Test 3: Firefox Not Installed (Neutral Check)
-# ---------------------------------------------
+# Test 3: Secure Browser Logic
+# ----------------------------
 # Reset to full pass state first
 export MOCK_FW="on"
 export MOCK_FW_STEALTH="on"
@@ -265,7 +265,7 @@ export MOCK_USER_JS="on"
 export MOCK_SIGNAL="on"
 export MOCK_KEEPASSXC="on"
 export MOCK_TOR="on"
-export MOCK_TOR_BROWSER="on"
+export MOCK_TOR_BROWSER="on" # Default ON for Full Pass
 export MOCK_I2P="on"
 export MOCK_PRIVOXY="on"
 export MOCK_GPG="on"
@@ -273,14 +273,40 @@ export MOCK_OPENSSL="on"
 export MOCK_DNS_OUT="127.0.0.1"
 export MOCK_SERVICE_RUNNING="on"
 
-# Set Firefox to NOT installed
+# Case A: Tor Browser Present, Firefox Missing -> Full Score (30 pts)
+export MOCK_TOR_BROWSER="on"
 export MOCK_FF_INSTALLED="off"
-
 OUTPUT=$(diagnosis_run)
 if echo "$OUTPUT" | grep -q "Privacy.*: .*100/100"; then
-    pass "Privacy Score 100 detected with Firefox not installed (Neutral N/A)"
+    pass "Secure Browser: Tor Browser Only -> Full Score"
 else
-    fail "Privacy Score failed for Firefox neutral check. Got:"
+    fail "Secure Browser: Tor Browser Only failed. Got:"
+    echo "$OUTPUT" | grep "Privacy"
+fi
+
+# Case B: Tor Browser Missing, Firefox Missing -> Fail (0 pts / 30)
+export MOCK_TOR_BROWSER="off"
+export MOCK_FF_INSTALLED="off"
+OUTPUT=$(diagnosis_run)
+# Privacy Total = 100. Missing Browser (-30) -> 70/100
+if echo "$OUTPUT" | grep -q "Privacy.*: .*70/100"; then
+    pass "Secure Browser: None -> Correctly penalized (Score 70)"
+else
+    fail "Secure Browser: None failed. Got:"
+    echo "$OUTPUT" | grep "Privacy"
+fi
+
+# Case C: Tor Browser Missing, Firefox Hardened -> Full Score (30 pts)
+export MOCK_TOR_BROWSER="off"
+export MOCK_FF_INSTALLED="on"
+export MOCK_FF_TEL="1"
+export MOCK_USER_JS="on"     # find find
+# Need to ensure check_path passes for Firefox
+OUTPUT=$(diagnosis_run)
+if echo "$OUTPUT" | grep -q "Privacy.*: .*100/100"; then
+    pass "Secure Browser: Firefox Hardened Only -> Full Score"
+else
+    fail "Secure Browser: Firefox Hardened Only failed. Got:"
     echo "$OUTPUT" | grep "Privacy"
 fi
 

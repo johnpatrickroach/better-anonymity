@@ -129,36 +129,44 @@ diagnosis_run() {
         warn "  [FAIL] Ad Tracking not limited."
     fi
     
-    # Firefox Telemetry and Hardening (30 pts)
-    # If installed, check for user.js
-    # Firefox Telemetry and Hardening (30 pts)
-    # If installed, check for user.js
-    if check_path "/Applications/Firefox.app"; then
-         ((priv_total+=30))
-         local ff_hardened=0
-         # Check Telemetry pref
+    # Secure Browser Check (30 pts)
+    # Goal: Ensure at least one privacy-respecting browser is installed and configured.
+    # Accepts: Tor Browser (Best) OR Hardened Firefox.
+    ((priv_total+=30))
+    local secure_browser_found=0
+    
+    # Priority A: Tor Browser (Gold Standard)
+    if is_app_installed "Tor Browser.app"; then
+         ((priv_passed+=30))
+         info "  [PASS] Tor Browser detected."
+         secure_browser_found=1
+    # Priority B: Firefox Hardening
+    elif check_path "/Applications/Firefox.app"; then
+         local ff_score=0
+         # Check Telemetry pref (10 pts)
          if [ "$(defaults read /Library/Preferences/org.mozilla.firefox DisableTelemetry 2>/dev/null)" == "1" ]; then
-            ((priv_passed+=10))
+            ((ff_score+=10))
          else
             warn "  [FAIL] Firefox Telemetry enabled in policies."
          fi
          
-         # Check Arkenfox user.js
+         # Check Arkenfox user.js (20 pts)
          local ff_dir="$HOME/Library/Application Support/Firefox/Profiles"
          if check_path "$ff_dir"; then
-             # Find any profile with user.js
-             if find "$ff_dir" -name "user.js" -maxdepth 2 | grep -q "user.js"; then
-                  ((priv_passed+=20))
+             if find "$ff_dir" -name "user.js" -maxdepth 2 2>/dev/null | grep -q "user.js"; then
+                  ((ff_score+=20))
              else
                   warn "  [FAIL] Firefox user.js (Arkenfox) not found."
              fi
          else
-             # No profiles yet?
-             warn "  [NOTE] Firefox installed but no profiles found."
+             warn "  [FAIL] Firefox installed but no profiles found."
          fi
+         
+         ((priv_passed+=ff_score))
+         if [ $ff_score -gt 0 ]; then secure_browser_found=1; fi
     else
-         # Firefox not installed - Neutral / N/A
-         warn "  [NOTE] Firefox not installed. Skipping specific checks."
+         # No Secure Browser
+         warn "  [FAIL] No secure browser detected (Tor Browser or Hardened Firefox)."
     fi
     
     # Homebrew Analytics (10 pts)
