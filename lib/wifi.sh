@@ -58,10 +58,12 @@ wifi_generate_mac() {
 wifi_spoof_mac() {
     local new_mac="$1"
 
+    # If no MAC provided, generate a random one
     if [ -z "$new_mac" ]; then
-        error "Usage: wifi_spoof_mac <mac_address>"
-        return 1
+        info "No MAC address provided. Generating a random secure MAC..."
+        new_mac=$(wifi_generate_mac)
     fi
+
 
     local iface
     iface=$(wifi_get_interface)

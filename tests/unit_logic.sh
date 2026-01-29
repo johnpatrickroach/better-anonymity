@@ -1359,6 +1359,19 @@ rm -f "$MOCK_AIRPORT" # Cleanup
 assert_match "$OUTPUT" "EXEC: .* -z" "Should disassociate"
 assert_contains "$OUTPUT" "IFCONFIG_SET: 02:00:00:00:00:01" "Should set new mac"
 
+# Test Auto-Gen
+cat <<EOF > "$MOCK_AIRPORT"
+#!/bin/bash
+if [ "\$1" == "-z" ]; then echo "AIRPORT_DISASSOCIATE"; fi
+EOF
+chmod +x "$MOCK_AIRPORT"
+
+OUTPUT=$(wifi_spoof_mac)
+rm -f "$MOCK_AIRPORT"
+assert_contains "$OUTPUT" "Generating a random secure MAC" "Should announce auto-generation"
+# Mock openssl returns 5 bytes, so we get 5 bytes back, but logic holds.
+assert_contains "$OUTPUT" "IFCONFIG_SET: aa:bb:cc:dd:ee" "Should apply generated MAC"
+
 # Re-create for Audit (cleanup deleted it)
 cat <<EOF > "$MOCK_AIRPORT"
 #!/bin/bash
