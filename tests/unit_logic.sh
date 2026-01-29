@@ -3281,6 +3281,11 @@ OUTPUT=$(check_strength "correct correct correct correct")
 assert_contains "$OUTPUT" "Passphrase contains repeated words" "Should detect repeated words"
 if [[ "$OUTPUT" == *"Rating: Very Strong"* ]]; then fail "Should NOT rate repetitive as very strong"; else pass "Correctly penalized repetitive"; fi
 
+# 1b. Test Strength Heuristic (Short Words / Sentence)
+OUTPUT=$(check_strength "I am a cat on a mat")
+assert_contains "$OUTPUT" "Passphrase uses very short words" "Should detect short words"
+if [[ "$OUTPUT" == *"Rating: Excellent"* ]]; then fail "Should NOT rate short sentences as excellent"; else pass "Correctly penalized short words"; fi
+
 # 2. Test Strength Heuristic (Unique)
 OUTPUT=$(check_strength "correct horse battery staple")
 if [[ "$OUTPUT" == *"repeated words"* ]]; then fail "Should not warn on unique words"; else pass "Correctly accepted unique words"; fi
@@ -3289,6 +3294,43 @@ if [[ "$OUTPUT" == *"repeated words"* ]]; then fail "Should not warn on unique w
 OUTPUT=$(generate_password 4)
 WORD_COUNT=$(echo "$OUTPUT" | wc -w | xargs)
 if [ "$WORD_COUNT" -eq 4 ]; then pass "Generated correct word count"; else fail "Generated wrong word count: $WORD_COUNT. Output: $OUTPUT"; fi
+
+# Test 42b: Password Generation Strategies
+# ----------------------------------------
+# 1. Test Python Strategy (Preferred)
+# We can't easily spy on internal calls without refactoring to use a runner.
+# But we can verify it falls back if python is missing.
+
+# Mock command to simulate python3 missing
+mock_command_missing() {
+    if [[ "$*" == *"-v python3"* ]]; then return 1; fi
+    builtin command "$@"
+}
+# Save original command
+save_command_pwd=$(declare -f command)
+# Override
+eval "command() { mock_command_missing \"\$@\"; }"
+
+# Mock openssl for intermediate fallback
+openssl() {
+    # Return 4 bytes hex
+    echo "deadbeef"
+}
+
+OUTPUT=$(generate_password 3)
+if [ "$(echo "$OUTPUT" | wc -w | xargs)" -eq 3 ]; then
+    pass "Fallback to Shell/OpenSSL strategy worked"
+else
+    fail "Fallback to Shell/OpenSSL failed. Output: $OUTPUT"
+fi
+
+# Restore command
+if [ -n "$save_command_pwd" ]; then
+    eval "$save_command_pwd"
+else
+    unset -f command
+fi
+unset -f openssl
 
 # Cleanup
 rm -f "$MOCK_WORDLIST"
