@@ -73,7 +73,7 @@ network_set_dns() {
 }
 
 network_update_hosts() {
-    local HOSTS_FILE="${HOSTS_FILE:-"$HOSTS_FILE"}"
+    local HOSTS_FILE="${HOSTS_FILE:-"/etc/hosts"}"
     info "Updating "$HOSTS_FILE" with StevenBlack blocklist..."
     local START_MARKER="### BETTER-ANONYMITY-START"
     local END_MARKER="### BETTER-ANONYMITY-END"
