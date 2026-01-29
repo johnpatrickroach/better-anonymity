@@ -1413,6 +1413,38 @@ OUTPUT=$(ssh_hash_hosts)
 assert_contains "$OUTPUT" "SSH_KEYGEN_CALL: -H -f" "Should hash hosts"
 
 
+
+# Test 23b: SSH Audit Fallback (systemsetup missing)
+# --------------------------------------------------
+
+# Mock check_port (lib/core.sh not sourced)
+check_port() {
+    if [ "$1" == "localhost" ] && [ "$2" == "22" ]; then
+        return 0 # Open
+    fi
+    return 1
+}
+
+# Mock command to simulate systemsetup missing
+save_command_func=$(declare -f command)
+command() {
+    if [ "$1" == "-v" ] && [ "$2" == "systemsetup" ]; then
+        return 1
+    fi
+    builtin command "$@"
+}
+
+OUTPUT=$(ssh_check_sshd_status)
+assert_contains "$OUTPUT" "Remote Login: On (Listening on localhost:22)" "Should fallback to check_port"
+
+unset -f check_port
+if [ -n "$save_command_func" ]; then
+    eval "$save_command_func"
+else
+    unset -f command
+fi
+
+
 # Test 24: Misc Hardening
 # -----------------------
 # Mock sudo for grep check in sudoers
