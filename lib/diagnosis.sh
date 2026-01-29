@@ -131,8 +131,10 @@ diagnosis_run() {
     
     # Firefox Telemetry and Hardening (30 pts)
     # If installed, check for user.js
-    ((priv_total+=30))
+    # Firefox Telemetry and Hardening (30 pts)
+    # If installed, check for user.js
     if check_path "/Applications/Firefox.app"; then
+         ((priv_total+=30))
          local ff_hardened=0
          # Check Telemetry pref
          if [ "$(defaults read /Library/Preferences/org.mozilla.firefox DisableTelemetry 2>/dev/null)" == "1" ]; then
@@ -155,8 +157,8 @@ diagnosis_run() {
              warn "  [NOTE] Firefox installed but no profiles found."
          fi
     else
-         # Bonus if not installed (using Tor Browser instead?)
-         ((priv_passed+=30))
+         # Firefox not installed - Neutral / N/A
+         warn "  [NOTE] Firefox not installed. Skipping specific checks."
     fi
     
     # Homebrew Analytics (10 pts)

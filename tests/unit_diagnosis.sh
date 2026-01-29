@@ -249,7 +249,7 @@ else
     echo "$OUTPUT" | grep "Security:"
 fi
 
-# Test 3: Firefox Not Installed (Privacy Bonus)
+# Test 3: Firefox Not Installed (Neutral Check)
 # ---------------------------------------------
 # Reset to full pass state first
 export MOCK_FW="on"
@@ -278,9 +278,9 @@ export MOCK_FF_INSTALLED="off"
 
 OUTPUT=$(diagnosis_run)
 if echo "$OUTPUT" | grep -q "Privacy.*: .*100/100"; then
-    pass "Privacy Score 100 detected with Firefox not installed (Bonus applied)"
+    pass "Privacy Score 100 detected with Firefox not installed (Neutral N/A)"
 else
-    fail "Privacy Score failed for Firefox bonus. Got:"
+    fail "Privacy Score failed for Firefox neutral check. Got:"
     echo "$OUTPUT" | grep "Privacy"
 fi
 
@@ -327,6 +327,39 @@ if echo "$OUTPUT" | grep -q "Security: .*100/100"; then
 else
     fail "SSH: On + Hardened failed. Got:"
     echo "$OUTPUT" | grep "Security"
+fi
+
+# Test 5: DNS Anonymity Scoring
+# -----------------------------
+# Reset Anonymity baseline: Tor, I2P, Privoxy, GPG, Airport installed
+export MOCK_TOR="on"
+export MOCK_TOR_BROWSER="on"
+export MOCK_I2P="on"
+export MOCK_PRIVOXY="on"
+export MOCK_GPG="on"
+export MOCK_OPENSSL="on" # for checks
+
+# Case A: Unknown / ISP DNS (e.g. Google Secondary 8.8.4.4) -> Should Fail (0 pts for DNS)
+export MOCK_DNS_OUT="8.8.4.4"
+OUTPUT=$(diagnosis_run)
+# Total Anonymity points: Tor(20) + DNS(20) + I2P(20) + Privoxy(10) + GPG(10) + Spoof(20) = 100
+# If DNS fails (0/20), Score = 80/100
+if echo "$OUTPUT" | grep -q "Anonymity: .*80/100"; then
+    pass "DNS: ISP/Unknown -> Correctly penalized (Score 80)"
+else
+    fail "DNS: ISP/Unknown failed. Got:"
+    echo "$OUTPUT" | grep "Anonymity"
+fi
+
+# Case B: Known Privacy DNS (9.9.9.9) -> Partial Score (15/20)
+# Score = 80 + 15 = 95
+export MOCK_DNS_OUT="9.9.9.9"
+OUTPUT=$(diagnosis_run)
+if echo "$OUTPUT" | grep -q "Anonymity: .*95/100"; then
+    pass "DNS: Quad9 -> Correctly scored (Partial 15/20)"
+else
+    fail "DNS: Quad9 failed. Got:"
+    echo "$OUTPUT" | grep "Anonymity"
 fi
 
 end_suite
