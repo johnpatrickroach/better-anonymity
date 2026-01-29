@@ -12,18 +12,26 @@ setup_tor_password() {
     
     # 1. Generate strong password
     local password
-    # Source password_utils if needed, or assume available via global load
+    # Source password_utils if needed
+    if ! type -t generate_password >/dev/null; then
+        if [ -f "$(dirname "${BASH_SOURCE[0]}")/password_utils.sh" ]; then
+            source "$(dirname "${BASH_SOURCE[0]}")/password_utils.sh"
+        fi
+    fi
+
     if type -t generate_password >/dev/null; then
         password=$(generate_password 4)
     else
-        # Fallback if utils not loaded
+        # Fallback if utils still not available
         password=$(openssl rand -hex 16)
     fi
     
     # 2. Save cleartext securely
     local state_dir="$HOME/.better-anonymity"
-    mkdir -p "$state_dir"
-    chmod 700 "$state_dir"
+    if [ ! -d "$state_dir" ]; then
+        mkdir -p "$state_dir"
+        chmod 700 "$state_dir"
+    fi
     
     echo "$password" > "$pw_file"
     chmod 600 "$pw_file"
@@ -33,16 +41,19 @@ setup_tor_password() {
     local hash_output
     # tor --hash-password outputs: 16:HEXDIGEST
     # We suppress logs and grep the hash lines (usually last line)
-    hash_output=$(tor --hash-password "$password" | grep -v "\[notice\]" | tail -n 1 | tr -d '\r')
+    # We use 'quiet' log usage if possible, but --hash-password usually prints to stdout/stderr.
+    hash_output=$(tor --hash-password "$password" 2>/dev/null | grep "^16:" | tail -n 1 | tr -d '\r')
     
     if [[ "$hash_output" != 16:* ]]; then
-        warn "Failed to generate Tor password hash. Output: $hash_output"
+        error "Failed to generate Tor password hash. Tor output: $hash_output"
         return 1
     fi
     
     # 4. Update torrc
-    # Remove existing
+    # Remove existing HashedControlPassword and CookieAuthentication
     sed_in_place '/HashedControlPassword/d' "$torrc_path"
+    sed_in_place '/CookieAuthentication/d' "$torrc_path"
+    
     echo "HashedControlPassword $hash_output" >> "$torrc_path"
     success "Tor Control Password updated."
 }
@@ -62,8 +73,21 @@ tor_install() {
     fi
     local TORRC="$CONF_DIR/torrc"
     
-    # Configure torrc if missing or if insecure auth detected
-    if [ ! -f "$TORRC" ] || grep -q "CookieAuthentication" "$TORRC"; then
+    # Configure torrc if missing or if insecure auth detected or if password setup is needed
+    local verify_pw_file="$HOME/.better-anonymity/tor_control_password"
+    local need_config=0
+
+    if [ ! -f "$TORRC" ]; then
+        need_config=1
+    elif grep -q "CookieAuthentication" "$TORRC"; then
+        need_config=1
+    elif ! grep -q "HashedControlPassword" "$TORRC"; then
+        need_config=1
+    elif [ ! -f "$verify_pw_file" ]; then
+        need_config=1
+    fi
+
+    if [ $need_config -eq 1 ]; then
         info "Configuring torrc..."
         chmod 700 "$CONF_DIR"
         if [ ! -f "$TORRC" ]; then
@@ -79,13 +103,7 @@ tor_install() {
              echo "ControlPort 9051" >> "$TORRC"
         fi
 
-        # Remove insecure CookieAuthentication
-        if grep -q "CookieAuthentication" "$TORRC"; then
-             echo "Removing insecure CookieAuthentication..."
-             sed_in_place '/CookieAuthentication/d' "$TORRC"
-        fi
-
-        # Setup Hashed Password
+        # Setup Hashed Password (handles removal of CookieAuth too)
         setup_tor_password "$TORRC"
     fi
 
@@ -128,24 +146,29 @@ tor_new_identity() {
          return 1
     fi
 
-    # Using nc to send signal
     # Read password
     local pw_file="$HOME/.better-anonymity/tor_control_password"
     local password=""
     if [ -f "$pw_file" ]; then
         password=$(cat "$pw_file")
     else
-        warn "Password file missing at $pw_file. Authentication may fail."
+        error "Control password file missing at $pw_file. Cannot authenticate to Tor."
+        return 1
     fi
 
     # -N shutdown write after EOF (optional depends on netcat version, safe to omit usually)
     # We send "AUTHENTICATE <password>" then "SIGNAL NEWNYM"
     # IMPORTANT: Use double quotes for Authenticate command to handle spaces if any
-    if echo -e "AUTHENTICATE \"$password\"\r\nSIGNAL NEWNYM\r\nQUIT" | nc 127.0.0.1 9051 >/dev/null 2>&1; then
+    local cmd_output
+    cmd_output=$(echo -e "AUTHENTICATE \"$password\"\r\nSIGNAL NEWNYM\r\nQUIT" | nc 127.0.0.1 9051 2>&1)
+    
+    # Simple check for success (250 OK)
+    if echo "$cmd_output" | grep -q "250 OK"; then
         success "New Identity requested. Circuit should cycle shortly."
     else
-        warn "Failed to communicate with Tor Control Port (9051). Is it enabled?"
-        warn "Check $BREW_PREFIX/etc/tor/torrc for 'ControlPort 9051'."
+        warn "Failed to communicate with Tor Control Port (9051)."
+        warn "Output: $cmd_output"
+        warn "Check $BREW_PREFIX/etc/tor/torrc for 'ControlPort 9051' and HashedControlPassword."
     fi
 }
 

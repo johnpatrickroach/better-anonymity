@@ -97,6 +97,10 @@ brew() {
 mkdir() { command mkdir "$@"; }
 # grep mock removed to allow usage of real grep (needed for logic checks)
 
+# Mock find_free_uid (Core Helper)
+find_free_uid() { echo "300"; return 0; }
+export -f find_free_uid
+
 
 # Load Libraries
 source "$(dirname "$0")/../lib/network.sh"
@@ -663,15 +667,19 @@ sed() {
     fi
 }
 
+
+# Mock dscl for this test
+dscl() { echo "EXEC: dscl $*"; return 0; }
+
 OUTPUT=$(install_unbound)
 
 assert_contains "$OUTPUT" "Installing Unbound" "Should install"
 assert_contains "$OUTPUT" "brew called with: install unbound" "Should brew install"
 
-# New behavior: sysadminctl
+# New behavior: dscl
 assert_contains "$OUTPUT" "Creating _unbound system user" "Should announce user creation"
-assert_contains "$OUTPUT" "EXEC: sysadminctl -addUser _unbound" "Should use sysadminctl"
-assert_contains "$OUTPUT" "-UID 333" "Should use UID 333"
+assert_contains "$OUTPUT" "Selected UID/GID: 300" "Should select UID"
+assert_contains "$OUTPUT" "EXEC: dscl . -create /Users/_unbound UniqueID 300" "Should use dscl"
 
 assert_contains "$OUTPUT" "EXEC: unbound-anchor -a" "Should fetch root key"
 assert_contains "$OUTPUT" "EXEC: unbound-control-setup -d" "Should setup control"
@@ -3509,6 +3517,7 @@ mkdir -p "$HOME/.better-anonymity"
 echo "test_mock_password" > "$HOME/.better-anonymity/tor_control_password"
 
 # Update nc mock to verify input
+# Update nc mock to verify input
 nc() { 
     local input
     # Read stdin if pipe available (using timeout to avoid hang if empty)
@@ -3518,6 +3527,7 @@ nc() {
     
     # Check for authentication
     if [[ "$input" == *"AUTHENTICATE \"test_mock_password\""* ]]; then
+        echo "250 OK"
         return 0
     elif [[ "$input" == *"-z 127.0.0.1 9050"* ]]; then
         return 0
@@ -3673,9 +3683,14 @@ fi
     
     # Test create_unbound_user
     OUTPUT=$(create_unbound_user)
-    assert_contains "$OUTPUT" "EXEC: sysadminctl -addUser _unbound" "Should use sysadminctl for user creation"
-    assert_contains "$OUTPUT" "-fullName Unbound DNS Server" "Should set full name"
-    assert_contains "$OUTPUT" "-UID 333" "Should set UID 333"
+    
+    # Verify find_free_uid logic - mocking ID as 1 (not found) means 300 should be picked
+    assert_contains "$OUTPUT" "Selected UID/GID: 300" "Should select first free UID"
+    
+    assert_contains "$OUTPUT" "EXEC: dscl . -create /Groups/_unbound PrimaryGroupID 300" "Should create group"
+    assert_contains "$OUTPUT" "EXEC: dscl . -create /Users/_unbound UniqueID 300" "Should create user with UID"
+    assert_contains "$OUTPUT" "EXEC: dscl . -create /Users/_unbound RealName Unbound DNS Server" "Should set RealName"
+    assert_contains "$OUTPUT" "EXEC: dscl . -create /Users/_unbound UserShell /usr/bin/false" "Should set Shell"
     
     # Mock check_config_and_backup to verify install_privoxy usage
     check_config_and_backup() {
@@ -3787,6 +3802,8 @@ generate_password() {
 }
 
 # Setup env
+TEST_ARTIFACTS="$(dirname "$0")/artifacts"
+mkdir -p "$TEST_ARTIFACTS"
 MOCK_TORRC="$TEST_ARTIFACTS/torrc"
 touch "$MOCK_TORRC"
 MOCK_HOME="$TEST_ARTIFACTS/home"

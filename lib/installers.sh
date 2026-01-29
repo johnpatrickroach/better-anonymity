@@ -380,35 +380,36 @@ create_unbound_user() {
     
     info "Creating _unbound system user..."
     
-    # Use sysadminctl for robust user creation
-    # -admin: Run as interactive admin if needed, or rely on sudo
-    # Since we use execute_sudo, pass simple args
+    # Use dscl for manual, robust user creation without hardcoded UID 333
+    local uid
+    uid=$(find_free_uid 300 499)
     
-    # Warning: sysadminctl is quirky with sudo. It often demands interactive auth.
-    # Using 'dscl' is actually more scriptable as root.
-    # BUT user explicitly requested 'sysadminctl'.
-    
-    # Syntax: sysadminctl -addUser <name> -fullName <desc> -UID <id> -home <path> -shell <shell>
-    # Note: sysadminctl handles group creation mostly.
-    
-    if execute_sudo "Create unbound user" sysadminctl -addUser _unbound \
-        -fullName "Unbound DNS Server" \
-        -UID 333 \
-        -home /var/empty \
-        -shell /usr/bin/false; then
-        success "User _unbound created."
-    else
-        # Fallback to dscl logic if sysadminctl fails (common in some envs)
-        warn "sysadminctl failed. Falling back to legacy creation..."
-        # (Legacy logic removed for brevity as per refactor goal, but keeping safe fallback is wise? 
-        # No, user asked to replace it. I'll rely on it or fail.)
-        die "Failed to create user _unbound via sysadminctl."
+    if [ -z "$uid" ]; then
+        die "Could not find a free UID in range 300-499 for _unbound user."
     fi
     
-    # Fix primary group if needed (sysadminctl might create a group named _unbound with matching GID, or Put in Staff)
-    # We assume standard behavior.
-    # Ensure hidden
+    info "Selected UID/GID: $uid"
+    
+    # 1. Create Group
+    # Note: We use the same ID for GID
+    info "Creating group _unbound..."
+    execute_sudo "Create Group" dscl . -create /Groups/_unbound PrimaryGroupID "$uid"
+    
+    # 2. Create User
+    # Shell: /usr/bin/false
+    # Home: /var/empty
+    # Hidden: Yes
+    info "Creating user _unbound..."
+    execute_sudo "Create User Account" dscl . -create /Users/_unbound UniqueID "$uid"
+    execute_sudo "Set Primary Group" dscl . -create /Users/_unbound PrimaryGroupID "$uid"
+    execute_sudo "Set Real Name" dscl . -create /Users/_unbound RealName "Unbound DNS Server"
+    execute_sudo "Set Shell" dscl . -create /Users/_unbound UserShell /usr/bin/false
+    execute_sudo "Set Home" dscl . -create /Users/_unbound NFSHomeDirectory /var/empty
+    
+    # 3. Hide User
     execute_sudo "Hide User" dscl . -create /Users/_unbound IsHidden 1
+    
+    success "User _unbound created with UID $uid."
 }
 
 install_unbound() {

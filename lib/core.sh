@@ -246,6 +246,20 @@ execute_brew() {
     fi
 }
 
+# Helper: Find a free UID in a specific range
+find_free_uid() {
+    local start="$1"
+    local end="$2"
+    
+    for (( uid=start; uid<=end; uid++ )); do
+        if ! id "$uid" &>/dev/null; then
+            echo "$uid"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Check Functions
 # ---------------
 
