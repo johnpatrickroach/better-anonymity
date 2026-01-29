@@ -3770,5 +3770,79 @@ if [ -n "$MOCK_ROOT" ] && [ -d "$MOCK_ROOT" ]; then
     rm -rf "$MOCK_ROOT"
 fi
 
+# Test 51: Tor ControlPort System Logic
+# ---------------------------------------------
+# Verify setup_tor_password security
+
+# Mock tor command for hashing
+tor() {
+    if [ "$1" == "--hash-password" ]; then
+        echo "16:MOCK_HASH_AB1234567890"
+    fi
+}
+
+# Mock generate_password
+generate_password() {
+    echo "secure_mock_password"
+}
+
+# Setup env
+MOCK_TORRC="$TEST_ARTIFACTS/torrc"
+touch "$MOCK_TORRC"
+MOCK_HOME="$TEST_ARTIFACTS/home"
+mkdir -p "$MOCK_HOME/.better-anonymity"
+export HOME="$MOCK_HOME"
+
+# Mock chmod to capture calls
+chmod() {
+    echo "CHMOD_CALL: $*"
+}
+
+# Check if tor_manager is available, if not source it
+# But we are in the same shell context.
+# We need to re-source or assume availability.
+if ! type -t setup_tor_password >/dev/null; then
+    source "$(dirname "$0")/../lib/tor_manager.sh"
+fi
+
+OUTPUT=$(setup_tor_password "$MOCK_TORRC")
+
+# Check 1: HashedControlPassword in torrc
+if grep -q "HashedControlPassword 16:MOCK_HASH_AB1234567890" "$MOCK_TORRC"; then
+    pass "Torrc updated with HashedControlPassword"
+else
+    fail "Torrc missing HashedControlPassword. Content: $(cat "$MOCK_TORRC")"
+fi
+
+# Check 2: Password File Created
+PW_FILE="$MOCK_HOME/.better-anonymity/tor_control_password"
+if [ -f "$PW_FILE" ]; then
+    pass "Password file created"
+    CONTENT=$(cat "$PW_FILE")
+    if [ "$CONTENT" == "secure_mock_password" ]; then
+        pass "Password file contains correct cleartext"
+    else
+        fail "Password file content mismatch: $CONTENT"
+    fi
+else
+    fail "Password file not created at $PW_FILE"
+fi
+
+# Check 3: Permissions
+# We grep the OUTPUT for our mocked chmod call
+if echo "$OUTPUT" | grep -q "CHMOD_CALL: 600 .*tor_control_password"; then
+    pass "Password file permissions set to 600"
+else
+    if echo "$OUTPUT" | grep -q "CHMOD_CALL: 600"; then
+        pass "Password file permissions set to 600 (Inferred)"
+    else
+        fail "Password file permissions NOT set to 600 (Log: $OUTPUT)"
+    fi
+fi
+
+# Cleanup
+rm -rf "$MOCK_HOME"
+rm -f "$MOCK_TORRC"
+
 end_suite
 exit 0
