@@ -3956,6 +3956,35 @@ assert_contains "$OUTPUT" "Config: Bridges are ENABLED" "Should verify config"
 assert_contains "$OUTPUT" "Process: obfs4proxy is RUNNING" "Should verify process"
 assert_contains "$OUTPUT" "Bridge Verification Complete" "Should confirm full success"
 
+# Test Dynamic Bridge Fetch
+# -----------------------------
+# Mock curl for this test
+curl() {
+    if [[ "$1" == "-s" && "$2" == "https://bridges.torproject.org/"* ]]; then
+        echo '<div id="bridgelines" class="p-4 mb-3">'
+        echo 'obfs4 103.149.168.186:8443 2D16215A86522A3CFCBBBE30BFF7C706413336A9 cert=ebVLQlo1wEnp/HYtJ&#43;nSuikwe&#43;dSt632ka33wJAiUeVK0IeYs5M6w5DwoPX8gYLsJfADSA iat-mode=0 <br/>'
+        echo 'obfs4 151.80.56.127:7001 E38A5D2B932EF8AD559E9DBE1AD8327CDD7046C6 cert=4H3vmss8Su7CBmcOGQbEBmfFLQX4k6y7WgVrN/Eipcnd4C7JeJjidusy/Es9D6aBcODucQ iat-mode=0 <br/>'
+        echo '</div>'
+        return 0
+    else
+        # Pass through other curl calls (or mock generic)
+        echo "MOCK_CURL_OUTPUT"
+        return 0
+    fi
+}
+
+OUTPUT_FETCH=$(tor_fetch_bridges)
+assert_contains "$OUTPUT_FETCH" "obfs4 103.149.168.186:8443" "Should extract first bridge IP"
+assert_contains "$OUTPUT_FETCH" "cert=ebVLQlo1wEnp/HYtJ+nSuikwe+dSt632ka33wJAiUeVK0IeYs5M6w5DwoPX8gYLsJfADSA" "Should decode HTML entities (+)"
+assert_contains "$OUTPUT_FETCH" "obfs4 151.80.56.127:7001" "Should extract second bridge IP"
+
+# Verify lines are clean (no <br/>)
+if echo "$OUTPUT_FETCH" | grep -q "<br/>"; then
+    fail "Output should not contain <br/> tags"
+else
+    pass "Output cleaned of HTML tags"
+fi
+
 # Cleanup
 rm -rf "$BREW_PREFIX" "$MOCK_TORRC_2"
 

@@ -305,6 +305,7 @@ tor_disable_system_proxy() {
 # Usage: tor_configure_bridges [mode] (mode: default|manual)
 tor_configure_bridges() {
     local mode="$1"
+    local content="$2"
     local TORRC="$BREW_PREFIX/etc/tor/torrc"
     
     # Ensure obfs4proxy is installed
@@ -343,6 +344,13 @@ tor_configure_bridges() {
                  else
                       echo "$line" >> "$TORRC"
                  fi
+             fi
+         done
+    elif [ "$mode" == "dynamic" ]; then
+         info "Applying fetched bridges..."
+         echo "$content" | while read -r line; do
+             if [[ -n "$line" ]]; then
+                 echo "Bridge $line" >> "$TORRC"
              fi
          done
     else
@@ -387,15 +395,26 @@ tor_enable_bridges() {
     fi
 
     echo "Select Bridge Configuration Mode:"
-    echo "1) Automated (Use built-in fallback bridges)"
-    echo "2) Manual (Paste bridges from bridges.torproject.org)"
-    read -r -p "Choice [1/2]: " choice
+    echo "1) Automated: Dynamic Fetch (bridges.torproject.org)"
+    echo "2) Automated: Static Fallback (Built-in list)"
+    echo "3) Manual: Paste custom bridges"
+    read -r -p "Choice [1-3]: " choice
     
     case "$choice" in
         1)
-            tor_configure_bridges "default"
+            local fetched_bridges
+            fetched_bridges=$(tor_fetch_bridges)
+            if [ $? -eq 0 ] && [ -n "$fetched_bridges" ]; then
+                tor_configure_bridges "dynamic" "$fetched_bridges"
+            else
+                error "Falling back to static selection menu..."
+                tor_enable_bridges
+            fi
             ;;
         2)
+            tor_configure_bridges "default"
+            ;;
+        3)
             tor_configure_bridges "manual"
             ;;
         *)
@@ -458,6 +477,47 @@ tor_verify_connection() {
         error "You are NOT routed through Tor correctly or the check failed."
         return 1
     fi
+}
+
+tor_fetch_bridges() {
+    info "Fetching fresh bridges from https://bridges.torproject.org..."
+    
+    # Use specific headers to mimic a browser and bypass basic checks
+    local html_content
+    html_content=$(curl -s 'https://bridges.torproject.org/bridges?transport=obfs4' \
+      -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7' \
+      -H 'Accept-Language: en-US,en;q=0.9' \
+      -H 'Connection: keep-alive' \
+      -H 'Upgrade-Insecure-Requests: 1' \
+      -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36' \
+      -H 'sec-ch-ua: "Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"' \
+      -H 'sec-ch-ua-mobile: ?0' \
+      -H 'sec-ch-ua-platform: "macOS"')
+    
+    if [ -z "$html_content" ]; then
+        error "Failed to fetch bridges (empty response)."
+        return 1
+    fi
+
+    # Extract bridge lines from the <div id="bridgelines"> container
+    # 1. Sed range: /<div id="bridgelines"/,/<\/div>/
+    # 2. Grep: Keep lines starting with 'obfs4'
+    # 3. Sed cleanup: remove <br/>, decode HTML entity &#43; (+)
+    local bridges
+    bridges=$(echo "$html_content" | \
+        sed -n '/<div id="bridgelines"/,/<\/div>/p' | \
+        grep "obfs4" | \
+        sed 's/<br\/>//g' | \
+        sed 's/&#43;/+/g' | \
+        tr -d '\r')
+
+    if [ -z "$bridges" ]; then
+        warn "No bridges found in response. Possible CAPTCHA or format change."
+        warn "Response snippet: $(echo "$html_content" | head -n 5)"
+        return 1
+    fi
+    
+    echo "$bridges"
 }
 
 tor_verify_bridges() {
