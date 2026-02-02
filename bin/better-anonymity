@@ -548,7 +548,6 @@ case "$COMMAND" in
         captive_dispatcher "$@"
         ;;
     tor)
-        shift
         load_module "tor_manager"
         tor_dispatcher "$1"
         ;;

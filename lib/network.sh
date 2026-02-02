@@ -36,8 +36,10 @@ network_set_dns() {
 
     services=$(networksetup -listallnetworkservices | grep -v '\*')
     
-    IFS=$'\n'
-    for service in $services; do
+    # Use while read loop to avoid IFS issues with spaces in arguments
+    echo "$services" | while read -r service; do
+        if [ -z "$service" ]; then continue; fi
+        
         current_dns=$(networksetup -getdnsservers "$service" | tr '\n' ' ' | sed 's/ $//')
         
         # Strict comparison to ensure NO extra servers are set (crucial for anonymity)
@@ -63,9 +65,9 @@ network_set_dns() {
         fi
 
         # Requires sudo
+        # Note: We must ensure standard IFS for word splitting of dns_servers
         execute_sudo "Set DNS for $service" networksetup -setdnsservers "$service" $dns_servers
     done
-    unset IFS
     
     execute_sudo "Flush DNS cache" dscacheutil -flushcache
     execute_sudo "Kill mDNSResponder" killall -HUP mDNSResponder

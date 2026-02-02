@@ -39,6 +39,9 @@ This document provides a comprehensive list of all commands and subcommands avai
 | | `proxy-on` | Enable System SOCKS Proxy pointing to Tor. |
 | | `proxy-off` | Disable System SOCKS Proxy. |
 | | `enable-bridges` | Configure Tor Bridges (Rule-based or Custom). |
+| | `disable-bridges` | Disable Tor Bridges (Direct connection). |
+| | `verify-bridges` | Audit Bridge config and connectivity. |
+| | `verify` | Verify Tor connection via check.torproject.org. |
 | | `install` | Install Tor and verifying configuration. |
 
 ## Wi-Fi Privacy
@@ -89,19 +92,19 @@ This document provides a comprehensive list of all commands and subcommands avai
 | Command | Subcommand | Description |
 | :--- | :--- | :--- |
 | `i2p` | `start` | Start I2P Router. |
-| | `stop` | Stop I2P Router. |
-| | `restart` | Restart I2P Router. |
-| | `console` | Open I2P Router Console in browser. |
-| | `status` | Check status. |
+| `i2p` | `stop` | Stop I2P Router. |
+| `i2p` | `restart` | Restart I2P Router. |
+| `i2p` | `console` | Open I2P Router Console in browser. |
+| `i2p` | `status` | Check status. |
 
 ### Captive Portal
 
 | Command | Subcommand | Description |
 | :--- | :--- | :--- |
 | `captive` | `start` | Start monitor service in background. |
-| | `stop` | Stop monitor service. |
-| | `monitor` | Launch monitor in new terminal window (interactive). |
-| | `status` | Check service status. |
+| `captive` | `stop` | Stop monitor service. |
+| `captive` | `monitor` | Launch monitor in new terminal window (interactive). |
+| `captive` | `status` | Check service status. |
 
 ### Vault & Backup
 

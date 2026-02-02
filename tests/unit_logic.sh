@@ -225,10 +225,10 @@ networksetup() {
 # Arguments passed: -setdnsservers "Wi-Fi" 9.9.9.9 149.112.112.112
 OUTPUT=$(network_set_dns "quad9" | tr -d '\n')
 
-assert_contains "$OUTPUT" "SET_DNS: -setdnsserversWi-Fi9.9.9.9 149.112.112.112" "Should set Quad9 for Wi-Fi"
+assert_contains "$OUTPUT" "SET_DNS: -setdnsservers Wi-Fi 9.9.9.9 149.112.112.112" "Should set Quad9 for Wi-Fi"
 
 OUTPUT=$(network_set_dns "localhost" | tr -d '\n')
-assert_contains "$OUTPUT" "SET_DNS: -setdnsserversWi-Fi127.0.0.1" "Should set Localhost for Wi-Fi"
+assert_contains "$OUTPUT" "SET_DNS: -setdnsservers Wi-Fi 127.0.0.1" "Should set Localhost for Wi-Fi"
 
 # Test 2: Installer Logic
 # -----------------------
@@ -2067,8 +2067,14 @@ tor_status() { echo "CALL: tor_status"; }
 # Mock brew existence
 command() { return 0; } 
 # Mock hosts file existence for update check
+# Mock hosts file existence for update check
 # We can't easily mock file check [ -f ] without modifying source or filesystem.
 # But we can check if it calls verify/dns/tor.
+
+# Mock execution wrappers for daily check
+execute_sudo() { echo "SUDO_EXEC: $*"; }
+execute_brew() { echo "BREW_EXEC: $*"; }
+ask_confirmation() { return 0; } # Auto-yes
 
 OUTPUT=$(lifecycle_daily)
 assert_contains "$OUTPUT" "HEADER: Daily Health Check" "Should show daily header"
@@ -3882,6 +3888,76 @@ fi
 # Cleanup
 rm -rf "$MOCK_HOME"
 rm -f "$MOCK_TORRC"
+
+
+# Test 31: Tor Bridges
+# --------------------
+start_suite "Tor Bridges"
+source "$(dirname "$0")/../lib/tor_manager.sh"
+
+# Mock dependencies
+tor_service_restart() { echo "TOR_RESTART_CALL"; }
+check_installed() { return 0; }
+install_brew_package() { echo "INSTALL_CALL: $1"; }
+which() { echo "/usr/local/bin/obfs4proxy"; }
+# Functional mock for sed_in_place to actually modify the file
+sed_in_place() {
+    # Robust mock: use temp file to avoid sed -i platform issues
+    sed "$1" "$2" > "${2}.tmp" && mv "${2}.tmp" "$2"
+}
+
+# Mock torrc
+MOCK_TORRC_2="/tmp/mock_torrc_bridge_$$"
+echo "UseBridges 1" > "$MOCK_TORRC_2"
+echo "ClientTransportPlugin obfs4 exec /bin/true" >> "$MOCK_TORRC_2"
+echo "Bridge obfs4 1.2.3.4" >> "$MOCK_TORRC_2"
+# Override BREW_PREFIX to point to tmp
+BREW_PREFIX="/tmp/brew_mock_$$"
+export BREW_PREFIX
+mkdir -p "$BREW_PREFIX/etc/tor"
+cp "$MOCK_TORRC_2" "$BREW_PREFIX/etc/tor/torrc"
+
+# Test Disable Bridges
+OUTPUT=$(tor_disable_bridges)
+assert_contains "$OUTPUT" "Disabling Tor Bridges" "Should announce disable"
+assert_contains "$OUTPUT" "TOR_RESTART_CALL" "Should restart Tor"
+
+# Verify file content
+if grep -q "UseBridges" "$BREW_PREFIX/etc/tor/torrc"; then
+    fail "UseBridges should be removed"
+else
+    pass "UseBridges removed"
+fi
+
+if grep -q "Bridge obfs4" "$BREW_PREFIX/etc/tor/torrc"; then
+    fail "Bridge lines should be removed"
+else
+    pass "Bridge lines removed"
+fi
+
+# Test Verify Bridges (Mocking)
+# -----------------------------
+# Re-enable bridges in mock config for verification test
+echo "UseBridges 1" > "$BREW_PREFIX/etc/tor/torrc"
+
+# Mock pgrep to return true (0)
+pgrep() { return 0; }
+# Mock grep to find the line
+grep() { 
+    if [[ "$*" == *"UseBridges 1"* ]]; then return 0; fi
+    # Fallback to real grep for other patterns
+    /usr/bin/grep "$@"
+}
+# Mock tor_verify_connection to return success
+tor_verify_connection() { echo "CONNECTION_VERIFIED"; return 0; }
+
+OUTPUT=$(tor_verify_bridges)
+assert_contains "$OUTPUT" "Config: Bridges are ENABLED" "Should verify config"
+assert_contains "$OUTPUT" "Process: obfs4proxy is RUNNING" "Should verify process"
+assert_contains "$OUTPUT" "Bridge Verification Complete" "Should confirm full success"
+
+# Cleanup
+rm -rf "$BREW_PREFIX" "$MOCK_TORRC_2"
 
 end_suite
 exit 0

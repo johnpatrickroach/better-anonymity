@@ -361,6 +361,25 @@ tor_configure_bridges() {
     tor_service_restart
 }
 
+tor_disable_bridges() {
+    local TORRC="$BREW_PREFIX/etc/tor/torrc"
+    
+    info "Disabling Tor Bridges (Reverting to direct connection)..."
+    
+    # Backup torrc
+    cp "$TORRC" "${TORRC}.bak.disabled_bridges.$(date +%s)"
+    
+    # Remove bridge config
+    sed_in_place '/UseBridges/d' "$TORRC"
+    sed_in_place '/ClientTransportPlugin/d' "$TORRC"
+    sed_in_place '/Bridge obfs4/d' "$TORRC"
+    sed_in_place '/^Bridge/d' "$TORRC" # Catch generic Bridge lines
+    
+    success "Bridge configuration removed."
+    info "Restarting Tor to apply changes..."
+    tor_service_restart
+}
+
 tor_enable_bridges() {
     # Check if obfs4proxy needs install
     if ! check_installed "obfs4proxy"; then
@@ -396,6 +415,80 @@ tor_info() {
         "  curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org"
 }
 
+tor_verify_connection() {
+    info "Verifying Tor Connectivity..."
+    
+    # 1. Check if Tor is running locally first
+    if ! tor_status_check; then
+         error "Tor service is NOT running. Please start it with 'better-anonymity tor start'."
+         return 1
+    fi
+    
+    info "Querying https://check.torproject.org via SOCKS5 proxy (127.0.0.1:9050)..."
+    
+    local output
+    # timeout: use curl's max-time to avoid hanging
+    # -s: silent, -m 15: 15s timeout
+    output=$(curl --socks5-hostname 127.0.0.1:9050 -s -m 15 "https://check.torproject.org/api/ip")
+    local exit_code=$?
+    
+    if [ $exit_code -ne 0 ]; then
+        error "Failed to connect to Tor check service. Curl exit code: $exit_code"
+        if [ $exit_code -eq 7 ]; then
+             warn "Suggestion: Ensure Tor has finished bootstrapping (check status)."
+        fi
+        return 1
+    fi
+    
+    # Parse valid JSON response
+    # {"IsTor":true,"IP":"..."}
+    if [[ "$output" == *"\"IsTor\":true"* ]]; then
+        local ip_addr
+        ip_addr=$(echo "$output" | sed -E 's/.*"IP":"([^"]+)".*/\1/')
+        success "Tor Connection Verified!"
+        success "Your IP appears as: $ip_addr (Tor Exit Node)"
+    else
+        warn "Tor Connection Check completed, but result is negative."
+        warn "Response: $output"
+        error "You are NOT routed through Tor correctly or the check failed."
+        return 1
+    fi
+}
+
+tor_verify_bridges() {
+    info "Verifying Tor Bridge Configuration..."
+    
+    local torrc_path
+    if [ -n "$BREW_PREFIX" ]; then
+        torrc_path="$BREW_PREFIX/etc/tor/torrc"
+    else
+        torrc_path="/usr/local/etc/tor/torrc"
+    fi
+    
+    # 1. Config Check
+    if grep -q "^UseBridges 1" "$torrc_path" 2>/dev/null; then
+        success "Config: Bridges are ENABLED (UseBridges 1)."
+    else
+        error "Config: Bridges are DISABLED (UseBridges not set to 1)."
+        return 1
+    fi
+    
+    # 2. Process Check
+    if pgrep -x "obfs4proxy" >/dev/null; then
+        success "Process: obfs4proxy is RUNNING."
+    else
+        warn "Process: obfs4proxy is NOT running (might generally run on-demand or failed)."
+    fi
+    
+    # 3. Connection Check
+    if tor_verify_connection; then
+        success "Bridge Verification Complete: Tor is connected using bridges."
+    else
+        error "Bridge Verification Failed: Tor is not reachable."
+        return 1
+    fi
+}
+
 tor_help() {
     echo "Usage: better-anonymity tor [command]"
     echo ""
@@ -406,6 +499,10 @@ tor_help() {
     echo "  status   Check service status."
     echo "  new-id   Request New Identity (signals NEWNYM to ControlPort)."
     echo "  install  Install Tor and verify configuration."
+    echo "  enable-bridges   Configure Tor Bridges (obfs4)."
+    echo "  disable-bridges  Disable Tor Bridges (Direct connection)."
+    echo "  verify   Verify Tor connection via check.torproject.org."
+    echo "  verify-bridges   Verify Bridge configuration and connectivity."
 }
 
 tor_dispatcher() {
@@ -443,6 +540,15 @@ tor_dispatcher() {
             ;;
         enable-bridges)
             tor_enable_bridges
+            ;;
+        disable-bridges)
+            tor_disable_bridges
+            ;;
+        verify|audit)
+            tor_verify_connection
+            ;;
+        verify-bridges)
+            tor_verify_bridges
             ;;
         help|--help|-h)
             tor_help

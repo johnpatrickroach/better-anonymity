@@ -604,13 +604,26 @@ lifecycle_daily() {
     load_module "macos_hardening"
     load_module "tor_manager"
     
-    # 1. Update Tools
-    info "Checking for tool updates..."
-    # If brew is installed, optional update
+    # 1. Update Tools & System
+    info "Checking for tool and system updates..."
+    
+    # 1a. System Update
+    if ask_confirmation "Run macOS System Update (softwareupdate -ia)?"; then
+        info "Running softwareupdate (may require restart)..."
+        # -i: install, -a: all appropriate updates
+        execute_sudo "System Update" softwareupdate -ia || warn "Software Update reported an issue."
+    fi
+    
+    # 1b. Homebrew Update
     if command -v brew &> /dev/null; then
-         # Only run update if user wants, or just run upgrade on our known tools?
-         # Full brew upgrade is heavy. Let's just update blocklists.
-         info "Brew installed. Run 'brew upgrade' manually to update tools."
+         if ask_confirmation "Update Homebrew and installed packages?"; then
+             info "Updating Homebrew..."
+             execute_brew "Update" update
+             info "Upgrading packages..."
+             execute_brew "Upgrade" upgrade || warn "Brew upgrade encountered errors."
+         fi
+    else
+         info "Homebrew not found. Skipping package updates."
     fi
 
     # 2. Update Hosts
