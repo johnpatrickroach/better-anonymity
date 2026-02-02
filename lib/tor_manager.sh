@@ -425,17 +425,22 @@ tor_verify_connection() {
     fi
     
     info "Querying https://check.torproject.org via SOCKS5 proxy (127.0.0.1:9050)..."
+    warn "This may take up to 60 seconds if using bridges..."
     
     local output
     # timeout: use curl's max-time to avoid hanging
-    # -s: silent, -m 15: 15s timeout
-    output=$(curl --socks5-hostname 127.0.0.1:9050 -s -m 15 "https://check.torproject.org/api/ip")
+    # -s: silent, -m 60: 60s timeout (Bridges are slow)
+    output=$(curl --socks5-hostname 127.0.0.1:9050 -s -m 60 "https://check.torproject.org/api/ip")
     local exit_code=$?
     
     if [ $exit_code -ne 0 ]; then
         error "Failed to connect to Tor check service. Curl exit code: $exit_code"
         if [ $exit_code -eq 7 ]; then
-             warn "Suggestion: Ensure Tor has finished bootstrapping (check status)."
+             warn "Suggestion: Connection refused. Ensure Tor is fully started."
+        elif [ $exit_code -eq 28 ]; then
+             warn "Suggestion: Connection Timed Out."
+             warn "Possible causes: Tor is still bootstrapping, Bridges are blocked, or network is very slow."
+             warn "Check status with 'better-anonymity tor status' or logs."
         fi
         return 1
     fi
