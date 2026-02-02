@@ -314,7 +314,11 @@ tor_configure_bridges() {
         install_brew_package "obfs4proxy"
     fi
     local obfs4_path
-    obfs4_path=$(which obfs4proxy)
+    if [ -n "$BREW_PREFIX" ] && [ -x "$BREW_PREFIX/bin/obfs4proxy" ]; then
+        obfs4_path="$BREW_PREFIX/bin/obfs4proxy"
+    else
+        obfs4_path=$(which obfs4proxy)
+    fi
     
     info "Configuring Tor Bridges..."
     
@@ -480,7 +484,7 @@ tor_verify_connection() {
 }
 
 tor_fetch_bridges() {
-    info "Fetching fresh bridges from https://bridges.torproject.org..."
+    info "Fetching fresh bridges from https://bridges.torproject.org..." >&2
     
     # Use specific headers to mimic a browser and bypass basic checks
     local html_content
