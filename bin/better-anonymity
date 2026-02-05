@@ -125,12 +125,14 @@ get_version() {
 }
 
 # Handle global flags
-# Scan all arguments for --explain
+# Scan all arguments for --explain or --auto
 EXPLAIN_MODE=0
 args=()
 for arg in "$@"; do
     if [[ "$arg" == "--explain" ]]; then
         EXPLAIN_MODE=1
+    elif [[ "$arg" == "--auto" ]]; then
+        export BETTER_ANONYMITY_AUTO_YES=1
     else
         args+=("$arg")
     fi
@@ -404,7 +406,6 @@ case "$COMMAND" in
          ;;
     vault)
          load_module "vault"
-         shift
          case "$1" in
             write|w) 
                 if [ -z "$2" ]; then error "Usage: better-anonymity vault write <key_name>"; exit 1; fi
@@ -418,7 +419,6 @@ case "$COMMAND" in
          ;;
     backup)
          load_module "backup"
-         shift
          case "$1" in
             encrypt) 
                 if [ -z "$2" ]; then error "Usage: better-anonymity backup encrypt <source_dir> [dest_file]"; exit 1; fi
@@ -435,7 +435,6 @@ case "$COMMAND" in
          ;;
     wifi)
          load_module "wifi"
-         shift
          case "$1" in
             audit) wifi_audit ;;
             spoof-mac|spoof)
@@ -448,7 +447,6 @@ case "$COMMAND" in
          ;;
     ssh)
          load_module "ssh"
-         shift
          case "$1" in
             audit-sshd) ssh_check_sshd_status ;;
             harden-sshd) ssh_harden_sshd ;;
@@ -464,7 +462,6 @@ case "$COMMAND" in
 
     i2p)
          load_module "i2p_manager"
-         shift
          case "$1" in
             install) i2p_install ;;
             start)   i2p_start ;;

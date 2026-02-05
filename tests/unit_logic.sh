@@ -3909,12 +3909,17 @@ sed_in_place() {
 # Mock torrc
 MOCK_TORRC_2="/tmp/mock_torrc_bridge_$$"
 echo "UseBridges 1" > "$MOCK_TORRC_2"
-echo "ClientTransportPlugin obfs4 exec /bin/true" >> "$MOCK_TORRC_2"
+echo "ClientTransportPlugin obfs4 exec $BREW_PREFIX/bin/obfs4proxy" >> "$MOCK_TORRC_2" # Updated path
 echo "Bridge obfs4 1.2.3.4" >> "$MOCK_TORRC_2"
 # Override BREW_PREFIX to point to tmp
 BREW_PREFIX="/tmp/brew_mock_$$"
 export BREW_PREFIX
 mkdir -p "$BREW_PREFIX/etc/tor"
+mkdir -p "$BREW_PREFIX/bin"
+# Mock obfs4proxy binary in BREW_PREFIX
+touch "$BREW_PREFIX/bin/obfs4proxy"
+/bin/chmod +x "$BREW_PREFIX/bin/obfs4proxy"
+
 cp "$MOCK_TORRC_2" "$BREW_PREFIX/etc/tor/torrc"
 
 # Test Disable Bridges
@@ -3983,6 +3988,19 @@ if echo "$OUTPUT_FETCH" | grep -q "<br/>"; then
     fail "Output should not contain <br/> tags"
 else
     pass "Output cleaned of HTML tags"
+fi
+
+# Test Configure Bridges (Path Check)
+# -----------------------------------
+# Run configure in default mode
+OUTPUT_CONF=$(tor_configure_bridges "default")
+assert_contains "$OUTPUT_CONF" "Bridge configuration applied"
+# Check torrc for correct path (should prefer BREW_PREFIX over 'which')
+if grep -q "exec $BREW_PREFIX/bin/obfs4proxy" "$BREW_PREFIX/etc/tor/torrc"; then
+    pass "Correctly used BREW_PREFIX for obfs4proxy path"
+else
+    fail "Did not use BREW_PREFIX path for obfs4proxy"
+    echo "DEBUG: $(grep ClientTransportPlugin "$BREW_PREFIX/etc/tor/torrc")"
 fi
 
 # Cleanup

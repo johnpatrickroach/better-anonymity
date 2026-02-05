@@ -9,6 +9,7 @@ This document provides a comprehensive list of all commands and subcommands avai
 | `better-anonymity menu` | Launches the interactive TUI menu (default). |
 | `better-anonymity setup` | Runs the First-Time Setup Wizard interactively. |
 | `better-anonymity auto` | Runs Setup in non-interactive mode (applies defaults). |
+| `better-anonymity [cmd] --auto` | Automatically answers "Yes" to confirmation prompts. |
 | `better-anonymity daily` | Runs daily health checks and updates blocklists. |
 | `better-anonymity update` | Updates the `better-anonymity` codebase from git. |
 | `better-anonymity check-update` | Checks for updates without installing. |

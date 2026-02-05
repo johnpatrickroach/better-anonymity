@@ -163,6 +163,26 @@ test_config_backup() {
 }
 test_config_backup
 
+# Test 5: ask_confirmation Auto-Yes
+# ---------------------------------
+test_ask_confirmation_auto() {
+    # Mock info to capture output
+    local LAST_INFO=""
+    info() { LAST_INFO="$*"; }
+    
+    # 1. With Auto-Yes Override
+    export BETTER_ANONYMITY_AUTO_YES=1
+    if ask_confirmation "Test Prompt"; then
+        pass "ask_confirmation returned true with Auto-Yes"
+        assert_contains "$LAST_INFO" "(Auto-Yes)" "Should log Auto-Yes message"
+    else
+        fail "ask_confirmation failed despite Auto-Yes"
+    fi
+    unset BETTER_ANONYMITY_AUTO_YES
+}
+test_ask_confirmation_auto
+
+
 # Test 5: sed_in_place Portability
 # --------------------------------
 test_sed_in_place() {
