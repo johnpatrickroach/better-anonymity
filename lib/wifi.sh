@@ -114,7 +114,7 @@ wifi_spoof_mac() {
         warn "airport utility not found. Using Power Cycle Race method."
         
         # Pre-authorize sudo so we don't get prompted during the critical race window
-        execute_sudo "Pre-authorizing sudo for race condition..." true
+        execute_sudo "Pre-authorizing sudo for race condition..." -v
         
         info "Cycling Wi-Fi Power..."
         networksetup -setairportpower "$iface" off

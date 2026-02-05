@@ -438,7 +438,6 @@ case "$COMMAND" in
          case "$1" in
             audit) wifi_audit ;;
             spoof-mac|spoof)
-                 local mac
                  mac=$(wifi_generate_mac)
                  wifi_spoof_mac "$mac"
                  ;;
