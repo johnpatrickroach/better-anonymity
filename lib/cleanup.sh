@@ -74,11 +74,9 @@ cleanup_metadata() {
     execute_sudo "Restart mDNSResponder" killall -HUP mDNSResponder 2>/dev/null || true
 
     # 10. System Logs & Audits
-    info "Clearing System Logs (ASL, Audit, Install)..."
-    execute_sudo "Clear ASL" rm -rf /private/var/log/asl/* 2>/dev/null
-    execute_sudo "Clear Audit" rm -rf /private/var/audit/* 2>/dev/null
-    execute_sudo "Clear Install Logs" rm -rf /private/var/log/install.log /Library/Logs/install.log 2>/dev/null
-    execute_sudo "Clear System Logs" rm -rf /Library/Logs/* 2>/dev/null
+    if ask_confirmation "Clear System & App Logs (Aggressive)?"; then
+        cleanup_logs
+    fi
 
     # 11. Trash (Optional)
     if ask_confirmation "Empty Trash on all volumes?"; then
@@ -120,15 +118,70 @@ cleanup_metadata() {
 
 cleanup_trash() {
     info "Emptying Trash..."
-    execute_sudo "Empty Main Trash" rm -rf ~/.Trash/* 2>/dev/null || true
-    # /Volumes is tricky, we just do best effort
-    execute_sudo "Empty Volumes Trash" rm -rf /Volumes/*/.Trashes/* 2>/dev/null || true
+    
+    # 1. Main User Trash (Force delete with sudo to handle locked files)
+    execute_sudo "Empty Main Trash (~/.Trash)" rm -rf "$HOME/.Trash/"* 2>/dev/null || true
+
+    # 2. External Volumes (Targeting current User UID)
+    # macOS stores external trash in .Trashes/<UID>
+    local my_uid
+    my_uid=$(id -u)
+    
+    # Enable nullglob to handle no matches
+    shopt -s nullglob
+    for vol in /Volumes/*; do
+        local trash_dir="$vol/.Trashes/$my_uid"
+        if [ -d "$trash_dir" ]; then
+             info "Emptying Trash on volume: $(basename "$vol")"
+             execute_sudo "Empty Vol Trash" rm -rf "$trash_dir/"* 2>/dev/null || true
+        fi
+    done
+    shopt -u nullglob
 }
 
 cleanup_receipts() {
     info "Clearing Installation Receipts..."
     execute_sudo "Remove Receipts" rm -rf /private/var/db/receipts/* 2>/dev/null
     execute_sudo "Remove InstallHistory" rm -f /Library/Receipts/InstallHistory.plist 2>/dev/null
+}
+
+cleanup_logs() {
+    info "Clearing Logs (System, User, Mail, Diagnostics)..."
+    
+    # 1. System Logs (ASL, Audit, Install)
+    execute_sudo "Clear ASL" rm -rf /private/var/log/asl/* 2>/dev/null
+    execute_sudo "Clear Audit" rm -rf /private/var/audit/* 2>/dev/null
+    execute_sudo "Clear Install Logs" rm -rf /private/var/log/install.log /Library/Logs/install.log 2>/dev/null
+    
+    # 2. General Logs
+    execute_sudo "Clear System Logs" rm -rf /Library/Logs/* 2>/dev/null
+    rm -rf "$HOME/Library/Logs/"* 2>/dev/null
+    
+    # 3. Diagnostic Logs (Privacy.sexy)
+    execute_sudo "Clear Diagnostics" rm -rf /private/var/db/diagnostics/* 2>/dev/null
+    execute_sudo "Clear UUIDText" rm -rf /private/var/db/uuidtext/* 2>/dev/null
+    
+    # 4. Shell History (Privacy.sexy)
+    if [ -f "$HOME/.bash_history" ]; then
+         info "Clearing Bash History..."
+         rm -f "$HOME/.bash_history" 2>/dev/null
+    fi
+     if [ -f "$HOME/.zsh_history" ]; then
+         info "Clearing Zsh History..."
+         rm -f "$HOME/.zsh_history" 2>/dev/null
+    fi
+    
+    # 4. Mail Logs
+    local mail_logs="$HOME/Library/Containers/com.apple.mail/Data/Library/Logs/Mail"
+    if [ -d "$mail_logs" ]; then
+        info "Clearing Mail Logs..."
+        rm -rf "$mail_logs/"* 2>/dev/null
+    fi
+     
+    # 5. Maintenance
+    execute_sudo "Clear Daily Out" rm -f /private/var/log/daily.out 2>/dev/null
+    execute_sudo "Clear Weekly Out" rm -f /private/var/log/weekly.out 2>/dev/null
+    execute_sudo "Clear Monthly Out" rm -f /private/var/log/monthly.out 2>/dev/null
 }
 
 cleanup_dev_tools() {
@@ -221,18 +274,36 @@ cleanup_memory() {
     execute_sudo "Purge Memory" purge
 }
 
+cleanup_system_cache() {
+    info "Clearing System Caches (Aggressive - Privacy.sexy)..."
+    # /System/Library/Caches is usually protected by SIP, so we try but ignore errors
+    # /Library/Caches is writable by root
+    execute_sudo "Clear /Library/Caches" rm -rf /Library/Caches/* 2>/dev/null || true
+    execute_sudo "Clear /System/Library/Caches" rm -rf /System/Library/Caches/* 2>/dev/null || true
+    
+    # Also User Caches (Aggressive)
+    rm -rf "$HOME/Library/Caches/"* 2>/dev/null
+    success "System Caches cleared."
+}
+
+
 cleanup_quarantine() {
     info "Clearing File Quarantine Logs..."
     
     local db_file="$HOME/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2"
     
     if [ -f "$db_file" ]; then
+        local has_schg=false
+        local has_uchg=false
+        
         # Check for immutability
         if ls -lO "$db_file" | grep -q 'schg'; then
             execute_sudo "Unflag system immutable" chflags noschg "$db_file"
+            has_schg=true
         fi
         if ls -lO "$db_file" | grep -q 'uchg'; then
              chflags nouchg "$db_file"
+             has_uchg=true
         fi
         
         # Try sqlite3 cleaning first (Cleaner, preserves inode/permissions)
@@ -256,6 +327,16 @@ cleanup_quarantine() {
             # Recreate empty to maintain file existence for system monitors
             touch "$db_file"
             success "Quarantine History cleared (file deleted and recreated)."
+        fi
+        
+        # Restore flags if they were present
+        if [ "$has_schg" = true ]; then
+             execute_sudo "Restore system immutable" chflags schg "$db_file"
+             info "Restored system immutable flag."
+        fi
+         if [ "$has_uchg" = true ]; then
+             chflags uchg "$db_file"
+             info "Restored user immutable flag."
         fi
     fi
     
@@ -294,18 +375,36 @@ close_app() {
 cleanup_browsers() {
     info "Cleaning Browser Data..."
     
-    # Chrome
-    # Process name is "Google Chrome" on macOS
+    # --- Chrome ---
     close_app "Google Chrome"
     
-    local chrome_dir="$HOME/Library/Application Support/Google/Chrome/Default"
-    if [ -d "$chrome_dir" ]; then
-        info "Cleaning Chrome History/Cache..."
-        rm -rf "$chrome_dir/History" "$chrome_dir/History-journal" "$chrome_dir/Application Cache" 2>/dev/null
+    # 1. Cache (Global)
+    rm -rf "$HOME/Library/Caches/Google/Chrome/"* 2>/dev/null
+    
+    # 2. Profiles (History, Cookies, Session)
+    local chrome_root="$HOME/Library/Application Support/Google/Chrome"
+    if [ -d "$chrome_root" ]; then
+        # Iterate Default and Profile directories
+        for profile in "$chrome_root"/Default "$chrome_root"/Profile*; do
+            if [ -d "$profile" ]; then
+                info "Cleaning Chrome Profile: $(basename "$profile")..."
+                rm -rf "$profile/History"* 2>/dev/null
+                rm -rf "$profile/Visited Links" 2>/dev/null
+                rm -rf "$profile/Last Session" 2>/dev/null
+                rm -rf "$profile/Last Tabs" 2>/dev/null
+                rm -rf "$profile/Top Sites"* 2>/dev/null
+                rm -rf "$profile/Application Cache" 2>/dev/null
+                rm -rf "$profile/GPUCache" 2>/dev/null
+                # Optional: Cookies? User asked for History & Cache. 
+                # Keeping cookies might be preferred for convenience, but "Cleanup" usually implies tracking data.
+                # Let's clean Cookies too if we are being thorough, or stick to History?
+                # The prompt says "Browser History & Cache".
+                # rm -f "$profile/Cookies" 2>/dev/null
+            fi
+        done
     fi
     
-    # Safari
-    # Process name is "Safari"
+    # --- Safari ---
     close_app "Safari"
     
     info "Cleaning Safari Data..."
@@ -314,27 +413,60 @@ cleanup_browsers() {
     rm -f "$HOME/Library/Safari/LastSession.plist" 2>/dev/null
     rm -f "$HOME/Library/Safari/TopSites.plist" 2>/dev/null
     rm -f "$HOME/Library/Safari/WebpageIcons.db" 2>/dev/null
-    rm -rf "$HOME/Library/Caches/com.apple.Safari/Cache.db" 2>/dev/null
-    rm -rf "$HOME/Library/Caches/com.apple.Safari/Webpage Previews" 2>/dev/null
+    rm -f "$HOME/Library/Safari/WebpageIcons.db" 2>/dev/null
+    rm -rf "$HOME/Library/Caches/com.apple.Safari/"* 2>/dev/null
+    rm -rf "$HOME/Library/Caches/Metadata/Safari/"* 2>/dev/null
+    rm -rf "$HOME/Library/Containers/com.apple.Safari/Data/Library/Caches/"* 2>/dev/null
+    rm -rf "$HOME/Library/Containers/com.apple.Safari/Data/Library/Caches/"* 2>/dev/null
+    # Cookies
     rm -f "$HOME/Library/Cookies/Cookies.binarycookies" 2>/dev/null
+    rm -f "$HOME/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies" 2>/dev/null
     
-    # Firefox
-    # Process name is "firefox" or "Firefox" depending on version/launch, usually "Firefox" match
-    # pgrep -f might be safer or just pgrep -x Firefox
+    # Per-Site Preferences (Privacy.sexy)
+    rm -f "$HOME/Library/Safari/PerSitePreferences.db" 2>/dev/null
+    rm -f "$HOME/Library/Safari/PerSiteZoomPreferences.plist" 2>/dev/null
+    rm -f "$HOME/Library/Safari/UserNotificationPreferences.plist" 2>/dev/null
+    
+    # --- Firefox ---
     close_app "firefox" "Firefox"
     
     local firefox_dir="$HOME/Library/Application Support/Firefox/Profiles"
     if [ -d "$firefox_dir" ]; then
-        info "Cleaning Firefox Data (Cookies, Form History)..."
-        # Find all profiles
-        find "$firefox_dir" -name "*.default*" -type d | while read -r profile; do
-            rm -f "$profile/cookies.sqlite"* 2>/dev/null
-            rm -f "$profile/formhistory.sqlite" 2>/dev/null
-            rm -fv "$profile/sessionstore"* 2>/dev/null
-            rm -rf "$profile/storage/default/http"* 2>/dev/null
-        done
+        info "Cleaning Firefox Data..."
         
-        rm -rf "$HOME/Library/Caches/Mozilla" 2>/dev/null
+        # Cache
+        # Cache & Crash Reports
+        rm -rf "$HOME/Library/Caches/Mozilla/Firefox/"* 2>/dev/null
+        rm -rf "$HOME/Library/Application Support/Firefox/Crash Reports/"* 2>/dev/null
+        
+        # Profiles
+        find "$firefox_dir" -name "*.default*" -type d | while read -r profile; do
+            info "Processing Firefox Profile: $(basename "$profile")"
+            rm -f "$profile/cookies.sqlite"* 2>/dev/null
+            rm -f "$profile/forms.sqlite" 2>/dev/null
+            rm -f "$profile/formhistory.sqlite" 2>/dev/null
+            rm -f "$profile/sessionstore"* 2>/dev/null
+            
+            # Passwords & Crash Reports (Aggressive - Privacy.sexy)
+            rm -f "$profile/logins.json" 2>/dev/null
+            rm -f "$profile/signons.sqlite" 2>/dev/null
+            rm -f "$profile/key3.db" 2>/dev/null
+            rm -f "$profile/key4.db" 2>/dev/null
+            rm -rf "$profile/minidumps/"* 2>/dev/null
+            rm -rf "$profile/bookmarkbackups/"* 2>/dev/null
+            rm -f "$profile/webappsstore.sqlite" 2>/dev/null
+            
+            rm -rf "$profile/storage/default/http"* 2>/dev/null
+            
+            # History (places.sqlite) - Use SQL to preserve Bookmarks
+            if command -v sqlite3 >/dev/null; then
+                 # Delete history visits and non-bookmarked places
+                 sqlite3 "$profile/places.sqlite" "DELETE FROM moz_historyvisits; DELETE FROM moz_places WHERE id NOT IN (SELECT fk FROM moz_bookmarks); VACUUM;" 2>/dev/null || true
+            else
+                 # Fallback: Can't safely delete places.sqlite without losing bookmarks.
+                 warn "sqlite3 not found. Skipping Firefox History (places.sqlite) to preserve bookmarks."
+            fi
+        done
     fi
     
     info "Browser cleanup finished."

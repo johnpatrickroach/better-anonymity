@@ -80,8 +80,8 @@ network_update_hosts() {
     local START_MARKER="### BETTER-ANONYMITY-START"
     local END_MARKER="### BETTER-ANONYMITY-END"
     
-    # Use configurable config directory (defaults to config)
-    local CONFIG_DIR="${CONFIG_DIR:-config}"
+    # Use absolute config directory (defaults to ROOT_DIR/config)
+    local CONFIG_DIR="${ROOT_DIR:-.}/config"
     local LOCAL_BLOCKLIST="$CONFIG_DIR/hosts"
     local BLOCKLIST_URL="https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
 

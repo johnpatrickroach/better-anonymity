@@ -57,6 +57,21 @@ hardening_disable_analytics() {
     defaults write com.apple.assistant.support "Siri Data Sharing Opt-In Status" -int 2
     defaults write com.apple.CrashReporter DialogType none
     
+    # Aggressive Siri Disable (Privacy.sexy)
+    info "Disabling Siri Services..."
+    defaults write com.apple.assistant.support 'Assistant Enabled' -bool false
+    defaults write com.apple.assistant.backedup 'Use device speaker for TTS' -int 3
+    execute_sudo "Disable Siri Agent" launchctl disable "system/com.apple.Siri.agent" 2>/dev/null || true
+    execute_sudo "Disable Assistantd" launchctl disable "system/com.apple.assistantd" 2>/dev/null || true
+    # User agents (might need to run as user without sudo, or just warn)
+    launchctl disable "user/$UID/com.apple.Siri.agent" 2>/dev/null || true
+    launchctl disable "user/$UID/com.apple.assistantd" 2>/dev/null || true
+    
+    defaults write com.apple.SetupAssistant 'DidSeeSiriSetup' -bool True
+    defaults write com.apple.systemuiserver 'NSStatusItem Visible Siri' 0
+    defaults write com.apple.Siri 'StatusMenuVisible' -bool false
+    defaults write com.apple.Siri 'UserHasDeclinedEnable' -bool true
+
     # Ad Tracking (Privacy.sexy)
     info "Disabling Ad Tracking..."
     if [ "$(defaults read com.apple.AdLib allowIdentifierForAdvertising 2>/dev/null)" != "0" ]; then
@@ -95,7 +110,11 @@ hardening_disable_app_telemetry() {
     fi
     # Delete Google Software Update agent if aggressive (Privacy.sexy does this)
     if [ -d "$HOME/Library/Google/GoogleSoftwareUpdate" ]; then
-         info "Disabling Google Software Update..."
+         info "Disabling and Removing Google Software Update..."
+         # Try to be nice first? No, privacy.sexy nukes it.
+         if [ -x "$HOME/Library/Google/GoogleSoftwareUpdate/GoogleSoftwareUpdate.bundle/Contents/Resources/ksinstall" ]; then
+             "$HOME/Library/Google/GoogleSoftwareUpdate/GoogleSoftwareUpdate.bundle/Contents/Resources/ksinstall" --nuke 2>/dev/null || true
+         fi
          rm -rf "$HOME/Library/Google/GoogleSoftwareUpdate" 2>/dev/null || true
     fi
     
@@ -111,9 +130,12 @@ hardening_disable_app_telemetry() {
     if [ "$(defaults read com.microsoft.office.telemetry ZeroDiagnosticData 2>/dev/null)" != "1" ]; then
         defaults write com.microsoft.office.telemetry ZeroDiagnosticData -bool true 2>/dev/null || true
     fi
-     if [ "$(defaults read com.microsoft.office.telemetry UserOptIn 2>/dev/null)" != "0" ]; then
+    if [ "$(defaults read com.microsoft.office.telemetry UserOptIn 2>/dev/null)" != "0" ]; then
         defaults write com.microsoft.office.telemetry UserOptIn -bool false 2>/dev/null || true
     fi
+    # Privacy.sexy exact key match
+    defaults write com.microsoft.office DiagnosticDataTypePreference -string "ZeroDiagnosticData" 2>/dev/null || true
+
 
     
     # .NET / PowerShell
@@ -152,6 +174,9 @@ hardening_disable_parallels() {
         defaults write com.parallels.Parallels\ Desktop ApplicationPreferences.CheckForUpdates -bool false 2>/dev/null || true
         defaults write com.parallels.Parallels\ Desktop "ApplicationPreferences.ShowPromo" -bool false 2>/dev/null || true
         defaults write com.parallels.Parallels\ Desktop "ApplicationPreferences.ShowTutorial" -bool false 2>/dev/null || true
+        # Privacy.sexy exact keys
+        defaults write "com.parallels.Parallels Desktop" "ProductPromo.ForcePromoOff" -bool yes 2>/dev/null || true
+        defaults write "com.parallels.Parallels Desktop" "WelcomeScreenPromo.PromoOff" -bool yes 2>/dev/null || true
     fi
 }
 
@@ -208,25 +233,91 @@ except Exception as e:
     info "Disabling Remote Apple Events..."
     execute_sudo "Disable Remote Events" systemsetup -setremoteappleevents off 2>/dev/null || true
 
-    # Remote Login (SSH)
-    hardening_disable_remote_login
+    # Remote Services
+    hardening_disable_services
 
     # Privacy Tweaks
     hardening_privacy_tweaks
 }
 
-hardening_disable_remote_login() {
-    # Check if currently on
+hardening_disable_services() {
+    info "Disabling Unnecessary Services..."
+
+    # 1. Remote Login (SSH)
     if systemsetup -getremotelogin 2>/dev/null | grep -i "On"; then
         warn "Remote Login (SSH) is currently ENABLED."
         if ask_confirmation "Disable Remote Login (SSH) to reduce attack surface?"; then
              execute_sudo "Disable Remote Login" systemsetup -setremotelogin off
         else
-             info "Keeping Remote Login enabled (ensure it is hardened!)."
+             info "Keeping Remote Login enabled."
         fi
     else
         info "Remote Login (SSH) is already disabled."
     fi
+    
+    # 2. Insecure Services (TFTP, Telnet)
+    # Telnet/TFTP are rarely used but if present should be off
+    execute_sudo "Disable TFTP" launchctl disable 'system/com.apple.tftpd' 2>/dev/null || true
+    execute_sudo "Disable Telnet" launchctl disable 'system/com.apple.telnetd' 2>/dev/null || true
+    
+    # 3. Remote Management (ARD / Screen Sharing)
+    # This is different from "Remote Login" (SSH)
+    local ard_agent="/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart"
+    if [ -x "$ard_agent" ]; then
+        execute_sudo "Disable Remote Management (ARD)" "$ard_agent" -deactivate -stop 2>/dev/null || true
+    fi
+    # Aggressive Removal (Privacy.sexy)
+    execute_sudo "Remove ARD Settings" rm -rf /var/db/RemoteManagement 2>/dev/null || true
+    execute_sudo "Remove ARD PList" rm -f /Library/Preferences/com.apple.RemoteDesktop.plist 2>/dev/null || true
+    rm -f ~/Library/Preferences/com.apple.RemoteDesktop.plist 2>/dev/null || true
+    execute_sudo "Remove ARD App Support" rm -rf /Library/Application\ Support/Apple/Remote\ Desktop/ 2>/dev/null || true
+    rm -rf ~/Library/Application\ Support/Remote\ Desktop/ 2>/dev/null || true
+    rm -rf ~/Library/Containers/com.apple.RemoteDesktop 2>/dev/null || true
+    
+    # 4. Printer Sharing
+    if command -v cupsctl >/dev/null; then
+        info "Disabling Printer Sharing..."
+        cupsctl --no-share-printers 2>/dev/null || true
+        cupsctl --no-remote-any 2>/dev/null || true
+        cupsctl --no-remote-admin 2>/dev/null || true
+    fi
+    
+    # 5. Guest Sharing (SMB/AFP)
+    info "Disabling Guest File Sharing..."
+    execute_sudo "Disable SMB Guest" defaults write /Library/Preferences/SystemConfiguration/com.apple.smb.server AllowGuestAccess -bool NO
+    execute_sudo "Disable AFP Guest" defaults write /Library/Preferences/com.apple.AppleFileServer guestAccess -bool NO
+    
+    if command -v sysadminctl >/dev/null; then
+         execute_sudo "Disable SMB Guest (sysadminctl)" sysadminctl -smbGuestAccess off 2>/dev/null || true
+         execute_sudo "Disable AFP Guest (sysadminctl)" sysadminctl -afpGuestAccess off 2>/dev/null || true
+    fi
+}
+
+hardening_disable_updates() {
+    info "Disabling Automatic Updates (Aggressive)..."
+    if ! ask_confirmation_with_info "Disable ALL Automatic Updates?" \
+        "This includes Security Updates, App Store Updates, and macOS System Updates." \
+        "You will need to manually update your system to stay secure."; then
+        info "Skipping Update Disabling."
+        return 0
+    fi
+
+    # System Updates
+    execute_sudo "Disable Auto Check" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false
+    execute_sudo "Disable Auto Download" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
+    execute_sudo "Disable Release Install" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
+    execute_sudo "Disable Config Data" defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool false
+    execute_sudo "Disable Critical Update" defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
+    
+    # App Store
+    execute_sudo "Disable App AutoUpdate" defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool false
+    execute_sudo "Disable App AutoUpdate (High Sierra)" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallAppUpdates -bool false
+    
+    # Beta Updates
+    execute_sudo "Disable Beta Updates" defaults write /Library/Preferences/com.apple.SoftwareUpdate AllowPreReleaseInstallation -bool false
+
+    # Gatekeeper Auto-Rearm (Prevent it from re-enabling itself)
+    execute_sudo "Disable Gatekeeper Auto-Rearm" defaults write /Library/Preferences/com.apple.security GKAutoRearm -bool true
 }
 
 hardening_privacy_tweaks() {
@@ -245,6 +336,75 @@ hardening_privacy_tweaks() {
         "Disables Spotlight indexing system-wide, which can reduce metadata leakage." \
         "This may degrade search performance in Finder and apps."; then
          execute_sudo "Disable Spotlight" mdutil -i off /
+    fi
+    
+    # Spell Correction (sending data to Apple)
+    defaults write NSGlobalDomain WebAutomaticSpellingCorrectionEnabled -bool false
+    
+    # Screenshots (Metadata)
+    defaults write com.apple.screencapture include-date -bool false
+    killall SystemUIServer 2>/dev/null || true
+    
+    # Gatekeeper & Quarantine Logs
+    # These are now handled in `hardening_enable_gatekeeper_options` and `hardening_enable_quarantine`
+    # to group "Privacy Over Security" decisions.
+}
+
+hardening_enable_library_validation() {
+   # "DisableLibraryValidation" = false (Good/Secure)
+   # "DisableLibraryValidation" = true (Privacy Over Security / Unsafe)
+   
+   if ask_confirmation_with_info "Enable Library Validation (Security) or Disable it (Privacy Over Security)?" \
+        "Enabling (Recommended) prevents unsigned code injection (Better Security)." \
+        "Disabling (Privacy Over Security) allows any library to load (Reduced Security, Privacy.sexy default)."; then
+         # User chose YES -> Enable/Enforce Security
+         execute_sudo "Enable Library Validation" defaults write /Library/Preferences/com.apple.security.libraryvalidation.plist DisableLibraryValidation -bool false 2>/dev/null || true
+   else
+         # User chose NO -> They want to "disable" it? Or just do nothing?
+         # The prompt wording "Enable ... or Disable?" makes "Yes" = Enable.
+         # The user request specifically asked for "Privacy Over Security" wording.
+         
+         if ask_confirmation "ATTENTION: Disable Library Validation (Unsafe)? (Privacy Over Security)"; then
+              warn "Disabling Library Validation..."
+              execute_sudo "Disable Library Validation" defaults write /Library/Preferences/com.apple.security.libraryvalidation.plist DisableLibraryValidation -bool true 2>/dev/null || true
+         else
+              info "Keeping Library Validation enabled (Safe)."
+         fi
+   fi
+}
+
+hardening_enable_quarantine() {
+    # LSQuarantine & Gatekeeper Options
+    
+    # 1. Gatekeeper
+    if ask_confirmation_with_info "Enforce Gatekeeper (Security) or Disable it (Privacy Over Security)?" \
+       "Enforcing (Recommended) blocks untrusted apps (Better Security)." \
+       "Disabling (Privacy Over Security) allows any app to run (Reduced Security, Privacy.sexy default)."; then
+       # YES = Enforce
+       execute_sudo "Enable Gatekeeper" spctl --master-enable 2>/dev/null || true
+       execute_sudo "Enable Gatekeeper (Policy)" defaults write /var/db/SystemPolicy-prefs enabled -string yes 2>/dev/null || true
+    else
+        # NO -> Check for disable
+        if ask_confirmation "ATTENTION: Disable Gatekeeper (Unsafe)? (Privacy Over Security)"; then
+            warn "Disabling Gatekeeper..."
+            execute_sudo "Disable Gatekeeper" spctl --master-disable
+            execute_sudo "Disable Gatekeeper (Policy)" defaults write /var/db/SystemPolicy-prefs enabled -string no 2>/dev/null || true
+        fi
+    fi
+
+    # 2. Quarantine (LSQuarantine)
+    if ask_confirmation_with_info "Enforce File Quarantine (Security) or Disable it (Privacy Over Security)?" \
+       "Enforcing (Recommended) flags downloaded files for inspection (Better Security)." \
+       "Disabling (Privacy Over Security) removes provenance metadata (Reduced Security, Privacy.sexy default)."; then
+        # YES = Enforce
+        info "Enforcing File Quarantine..."
+        defaults delete com.apple.LaunchServices LSQuarantine 2>/dev/null || true
+        defaults write com.apple.LaunchServices LSQuarantine -bool true 2>/dev/null || true
+    else
+         if ask_confirmation "ATTENTION: Disable File Quarantine (Unsafe)? (Privacy Over Security)"; then
+             warn "Disabling File Quarantine..."
+             defaults write com.apple.LaunchServices LSQuarantine -bool false 2>/dev/null || true
+         fi
     fi
 }
 
@@ -665,6 +825,9 @@ hardening_run_all() {
     hardening_secure_sudoers
     hardening_set_umask
     hardening_disable_captive_portal
+    hardening_disable_updates
+    hardening_enable_library_validation
+    hardening_enable_quarantine
     hardening_remove_guest
     # TCC reset is manual only
 }

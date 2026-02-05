@@ -680,6 +680,8 @@ sed() {
 
 # Mock dscl for this test
 dscl() { echo "EXEC: dscl $*"; return 0; }
+pgrep() { return 1; } # Simulate not running to force restart
+
 
 OUTPUT=$(install_unbound)
 
