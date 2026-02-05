@@ -475,6 +475,8 @@ install_unbound() {
     local is_running=false
     if brew services list | grep "unbound" | grep -q "started"; then
         is_running=true
+    elif pgrep -x "unbound" >/dev/null; then
+        is_running=true
     fi
     
     if [ "$is_running" == "true" ] && [ "$RESTART_NEEDED" == "false" ]; then
