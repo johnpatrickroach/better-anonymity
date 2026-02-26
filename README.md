@@ -4,6 +4,10 @@
 
 This repository contains scripts and configuration files to automate the hardening of MacOS (Intel and Apple Silicon). It aims to enhance security, privacy, and anonymity by applying best practices inspired by the [drduh/macOS-Security-and-Privacy-Guide](https://github.com/drduh/macOS-Security-and-Privacy-Guide) and [privacy.sexy](https://privacy.sexy).
 
+### Credits & Influences
+
+A significant portion of the aggressive privacy tuning and "Privacy Over Security" configurations found within this toolkit's macOS hardening logic is directly influenced by and adapted from the excellent work over at **[privacy.sexy](https://github.com/undergroundwires/privacy.sexy)** by undergroundwires. We highly recommend checking out their project for comprehensive cross-platform privacy scripts.
+
 ### Command Aliases
 
 When you run `better-anonymity install` (or "Install CLI Aliases"), the following shortcuts are added to your shell (`~/.zshrc`):

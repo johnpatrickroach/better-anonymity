@@ -2,6 +2,9 @@
 
 # lib/macos_hardening.sh
 # macOS hardening functions
+# Note: Many of the aggressive telemetry, tracking, and "Privacy Over Security" 
+# configurations in this file are directly adapted from or inspired by:
+# https://github.com/undergroundwires/privacy.sexy
 
 hardening_update_system() {
     info "Checking for system software updates..."
