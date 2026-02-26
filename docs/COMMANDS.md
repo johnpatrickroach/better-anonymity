@@ -58,7 +58,7 @@ This document provides a comprehensive list of all commands and subcommands avai
 
 | Command | Description |
 | :--- | :--- |
-| `better-anonymity harden` | Runs the full hardening suite (Firewall, FileVault, Analytics, etc). |
+| `better-anonymity harden` | Runs the full CIS-compliant hardening suite (Firewall, FileVault, Apple Intelligence, Analytics, etc). |
 | `better-anonymity verify-security` | Audits current security settings against baseline. |
 | `better-anonymity misc-harden` | Applies miscellaneous tweaks (Finder, Sudoers, Guest Account). |
 | `better-anonymity ssh audit-sshd` | Checks SSH Server configuration goodness. |

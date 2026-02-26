@@ -149,6 +149,17 @@ detect_active_network() {
     fi
 }
 
+# Mock nfsd and launchctl for CIS commands
+nfsd() {
+    echo "EXEC: nfsd $*"
+}
+launchctl() {
+    echo "EXEC: launchctl $*"
+}
+AssetCacheManagerUtil() {
+    echo "EXEC: AssetCacheManagerUtil $*"
+}
+
 # Mock manage_service (Core)
 # Since tests expect "EXEC: brew services ...", we simulate that output.
 manage_service() {
@@ -1424,6 +1435,36 @@ OUTPUT=$(ssh_check_sshd_status | perl -pe 's/\e\[[0-9;]*m//g')
 assert_contains "$OUTPUT" "Checking SSH Server" "Should check status"
 assert_contains "$OUTPUT" "Remote Login: On (Confirmed via systemsetup)" "Should report status"
 
+# Run full hardening flow test to catch injected CIS logic (using generic mocks above)
+OUTPUT=$(hardening_configure_privacy 2>&1)
+assert_contains "$OUTPUT" "Disabling Apple Intelligence Features" "Should disable generation features"
+assert_contains "$OUTPUT" "defaults write com.apple.applicationaccess allowWritingTools -bool false" "Should block Writing Tools"
+
+OUTPUT=$(hardening_disable_services 2>&1)
+assert_contains "$OUTPUT" "EXEC: launchctl disable system/org.apache.httpd" "Should call launchctl disable for httpd"
+assert_contains "$OUTPUT" "EXEC: nfsd disable" "Should call nfsd disable"
+assert_contains "$OUTPUT" "EXEC: AssetCacheManagerUtil deactivate" "Should deactivate content caching"
+
+OUTPUT=$(hardening_secure_screen 2>&1)
+assert_contains "$OUTPUT" "defaults write /Library/Preferences/com.apple.loginwindow RetriesUntilHint -int 0" "Should configure password hints"
+
+# Temporarily mock execute_sudo to catch the 'sh -c echo' command for sudo timeout
+execute_sudo() {
+    echo "SUDO_EXEC: $*"
+}
+OUTPUT=$(hardening_secure_terminals 2>&1)
+assert_contains "$OUTPUT" "SUDO_EXEC: Set Sudo Timeout sh -c echo 'Defaults timestamp_timeout=0' > /etc/sudoers.d/ba_timeout && chmod 0440 /etc/sudoers.d/ba_timeout" "Should configure sudo to 0"
+
+# Restore original execute_sudo
+execute_sudo() {
+    shift # Remove description
+    if declare -f "$1" > /dev/null; then
+        "$@"
+    else
+        echo "EXEC: $*"
+    fi
+}
+
 # Test Harden SSHD
 # Mock ask_confirmation to yes
 ask_confirmation() { return 0; }
@@ -1465,6 +1506,8 @@ check_port() {
 
 # Explicitly mock systemsetup function failure to ensure fallback
 systemsetup() { return 1; }
+# Explicitly mock launchctl for the new macOS 13+ sshd launchdaemon detection
+launchctl() { return 1; }
 
 OUTPUT=$(ssh_check_sshd_status | perl -pe 's/\e\[[0-9;]*m//g')
 assert_contains "$OUTPUT" "Remote Login: On (Listening on Port 22)" "Should fallback to check_port"

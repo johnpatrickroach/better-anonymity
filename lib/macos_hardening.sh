@@ -72,6 +72,13 @@ hardening_disable_analytics() {
     defaults write com.apple.Siri 'StatusMenuVisible' -bool false
     defaults write com.apple.Siri 'UserHasDeclinedEnable' -bool true
 
+    info "Disabling Apple Intelligence Features..."
+    # Disable Writing Tools, Mail Summarization, and Notes Summarization (CIS benchmark)
+    defaults write com.apple.applicationaccess allowWritingTools -bool false
+    defaults write com.apple.applicationaccess allowMailSummary -bool false
+    defaults write com.apple.applicationaccess allowNotesTranscription -bool false
+    defaults write com.apple.applicationaccess allowNotesTranscriptionSummary -bool false
+
     # Ad Tracking (Privacy.sexy)
     info "Disabling Ad Tracking..."
     if [ "$(defaults read com.apple.AdLib allowIdentifierForAdvertising 2>/dev/null)" != "0" ]; then
@@ -306,6 +313,15 @@ hardening_disable_services() {
     # 8. Wake on LAN
     info "Disabling Wake on Network Access..."
     execute_sudo "Disable Wake on LAN" systemsetup -setwakeonnetworkaccess off 2>/dev/null || true
+    
+    # 9. HTTP and NFS Servers
+    info "Disabling HTTP and NFS Servers..."
+    execute_sudo "Disable HTTP Server" launchctl disable 'system/org.apache.httpd' 2>/dev/null || true
+    execute_sudo "Disable NFS Server" nfsd disable 2>/dev/null || true
+
+    # 10. Content Caching
+    info "Disabling Content Caching..."
+    execute_sudo "Disable Content Caching" AssetCacheManagerUtil deactivate 2>/dev/null || true
 }
 
 hardening_manage_updates() {
@@ -462,6 +478,9 @@ hardening_secure_screen() {
     
     info "Requiring Admin Password for System Preferences..."
     execute_sudo "Lock SysPrefs" security authorizationdb write system.preferences authenticate-admin 2>/dev/null || true
+    
+    info "Enforcing 0 retries until password hint (disabling hints)..."
+    execute_sudo "Disable Password Hints" defaults write /Library/Preferences/com.apple.loginwindow RetriesUntilHint -int 0
 }
 
 hardening_secure_terminals() {
@@ -768,6 +787,9 @@ hardening_secure_sudoers() {
     else
         info "Sudoers looks clean (no env_keep directives found)."
     fi
+    
+    info "Enforcing strict sudo timeout (timestamp_timeout=0)..."
+    execute_sudo "Set Sudo Timeout" sh -c "echo 'Defaults timestamp_timeout=0' > /etc/sudoers.d/ba_timeout && chmod 0440 /etc/sudoers.d/ba_timeout"
 }
 
 hardening_set_umask() {
