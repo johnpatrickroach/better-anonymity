@@ -49,6 +49,8 @@ defaults() {
              else
                  echo "0"
              fi
+        elif [[ "$domain" == *"com.microsoft.office"* ]] && [[ "$key" == "DiagnosticDataTypePreference" ]]; then
+             echo "ZeroDiagnosticData"
         fi
         return 0
     elif [ "$op" == "write" ]; then
@@ -105,16 +107,16 @@ networksetup() {
 execute_sudo() {
     local desc="$1"
     if [[ "$desc" == "Set DNS"* ]]; then
-        EXECUTE_SUDO_CALLED=1
+        echo "1" > /tmp/execute_sudo_called
     fi
 }
 
 # Scenario: DNS already matches
 NETWORKSETUP_GET_RET="9.9.9.9
 149.112.112.112"
-EXECUTE_SUDO_CALLED=0
+rm -f /tmp/execute_sudo_called
 network_set_dns "quad9"
-if [ "$EXECUTE_SUDO_CALLED" -eq 0 ]; then
+if [ ! -f /tmp/execute_sudo_called ]; then
     pass "Should NOT set DNS if already matches"
 else
     fail "Should NOT set DNS if already matches"
@@ -122,9 +124,9 @@ fi
 
 # Scenario: DNS differs
 NETWORKSETUP_GET_RET="1.1.1.1" # Cloudflare
-EXECUTE_SUDO_CALLED=0
+rm -f /tmp/execute_sudo_called
 network_set_dns "quad9"
-if [ "$EXECUTE_SUDO_CALLED" -eq 1 ]; then
+if [ -f /tmp/execute_sudo_called ]; then
     pass "Should set DNS if differs"
 else
     fail "Should set DNS if differs"

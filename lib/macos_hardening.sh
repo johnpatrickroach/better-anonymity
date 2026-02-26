@@ -134,7 +134,9 @@ hardening_disable_app_telemetry() {
         defaults write com.microsoft.office.telemetry UserOptIn -bool false 2>/dev/null || true
     fi
     # Privacy.sexy exact key match
-    defaults write com.microsoft.office DiagnosticDataTypePreference -string "ZeroDiagnosticData" 2>/dev/null || true
+    if [ "$(defaults read com.microsoft.office DiagnosticDataTypePreference 2>/dev/null)" != "ZeroDiagnosticData" ]; then
+        defaults write com.microsoft.office DiagnosticDataTypePreference -string "ZeroDiagnosticData" 2>/dev/null || true
+    fi
 
 
     
@@ -291,38 +293,68 @@ hardening_disable_services() {
          execute_sudo "Disable SMB Guest (sysadminctl)" sysadminctl -smbGuestAccess off 2>/dev/null || true
          execute_sudo "Disable AFP Guest (sysadminctl)" sysadminctl -afpGuestAccess off 2>/dev/null || true
     fi
+    
+    # 6. AirPlay Receiver
+    info "Disabling AirPlay Receiver..."
+    execute_sudo "Disable AirPlay Receiver" defaults write /Library/Preferences/com.apple.controlcenter.plist AirplayRecieverEnabled -bool false 2>/dev/null || true
+    
+    # 7. Internet Sharing & Media Sharing
+    info "Disabling Internet and Media Sharing..."
+    defaults write com.apple.nat NAT -dict Enabled -int 0 2>/dev/null || true
+    execute_sudo "Disable Media Sharing" launchctl unload -w /System/Library/LaunchDaemons/com.apple.mediaremoted.plist 2>/dev/null || true
+    
+    # 8. Wake on LAN
+    info "Disabling Wake on Network Access..."
+    execute_sudo "Disable Wake on LAN" systemsetup -setwakeonnetworkaccess off 2>/dev/null || true
 }
 
-hardening_disable_updates() {
-    info "Disabling Automatic Updates (Aggressive)..."
-    if ! ask_confirmation_with_info "Disable ALL Automatic Updates?" \
-        "This includes Security Updates, App Store Updates, and macOS System Updates." \
-        "You will need to manually update your system to stay secure."; then
-        info "Skipping Update Disabling."
-        return 0
+hardening_manage_updates() {
+    info "Managing Automatic Updates..."
+    if ask_confirmation_with_info "Enable Secure Updates (Recommended) or Disable Updates (Privacy Over Security)?" \
+        "Enabling (Recommended by Pareto) keeps macOS and App Store apps automatically updated for security." \
+        "Disabling (Privacy Over Security) prevents Apple from automatically downloading and installing software."; then
+        
+        info "Enabling Secure Updates..."
+        # System Updates
+        execute_sudo "Enable Auto Check" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true
+        execute_sudo "Enable Auto Download" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool true
+        execute_sudo "Enable Release Install" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool true
+        execute_sudo "Enable Config Data" defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool true
+        execute_sudo "Enable Critical Update" defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool true
+        
+        # App Store
+        execute_sudo "Enable App AutoUpdate" defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool true
+    else
+        if ask_confirmation "ATTENTION: Disable ALL Automatic Updates? (Privacy Over Security)"; then
+            info "Disabling Automatic Updates (Aggressive)..."
+            # System Updates
+            execute_sudo "Disable Auto Check" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false
+            execute_sudo "Disable Auto Download" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
+            execute_sudo "Disable Release Install" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
+            execute_sudo "Disable Config Data" defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool false
+            execute_sudo "Disable Critical Update" defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
+            
+            # App Store
+            execute_sudo "Disable App AutoUpdate" defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool false
+            execute_sudo "Disable App AutoUpdate (High Sierra)" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallAppUpdates -bool false
+            
+            # Beta Updates
+            execute_sudo "Disable Beta Updates" defaults write /Library/Preferences/com.apple.SoftwareUpdate AllowPreReleaseInstallation -bool false
+
+            # Gatekeeper Auto-Rearm (Prevent it from re-enabling itself)
+            execute_sudo "Disable Gatekeeper Auto-Rearm" defaults write /Library/Preferences/com.apple.security GKAutoRearm -bool true
+        else
+            info "Skipping Update Management."
+        fi
     fi
-
-    # System Updates
-    execute_sudo "Disable Auto Check" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false
-    execute_sudo "Disable Auto Download" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
-    execute_sudo "Disable Release Install" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
-    execute_sudo "Disable Config Data" defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool false
-    execute_sudo "Disable Critical Update" defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
-    
-    # App Store
-    execute_sudo "Disable App AutoUpdate" defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool false
-    execute_sudo "Disable App AutoUpdate (High Sierra)" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallAppUpdates -bool false
-    
-    # Beta Updates
-    execute_sudo "Disable Beta Updates" defaults write /Library/Preferences/com.apple.SoftwareUpdate AllowPreReleaseInstallation -bool false
-
-    # Gatekeeper Auto-Rearm (Prevent it from re-enabling itself)
-    execute_sudo "Disable Gatekeeper Auto-Rearm" defaults write /Library/Preferences/com.apple.security GKAutoRearm -bool true
 }
 
 hardening_privacy_tweaks() {
     # Disable Recent Apps in Dock
     defaults write com.apple.dock show-recents -bool false
+    
+    # Disable iCloud as default save location
+    defaults write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
     
     # Disable AirDrop (optional)
     if ask_confirmation_with_info "Disable AirDrop?" \
@@ -344,6 +376,15 @@ hardening_privacy_tweaks() {
     # Screenshots (Metadata)
     defaults write com.apple.screencapture include-date -bool false
     killall SystemUIServer 2>/dev/null || true
+    
+    # Bluetooth configuration
+    info "Reviewing Bluetooth Configuration..."
+    if ask_confirmation_with_info "Disable Bluetooth (Aggressive Privacy)?" \
+        "Disabling Bluetooth removes a significant wireless attack surface and tracking vector." \
+        "WARNING: This will disable all wireless keyboards, mice, trackpads, and headphones!"; then
+        execute_sudo "Disable Bluetooth" defaults write /Library/Preferences/com.apple.Bluetooth ControllerPowerState -int 0 2>/dev/null || true
+        execute_sudo "Kill BluetoothDaemon" killall -HUP bluetoothd 2>/dev/null || true
+    fi
     
     # Gatekeeper & Quarantine Logs
     # These are now handled in `hardening_enable_gatekeeper_options` and `hardening_enable_quarantine`
@@ -412,6 +453,21 @@ hardening_secure_screen() {
     info "Securing Screen Saver and Lock..."
     defaults write com.apple.screensaver askForPassword -int 1
     defaults write com.apple.screensaver askForPasswordDelay -int 0
+    
+    info "Enforcing 20-minute screen saver..."
+    defaults -currentHost write com.apple.screensaver idleTime -int 1200
+    
+    info "Disabling Automatic Login..."
+    execute_sudo "Disable Auto Login" defaults delete /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null || true
+    
+    info "Requiring Admin Password for System Preferences..."
+    execute_sudo "Lock SysPrefs" security authorizationdb write system.preferences authenticate-admin 2>/dev/null || true
+}
+
+hardening_secure_terminals() {
+    info "Securing Terminal Applications (Secure Keyboard Entry)..."
+    defaults write com.apple.Terminal SecureKeyboardEntry -bool true
+    defaults write com.googlecode.iterm2 '"Secure Input"' -bool true 2>/dev/null || true
 }
 
 hardening_harden_finder() {
@@ -511,10 +567,44 @@ hardening_ensure_lockdown() {
             "You will need to enable it manually in System Settings and then restart."; then
             info "Opening System Settings for Lockdown Mode..."
             execute_sudo "Open Lockdown Mode Settings" open "x-apple.systempreferences:com.apple.LockdownMode"
-            warn "Please enable Lockdown Mode manually in the window that appears, then restart your computer."
+            info "Opening System Settings for Lockdown Mode..."
+            open "x-apple.systempreferences:com.apple.preference.security"
         else
              info "Skipping Lockdown Mode."
         fi
+    fi
+}
+
+hardening_secure_sleep() {
+    info "Securing Sleep and Standby (Evil Maid Mitigation)..."
+    if ask_confirmation_with_info "Enable Secure Sleep (Hibernation Mode 25 & Destroy FV Key)?" \
+        "Mode 25 writes memory to disk and removes power to RAM, preventing cold-boot attacks." \
+        "It also destroys the FileVault key in standby. Waking up will take slightly longer."; then
+        execute_sudo "Set Hibernation Mode 25" pmset -a hibernatemode 25
+        execute_sudo "Destroy FV Key on Standby" pmset -a destroyfvkeyonstandby 1
+    else
+        info "Skipping Secure Sleep configuration."
+    fi
+}
+
+hardening_disable_ipv6() {
+    info "Disabling IPv6 on all network interfaces..."
+    if ask_confirmation_with_info "Disable IPv6 to prevent leaks (Recommended)?" \
+        "IPv6 can often bypass VPNs and anonymity networks if not handled correctly." \
+        "Disabling it ensures all traffic routes via IPv4."; then
+        
+        local services
+        # Get raw list, exclude headers
+        services=$(networksetup -listallnetworkservices | grep -v 'An asterisk' | grep -v 'Start using')
+        
+        echo "$services" | while read -r service; do
+            if [ -z "$service" ]; then continue; fi
+            info "Disabling IPv6 on: $service"
+            execute_sudo "Disable IPv6 for $service" networksetup -setv6off "$service"
+        done
+        success "IPv6 disabled on all interfaces."
+    else
+        info "Skipping IPv6 mitigation."
     fi
 }
 
@@ -825,10 +915,13 @@ hardening_run_all() {
     hardening_secure_sudoers
     hardening_set_umask
     hardening_disable_captive_portal
-    hardening_disable_updates
+    hardening_manage_updates
     hardening_enable_library_validation
     hardening_enable_quarantine
     hardening_remove_guest
+    hardening_secure_terminals
+    hardening_secure_sleep
+    hardening_disable_ipv6
     # TCC reset is manual only
 }
 

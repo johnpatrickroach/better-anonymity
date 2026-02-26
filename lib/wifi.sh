@@ -234,3 +234,91 @@ wifi_audit() {
         fi
     fi
 }
+
+# MAC Spoofing LaunchDaemon Functions
+
+wifi_install_spoof_daemon() {
+    local plist_path="/Library/LaunchDaemons/com.better-anonymity.macspoof.plist"
+    
+    info "Installing MAC Spoofing LaunchDaemon..."
+    
+    # We need the absolute path to better-anonymity
+    local bin_path
+    bin_path=$(command -v better-anonymity)
+    
+    if [ -z "$bin_path" ]; then
+        error "Could not find 'better-anonymity' in PATH. Is it installed?"
+        return 1
+    fi
+
+    # The plist content
+    # We use sh -c to allow for any environment setup, though direct call is usually fine.
+    # RunAtLoad = true makes it run at boot.
+    local plist_content="<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\">
+<dict>
+    <key>Label</key>
+    <string>com.better-anonymity.macspoof</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$bin_path</string>
+        <string>wifi</string>
+        <string>spoof-mac</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardErrorPath</key>
+    <string>/var/log/better-anonymity-macspoof.log</string>
+    <key>StandardOutPath</key>
+    <string>/var/log/better-anonymity-macspoof.log</string>
+</dict>
+</plist>"
+
+    # Create a temporary file
+    local tmp_plist
+    tmp_plist=$(mktemp)
+    echo "$plist_content" > "$tmp_plist"
+    
+    # Move and load
+    execute_sudo "Copying LaunchDaemon plist..." cp "$tmp_plist" "$plist_path"
+    execute_sudo "Setting root ownership..." chown root:wheel "$plist_path"
+    execute_sudo "Setting permissions..." chmod 644 "$plist_path"
+    
+    # Unload first just in case
+    execute_sudo "Unloading old daemon (if exists)..." launchctl unload "$plist_path" 2>/dev/null || true
+    
+    if execute_sudo "Loading LaunchDaemon..." launchctl load "$plist_path"; then
+        success "MAC Spoofing will now run automatically at boot."
+    else
+        error "Failed to load LaunchDaemon."
+    fi
+    
+    rm -f "$tmp_plist"
+}
+
+wifi_uninstall_spoof_daemon() {
+    local plist_path="/Library/LaunchDaemons/com.better-anonymity.macspoof.plist"
+    
+    info "Removing MAC Spoofing LaunchDaemon..."
+    
+    if [ -f "$plist_path" ]; then
+        execute_sudo "Unloading LaunchDaemon..." launchctl unload "$plist_path" 2>/dev/null || true
+        if execute_sudo "Removing plist..." rm -f "$plist_path"; then
+            success "MAC Spoofing will no longer run at boot."
+        else
+             error "Failed to remove LaunchDaemon plist."
+        fi
+    else
+        info "LaunchDaemon is not currently installed."
+    fi
+}
+
+wifi_check_spoof_daemon() {
+    local plist_path="/Library/LaunchDaemons/com.better-anonymity.macspoof.plist"
+    if [ -f "$plist_path" ]; then
+        return 0 # Installed
+    else
+        return 1 # Not installed
+    fi
+}

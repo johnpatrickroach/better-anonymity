@@ -2441,6 +2441,15 @@ assert_contains "$OUTPUT" "brew called with: cask install keepassxc" "Should ins
 assert_contains "$OUTPUT" "Installing KeePassXC" "Should print info"
 
 
+# Test 32b: LinkLiar Installer
+# ----------------------------
+start_suite "LinkLiar Installer"
+
+OUTPUT=$(install_linkliar)
+assert_contains "$OUTPUT" "brew called with: cask install linkliar" "Should install linkliar cask"
+assert_contains "$OUTPUT" "Installing LinkLiar" "Should print info"
+
+
 
 
 # Test 32: Atomic Advanced DNS Setup

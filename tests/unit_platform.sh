@@ -43,17 +43,14 @@ sysctl() {
     echo "$MOCK_MODEL"
 }
 
-# Mock ioreg for battery
-ioreg() {
-    # If -c AppleSmartBattery is passed
-    if [[ "$*" == *"-c AppleSmartBattery"* ]]; then
+# Mock pmset for battery
+pmset() {
+    if [[ "$*" == *"-g batt"* ]]; then
         if [ "$MOCK_BATTERY" == "1" ]; then
-            echo "BatteryInstalled"
+            echo "InternalBattery"
         else
             echo ""
         fi
-    else
-        echo ""
     fi
 }
 

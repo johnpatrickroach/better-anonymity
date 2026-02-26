@@ -87,13 +87,13 @@ usage() {
     echo "  dns [provider]    Set DNS (dnscrypt-proxy, quad9, mullvad, cloudflare, system default)"
     echo "  verify-dns        Verify DNS configuration"
     echo "  update-hosts      Update StevenBlack hosts blocklist"
-    echo "  wifi [cmd]        Wi-Fi tools (audit, spoof-mac)"
+    echo "  wifi [cmd]        Wi-Fi tools (audit, spoof-mac, daemon-on, daemon-off)"
     echo "  ssh [cmd]         SSH tools (audit-sshd, harden-client)"
     echo "  network-open      Restore network defaults (disable proxy, resetting services)"
     echo "  network-anon      Enable anonymity mode (starts DNSCrypt, Privoxy, Tor, I2P; sets System/SOCKS proxies)"
     echo ""
     echo "Tools & Services:"
-    echo "  install [tool]    Install tools (tor, i2p, privoxy, gpg, signal, etc.)"
+    echo "  install [tool]    Install tools (tor, i2p, privoxy, gpg, signal, linkliar, etc.)"
     echo "  tor [cmd]         Manage Tor service (start, stop, restart, new-id, proxy-on/off, status)"
     echo "  captive [cmd]     Manage captive portal monitor (monitor, run, status)"
     echo "  i2p [cmd]         Manage I2P service (start, stop, console)"
@@ -235,7 +235,7 @@ show_explanation() {
             ;;
         wifi)
             echo "Wi-Fi Privacy Tools."
-            echo "Can audit current security or spoof the MAC address."
+            echo "Can audit current security, spoof the MAC address, or manage the boot daemon."
             ;;
         ssh)
             echo "SSH Hardening Tools."
@@ -365,6 +365,10 @@ case "$COMMAND" in
                     load_module "installers"
                     install_session
                     ;;
+                linkliar)
+                    load_module "installers"
+                    install_linkliar
+                    ;;
                 onionshare)
                     load_module "installers"
                     install_onionshare
@@ -377,7 +381,7 @@ case "$COMMAND" in
                     load_module "lifecycle"
                     lifecycle_install_cli
                     ;;
-                *) error "Unknown tool: $TOOL. Available: tor, tor-browser, privoxy, gpg, dnscrypt, pingbar, unbound, firefox, firefox-extensions, keepassxc, signal, telegram, session, onionshare, i2p, cli." ;;
+                *) error "Unknown tool: $TOOL. Available: tor, tor-browser, privoxy, gpg, dnscrypt, pingbar, unbound, firefox, firefox-extensions, keepassxc, signal, telegram, session, linkliar, onionshare, i2p, cli." ;;
             esac
         fi
         ;;
@@ -441,7 +445,9 @@ case "$COMMAND" in
                  mac=$(wifi_generate_mac)
                  wifi_spoof_mac "$mac"
                  ;;
-            *) echo "Usage: better-anonymity wifi [audit|spoof-mac]" ;;
+            daemon-on) wifi_install_spoof_daemon ;;
+            daemon-off) wifi_uninstall_spoof_daemon ;;
+            *) echo "Usage: better-anonymity wifi [audit|spoof-mac|daemon-on|daemon-off]" ;;
          esac
          ;;
     ssh)

@@ -119,7 +119,14 @@ menu_network() {
                 load_module "wifi"
                 echo "Wi-Fi Tools:"
                 echo "  1) Audit Connection"
-                echo "  2) Spoof MAC Address"
+                echo "  2) Spoof MAC Address (Once)"
+                
+                if wifi_check_spoof_daemon; then
+                    echo "  3) Disable MAC Spoofing at Boot (Currently Enabled)"
+                else
+                    echo "  3) Enable MAC Spoofing at Boot (Currently Disabled)"
+                fi
+                
                 echo "  b) Back"
                 read -p "Select: " wchoice
                 case $wchoice in
@@ -128,6 +135,13 @@ menu_network() {
                         local mac
                         mac=$(wifi_generate_mac)
                         wifi_spoof_mac "$mac" 
+                        ;;
+                    3)
+                        if wifi_check_spoof_daemon; then
+                            wifi_uninstall_spoof_daemon
+                        else
+                            wifi_install_spoof_daemon
+                        fi
                         ;;
                     b|back) continue ;;
                     *) error "Invalid option" ;;
@@ -275,12 +289,14 @@ menu_installers() {
                 echo "1) DNSCrypt"
                 echo "2) Unbound"
                 echo "3) PingBar"
+                echo "4) LinkLiar"
                 echo "b) Back"
                 read -p "Select: " ochoice
                 case $ochoice in
                     1) install_dnscrypt ;;
                     2) install_unbound ;;
                     3) install_pingbar ;;
+                    4) install_linkliar ;;
                     b|back) continue ;;
                     *) error "Invalid option" ;;
                 esac

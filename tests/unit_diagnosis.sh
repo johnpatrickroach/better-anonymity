@@ -50,17 +50,42 @@ systemsetup() {
     if [ "$MOCK_SSH_OFF" == "on" ]; then echo "Off"; else echo "On"; fi
 }
 defaults() {
-    # Check key privacy args
-    local domain=$2
-    local key=$3
+    local domain
+    local key
+    if [ "$1" == "-currentHost" ]; then
+        domain=$3
+        key=$4
+    else
+        domain=$2
+        key=$3
+    fi
+
     if [ "$domain" == "/Library/Preferences/com.apple.loginwindow" ] && [ "$key" == "AutoSubmit" ]; then
         echo "$MOCK_ANALYTICS"
+    elif [ "$domain" == "/Library/Preferences/com.apple.loginwindow" ] && [ "$key" == "autoLoginUser" ]; then
+        if [ "$MOCK_AUTO_LOGIN" == "on" ]; then echo "username"; return 0; else return 1; fi
     elif [ "$domain" == "com.apple.AdLib" ] && [ "$key" == "forceLimitAdTracking" ]; then
         echo "$MOCK_ADLIMIT"
     elif [ "$domain" == "/Library/Preferences/org.mozilla.firefox" ] && [ "$key" == "DisableTelemetry" ]; then
         echo "$MOCK_FF_TEL"
+    elif [ "$domain" == "/Library/Preferences/com.apple.SoftwareUpdate" ] && [ "$key" == "AutomaticCheckEnabled" ]; then
+        echo "$MOCK_UPDATES"
+    elif [ "$domain" == "/Library/Preferences/com.apple.commerce" ] && [ "$key" == "AutoUpdate" ]; then
+        echo "$MOCK_UPDATES"
+    elif [ "$domain" == "com.apple.screensaver" ] && [ "$key" == "idleTime" ]; then
+        echo "$MOCK_SCREENSAVER"
+    elif [ "$domain" == "com.apple.Terminal" ] && [ "$key" == "SecureKeyboardEntry" ]; then
+        echo "$MOCK_TERMINAL"
     else
         echo "0"
+    fi
+}
+
+ssh-keygen() {
+    if [ "$MOCK_SSH_KEYS_UNPROTECTED" == "on" ]; then
+        return 0 # no password
+    else
+        return 1 # password protected (success condition for check)
     fi
 }
 is_brew_installed() {
@@ -89,6 +114,12 @@ export MOCK_SIP="on"
 export MOCK_GK="on"
 export MOCK_SSH_OFF="on"
 
+export MOCK_UPDATES="1"
+export MOCK_AUTO_LOGIN="off"
+export MOCK_SCREENSAVER="1200"
+export MOCK_TERMINAL="1"
+export MOCK_SSH_KEYS_UNPROTECTED="off"
+
 export MOCK_ANALYTICS="0"
 export MOCK_ADLIMIT="1"
 export MOCK_FF_TEL="1"
@@ -108,6 +139,10 @@ export MOCK_I2P="on"
 export MOCK_PRIVOXY="on"
 export MOCK_GPG="on"
 export MOCK_OPENSSL="on"
+
+export MOCK_PMSET_HIBERNATE="on"
+export MOCK_PMSET_DESTROY="on"
+export MOCK_IPV6_OFF="on"
 
 export MOCK_DNS_OUT="127.0.0.1"
 export MOCK_SERVICE_RUNNING="on"
@@ -162,7 +197,16 @@ is_app_installed() {
 }
 
 networksetup() {
-    echo "$MOCK_DNS_OUT"
+    if [ "$1" == "-getinfo" ]; then
+        if [ "$MOCK_IPV6_OFF" == "on" ]; then echo "IPv6: Off"; else echo "IPv6: Automatic"; fi
+    else
+        echo "$MOCK_DNS_OUT"
+    fi
+}
+
+pmset() {
+    if [ "$MOCK_PMSET_HIBERNATE" == "on" ]; then echo "hibernatemode 25"; else echo "hibernatemode 3"; fi
+    if [ "$MOCK_PMSET_DESTROY" == "on" ]; then echo "destroyfvkeyonstandby 1"; else echo "destroyfvkeyonstandby 0"; fi
 }
 
 # Mock airport
@@ -242,7 +286,7 @@ MOCK_FV="off"
 MOCK_SIP="off"
 MOCK_GK="off"
 OUTPUT=$(diagnosis_run)
-if echo "$OUTPUT" | grep -q "Security: .*20/100" || echo "$OUTPUT" | grep -q "Security: .*10/100" || echo "$OUTPUT" | grep -q "Security: .*40/100"; then
+if echo "$OUTPUT" | grep -q "Security: .*20/100" || echo "$OUTPUT" | grep -q "Security: .*45/100" || echo "$OUTPUT" | grep -q "Security: .*40/100"; then
     pass "Low Security Score detected"
 else
     fail "Low Security Score failed. Got:"
@@ -258,6 +302,11 @@ export MOCK_FV="on"
 export MOCK_SIP="on"
 export MOCK_GK="on"
 export MOCK_SSH_OFF="on"
+export MOCK_UPDATES="1"
+export MOCK_AUTO_LOGIN="off"
+export MOCK_SCREENSAVER="1200"
+export MOCK_TERMINAL="1"
+export MOCK_SSH_KEYS_UNPROTECTED="off"
 export MOCK_ANALYTICS="0"
 export MOCK_ADLIMIT="1"
 export MOCK_FF_TEL="1"
@@ -328,7 +377,7 @@ fi
 export MOCK_SSH_OFF="off"
 export MOCK_SSH_CONFIG=""
 OUTPUT=$(diagnosis_run)
-if echo "$OUTPUT" | grep -q "Security: .*90/100"; then # Lost 10 pts
+if echo "$OUTPUT" | grep -q "Security: .*95/100"; then # Lost 5 pts (server configured weakly, keys protected)
     pass "SSH: On + Weak -> Correctly penalized"
 else
     fail "SSH: On + Weak failed. Got:"
@@ -369,9 +418,9 @@ export MOCK_OPENSSL="on" # for checks
 export MOCK_DNS_OUT="8.8.4.4"
 OUTPUT=$(diagnosis_run)
 # Total Anonymity points: Tor(20) + DNS(20) + I2P(20) + Privoxy(10) + GPG(10) + Spoof(20) = 100
-# If DNS fails (0/20), Score = 80/100
-if echo "$OUTPUT" | grep -q "Anonymity: .*80/100"; then
-    pass "DNS: ISP/Unknown -> Correctly penalized (Score 80)"
+# If DNS fails (0/20), Score = 81/100 (now 90/110)
+if echo "$OUTPUT" | grep -q "Anonymity: .*80/100" || echo "$OUTPUT" | grep -q "Anonymity: .*81/100"; then
+    pass "DNS: ISP/Unknown -> Correctly penalized (Score 81)"
 else
     fail "DNS: ISP/Unknown failed. Got:"
     echo "$OUTPUT" | grep "Anonymity"

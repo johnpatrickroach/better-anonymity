@@ -100,7 +100,7 @@ ln -sf "$TEST_PROFILE" "/tmp/.zshrc"
 CONFIRM_RESPONSE=1 # Decline
 hardening_secure_homebrew
 
-if command grep -q "HOMEBREW_NO_ANALYTICS" "$TEST_PROFILE"; then
+if command grep -q "homebrew_secure_env" "$TEST_PROFILE"; then
      fail "Should NOT edit zshrc if declined"
 else
      pass "Correctly skipped zshrc (Decline)"
@@ -112,7 +112,7 @@ fi
 CONFIRM_RESPONSE=0 # Accept
 hardening_secure_homebrew
 
-if command grep -q "HOMEBREW_NO_ANALYTICS" "$TEST_PROFILE"; then
+if command grep -q "homebrew_secure_env" "$TEST_PROFILE"; then
      pass "Edited zshrc after confirmation"
 else
      fail "Failed to edit zshrc after confirmation"
@@ -130,13 +130,13 @@ SHELL="/bin/bash"
 CONFIRM_RESPONSE=0 # Accept
 hardening_secure_homebrew
 
-if command grep -q "HOMEBREW_NO_ANALYTICS" "$TEST_BASH_PROFILE"; then
+if command grep -q "homebrew_secure_env" "$TEST_BASH_PROFILE"; then
      pass "Edited bash_profile after confirmation"
 else
      fail "Failed to edit bash_profile after confirmation"
 fi
 
 # Cleanup
-rm -f "$TEST_PROFILE" "/tmp/.bash_profile" "/tmp/.zshrc" "$TEST_BASH_PROFILE"
+rm -f "$TEST_PROFILE" "/tmp/.bash_profile" "/tmp/.zshrc" "$TEST_BASH_PROFILE" "/tmp/.homebrew_secure_env"
 
 end_suite

@@ -125,6 +125,76 @@ else
 fi
 
 
+# Test 7: Manage Updates - Enable Strategy
+# ----------------------------------------
+CONFIRM_WITH_INFO_RESPONSE=0 # Choose Security (Enable)
+> "$COMMANDS_RUN_FILE"
+hardening_manage_updates
+
+if grep -q "defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true" "$COMMANDS_RUN_FILE"; then
+    pass "Updates: Enforced Security strategy (Enabled)"
+else
+    fail "Updates: Failed to enforce security strategy"
+fi
+
+# Test 8: Manage Updates - Disable Strategy
+# -----------------------------------------
+CONFIRM_WITH_INFO_RESPONSE=1 # Choose Privacy
+CONFIRM_RESPONSE=0 # Accept Are you sure
+> "$COMMANDS_RUN_FILE"
+hardening_manage_updates
+
+if grep -q "defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false" "$COMMANDS_RUN_FILE"; then
+    pass "Updates: Disabled (Privacy Mode)"
+else
+    fail "Updates: Failed to disable in Privacy Mode"
+fi
+
+# Test 9: Secure Sleep
+# --------------------
+CONFIRM_WITH_INFO_RESPONSE=0 # Enable
+> "$COMMANDS_RUN_FILE"
+hardening_secure_sleep
+
+if grep -q "pmset -a hibernatemode 25" "$COMMANDS_RUN_FILE"; then
+    pass "Secure Sleep: Enabled"
+else
+    fail "Secure Sleep: Failed to enable"
+fi
+
+# Test 10: Disable IPv6
+# ---------------------
+networksetup() {
+    if [[ "$1" == "-listallnetworkservices" ]]; then
+        echo "An asterisk (*) denotes that a network service is disabled."
+        echo "Wi-Fi"
+    else
+        echo "networksetup $*" >> "$COMMANDS_RUN_FILE"
+    fi
+}
+export -f networksetup || true # Make sure it's available
+
+CONFIRM_WITH_INFO_RESPONSE=0 # Enable
+> "$COMMANDS_RUN_FILE"
+hardening_disable_ipv6
+
+if grep -q "networksetup -setv6off Wi-Fi" "$COMMANDS_RUN_FILE"; then
+    pass "Disable IPv6: Executed for interfaces"
+else
+    fail "Disable IPv6: Failed to execute"
+fi
+
+# Test 11: Secure Terminals
+# -------------------------
+> "$COMMANDS_RUN_FILE"
+hardening_secure_terminals
+
+if grep -q "defaults write com.apple.Terminal SecureKeyboardEntry -bool true" "$COMMANDS_RUN_FILE"; then
+    pass "Secure Terminals: Keyboard entry secured"
+else
+    fail "Secure Terminals: Failed to secure keyboard entry"
+fi
+
 # Cleanup
 rm -f "$COMMANDS_RUN_FILE"
 

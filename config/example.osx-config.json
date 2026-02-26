@@ -2185,5 +2185,1115 @@
         "fix": {
             "sudo_command": "sudo defaults write /Library/Preferences/org.mozilla.firefox DisableTelemetry -bool TRUE"
         }
+    },
+    {
+        "description": "better-anonymity: AutoSubmit in /Library/Preferences/com.apple.loginwindow is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.loginwindow 'AutoSubmit' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.loginwindow AutoSubmit -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: Siri Data Sharing Opt-In Status in com.apple.assistant.support is 2",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.assistant.support 'Siri Data Sharing Opt-In Status' 2>/dev/null",
+                "command_pass": "2",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.assistant.support \"Siri Data Sharing Opt-In Status\" -int 2"
+        }
+    },
+    {
+        "description": "better-anonymity: Use device speaker for TTS in com.apple.assistant.backedup is 3",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.assistant.backedup 'Use device speaker for TTS' 2>/dev/null",
+                "command_pass": "3",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.assistant.backedup 'Use device speaker for TTS' -int 3"
+        }
+    },
+    {
+        "description": "better-anonymity: DidSeeSiriSetup in com.apple.SetupAssistant is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.SetupAssistant 'DidSeeSiriSetup' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.SetupAssistant 'DidSeeSiriSetup' -bool True"
+        }
+    },
+    {
+        "description": "better-anonymity: StatusMenuVisible in com.apple.Siri is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.Siri 'StatusMenuVisible' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.Siri 'StatusMenuVisible' -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: UserHasDeclinedEnable in com.apple.Siri is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.Siri 'UserHasDeclinedEnable' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.Siri 'UserHasDeclinedEnable' -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: allowIdentifierForAdvertising in com.apple.AdLib is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.AdLib 'allowIdentifierForAdvertising' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.AdLib allowIdentifierForAdvertising -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: allowApplePersonalizedAdvertising in com.apple.AdLib is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.AdLib 'allowApplePersonalizedAdvertising' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.AdLib allowApplePersonalizedAdvertising -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: forceLimitAdTracking in com.apple.AdLib is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.AdLib 'forceLimitAdTracking' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.AdLib forceLimitAdTracking -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: EnterprisePoliciesEnabled in /Library/Preferences/org.mozilla.firefox is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/org.mozilla.firefox 'EnterprisePoliciesEnabled' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/org.mozilla.firefox EnterprisePoliciesEnabled -bool TRUE"
+        }
+    },
+    {
+        "description": "better-anonymity: HowToCheck in com.microsoft.autoupdate2 is Manual",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.microsoft.autoupdate2 'HowToCheck' 2>/dev/null",
+                "command_pass": "Manual",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.microsoft.autoupdate2 HowToCheck -string \"Manual\""
+        }
+    },
+    {
+        "description": "better-anonymity: SendAllTelemetryEnabled in com.microsoft.office.telemetry is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.microsoft.office.telemetry 'SendAllTelemetryEnabled' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.microsoft.office.telemetry SendAllTelemetryEnabled -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: ZeroDiagnosticData in com.microsoft.office.telemetry is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.microsoft.office.telemetry 'ZeroDiagnosticData' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.microsoft.office.telemetry ZeroDiagnosticData -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: UserOptIn in com.microsoft.office.telemetry is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.microsoft.office.telemetry 'UserOptIn' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.microsoft.office.telemetry UserOptIn -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: DiagnosticDataTypePreference in com.microsoft.office is ZeroDiagnosticData",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.microsoft.office 'DiagnosticDataTypePreference' 2>/dev/null",
+                "command_pass": "ZeroDiagnosticData",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.microsoft.office DiagnosticDataTypePreference -string \"ZeroDiagnosticData\""
+        }
+    },
+    {
+        "description": "better-anonymity: ProductPromo.ForcePromoOff in com.parallels.Parallels Desktop is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.parallels.Parallels Desktop 'ProductPromo.ForcePromoOff' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write \"com.parallels.Parallels Desktop\" \"ProductPromo.ForcePromoOff\" -bool yes"
+        }
+    },
+    {
+        "description": "better-anonymity: WelcomeScreenPromo.PromoOff in com.parallels.Parallels Desktop is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.parallels.Parallels Desktop 'WelcomeScreenPromo.PromoOff' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write \"com.parallels.Parallels Desktop\" \"WelcomeScreenPromo.PromoOff\" -bool yes"
+        }
+    },
+    {
+        "description": "better-anonymity: LookupEnabled in com.apple.lookup.shared is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.lookup.shared 'LookupEnabled' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.lookup.shared LookupEnabled -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: AllowGuestAccess in /Library/Preferences/SystemConfiguration/com.apple.smb.server is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/SystemConfiguration/com.apple.smb.server 'AllowGuestAccess' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/SystemConfiguration/com.apple.smb.server AllowGuestAccess -bool NO"
+        }
+    },
+    {
+        "description": "better-anonymity: guestAccess in /Library/Preferences/com.apple.AppleFileServer is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.AppleFileServer 'guestAccess' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.AppleFileServer guestAccess -bool NO"
+        }
+    },
+    {
+        "description": "better-anonymity: AirplayRecieverEnabled in /Library/Preferences/com.apple.controlcenter.plist is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.controlcenter.plist 'AirplayRecieverEnabled' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.controlcenter.plist AirplayRecieverEnabled -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: AutomaticCheckEnabled in /Library/Preferences/com.apple.SoftwareUpdate is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'AutomaticCheckEnabled' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: AutomaticDownload in /Library/Preferences/com.apple.SoftwareUpdate is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'AutomaticDownload' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: AutomaticallyInstallMacOSUpdates in /Library/Preferences/com.apple.SoftwareUpdate is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'AutomaticallyInstallMacOSUpdates' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: ConfigDataInstall in /Library/Preferences/com.apple.SoftwareUpdate is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'ConfigDataInstall' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: CriticalUpdateInstall in /Library/Preferences/com.apple.SoftwareUpdate is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'CriticalUpdateInstall' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: AutoUpdate in /Library/Preferences/com.apple.commerce is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.commerce 'AutoUpdate' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: AutomaticCheckEnabled in /Library/Preferences/com.apple.SoftwareUpdate is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'AutomaticCheckEnabled' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: AutomaticDownload in /Library/Preferences/com.apple.SoftwareUpdate is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'AutomaticDownload' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: AutomaticallyInstallMacOSUpdates in /Library/Preferences/com.apple.SoftwareUpdate is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'AutomaticallyInstallMacOSUpdates' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: ConfigDataInstall in /Library/Preferences/com.apple.SoftwareUpdate is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'ConfigDataInstall' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: CriticalUpdateInstall in /Library/Preferences/com.apple.SoftwareUpdate is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'CriticalUpdateInstall' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: AutoUpdate in /Library/Preferences/com.apple.commerce is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.commerce 'AutoUpdate' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: AutomaticallyInstallAppUpdates in /Library/Preferences/com.apple.SoftwareUpdate is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'AutomaticallyInstallAppUpdates' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallAppUpdates -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: AllowPreReleaseInstallation in /Library/Preferences/com.apple.SoftwareUpdate is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.SoftwareUpdate 'AllowPreReleaseInstallation' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AllowPreReleaseInstallation -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: GKAutoRearm in /Library/Preferences/com.apple.security is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.security 'GKAutoRearm' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.security GKAutoRearm -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: show-recents in com.apple.dock is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.dock 'show-recents' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.dock show-recents -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: WebAutomaticSpellingCorrectionEnabled in NSGlobalDomain is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read NSGlobalDomain 'WebAutomaticSpellingCorrectionEnabled' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write NSGlobalDomain WebAutomaticSpellingCorrectionEnabled -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: include-date in com.apple.screencapture is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.screencapture 'include-date' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.screencapture include-date -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: DisableLibraryValidation in /Library/Preferences/com.apple.security.libraryvalidation.plist is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.security.libraryvalidation.plist 'DisableLibraryValidation' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.security.libraryvalidation.plist DisableLibraryValidation -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: DisableLibraryValidation in /Library/Preferences/com.apple.security.libraryvalidation.plist is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /Library/Preferences/com.apple.security.libraryvalidation.plist 'DisableLibraryValidation' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /Library/Preferences/com.apple.security.libraryvalidation.plist DisableLibraryValidation -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: enabled in /var/db/SystemPolicy-prefs is yes",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /var/db/SystemPolicy-prefs 'enabled' 2>/dev/null",
+                "command_pass": "yes",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /var/db/SystemPolicy-prefs enabled -string yes"
+        }
+    },
+    {
+        "description": "better-anonymity: enabled in /var/db/SystemPolicy-prefs is no",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read /var/db/SystemPolicy-prefs 'enabled' 2>/dev/null",
+                "command_pass": "no",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo defaults write /var/db/SystemPolicy-prefs enabled -string no"
+        }
+    },
+    {
+        "description": "better-anonymity: LSQuarantine in com.apple.LaunchServices is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.LaunchServices 'LSQuarantine' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.LaunchServices LSQuarantine -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: LSQuarantine in com.apple.LaunchServices is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.LaunchServices 'LSQuarantine' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.LaunchServices LSQuarantine -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: SecureKeyboardEntry in com.apple.Terminal is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.Terminal 'SecureKeyboardEntry' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.Terminal SecureKeyboardEntry -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: Secure Input in com.googlecode.iterm2 is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.googlecode.iterm2 'Secure Input' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.googlecode.iterm2 '\"Secure Input\"' -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: AppleShowAllExtensions in NSGlobalDomain is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read NSGlobalDomain 'AppleShowAllExtensions' 2>/dev/null",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write NSGlobalDomain AppleShowAllExtensions -bool true"
+        }
+    },
+    {
+        "description": "better-anonymity: FXEnableExtensionChangeWarning in com.apple.finder is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.finder 'FXEnableExtensionChangeWarning' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false"
+        }
+    },
+    {
+        "description": "better-anonymity: pmset hibernatemode is 25",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "pmset -g custom | grep -w 'hibernatemode' | awk '{print $2}' | head -n 1",
+                "command_pass": "25",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo pmset -a hibernatemode 25"
+        }
+    },
+    {
+        "description": "better-anonymity: pmset destroyfvkeyonstandby is 1",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "pmset -g custom | grep -w 'destroyfvkeyonstandby' | awk '{print $2}' | head -n 1",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo pmset -a destroyfvkeyonstandby 1"
+        }
+    },
+    {
+        "description": "better-anonymity: Printer sharing is disabled (cupsctl).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "system_profiler SPPrintersDataType 2>/dev/null | grep -q 'Shared: Yes' && echo 0 || echo 1",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo cupsctl --no-share-printers --no-remote-any --no-remote-admin"
+        }
+    },
+    {
+        "description": "better-anonymity: FileVault is enabled.",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "fdesetup status | grep -q 'FileVault is On' && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo fdesetup enable"
+        }
+    },
+    {
+        "description": "better-anonymity: IPv6 is disabled on all network interfaces.",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "if networksetup -listallnetworkservices | tail -n +2 | while read -r s; do networksetup -getinfo \"$s\" 2>/dev/null | grep '^IPv6:' | grep -qv 'Off' && exit 1; done; then echo 1; else echo 0; fi",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "networksetup -listallnetworkservices | tail -n +2 | while read -r s; do sudo networksetup -setv6off \"$s\"; done"
+        }
+    },
+    {
+        "description": "better-anonymity: Application Firewall is enabled via socketfilterfw.",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate | grep -q 'State = 1' && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on"
+        }
+    },
+    {
+        "description": "better-anonymity: Remote Apple Events are disabled (systemsetup).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "systemsetup -getremoteappleevents 2>/dev/null | grep -q 'Off' && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo systemsetup -setremoteappleevents off"
+        }
+    },
+    {
+        "description": "better-anonymity: Wake on LAN is disabled (systemsetup).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "systemsetup -getwakeonnetworkaccess 2>/dev/null | grep -q 'Off' && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo systemsetup -setwakeonnetworkaccess off"
+        }
+    },
+    {
+        "description": "better-anonymity: Remote Login is disabled (systemsetup).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "systemsetup -getremotelogin 2>/dev/null | grep -q 'Off' && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo systemsetup -setremotelogin off"
+        }
+    },
+    {
+        "description": "better-anonymity: com.apple.Siri.agent is disabled via launchctl.",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "launchctl print-disabled system 2>/dev/null | grep -q '\"com.apple.Siri.agent\" => disabled' && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo launchctl disable system/com.apple.Siri.agent"
+        }
+    },
+    {
+        "description": "better-anonymity: com.apple.assistantd is disabled via launchctl.",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "launchctl print-disabled system 2>/dev/null | grep -q '\"com.apple.assistantd\" => disabled' && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo launchctl disable system/com.apple.assistantd"
+        }
+    },
+    {
+        "description": "better-anonymity: Diagnostic Info Submission is unloaded (com.apple.SubmitDiagInfo).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "launchctl print-disabled system 2>/dev/null | grep -q '\"com.apple.SubmitDiagInfo\" => disabled' && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.SubmitDiagInfo.plist"
+        }
+    },
+    {
+        "description": "better-anonymity: Media Sharing is unloaded (com.apple.mediaremoted).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "launchctl print-disabled system 2>/dev/null | grep -q '\"com.apple.mediaremoted\" => disabled' && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.mediaremoted.plist"
+        }
+    },
+    {
+        "description": "better-anonymity: TFTP is disabled via launchctl.",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "launchctl print-disabled system 2>/dev/null | grep -q '\"com.apple.tftpd\" => disabled' && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo launchctl disable system/com.apple.tftpd"
+        }
+    },
+    {
+        "description": "better-anonymity: Telnet is disabled via launchctl.",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "launchctl print-disabled system 2>/dev/null | grep -q '\"com.apple.telnetd\" => disabled' && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo launchctl disable system/com.apple.telnetd"
+        }
+    },
+    {
+        "description": "better-anonymity: LanguageModeling directory is locked (uchg).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "if [ -d ~/Library/LanguageModeling ]; then ls -ldO ~/Library/LanguageModeling | grep -q 'uchg' && echo 1 || echo 0; else echo 1; fi",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "chflags -R uchg ~/Library/LanguageModeling"
+        }
+    },
+    {
+        "description": "better-anonymity: Spelling directory is locked (uchg).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "if [ -d ~/Library/Spelling ]; then ls -ldO ~/Library/Spelling | grep -q 'uchg' && echo 1 || echo 0; else echo 1; fi",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "chflags -R uchg ~/Library/Spelling"
+        }
+    },
+    {
+        "description": "better-anonymity: Suggestions directory is locked (uchg).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "if [ -d ~/Library/Suggestions ]; then ls -ldO ~/Library/Suggestions | grep -q 'uchg' && echo 1 || echo 0; else echo 1; fi",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "chflags -R uchg ~/Library/Suggestions"
+        }
+    },
+    {
+        "description": "better-anonymity: Quick Look Application Support is locked (uchg).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "if [ -d ~/Library/Application\\ Support/Quick\\ Look ]; then ls -ldO ~/Library/Application\\ Support/Quick\\ Look | grep -q 'uchg' && echo 1 || echo 0; else echo 1; fi",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "chflags -R uchg ~/Library/Application\\ Support/Quick\\ Look"
+        }
+    },
+    {
+        "description": "better-anonymity: Guest User Account is deleted (dscl).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "dscl . -read /Users/Guest 2>/dev/null && echo 0 || echo 1",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo dscl . -delete /Users/Guest"
+        }
+    },
+    {
+        "description": "better-anonymity: SSH Root Login is disabled (/etc/ssh/sshd_config).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "grep -q '^PermitRootLogin no' /etc/ssh/sshd_config 2>/dev/null && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo sed -i '' 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config"
+        }
+    },
+    {
+        "description": "better-anonymity: SSH Password Authentication is disabled (/etc/ssh/sshd_config).",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "grep -q '^PasswordAuthentication no' /etc/ssh/sshd_config 2>/dev/null && echo 1 || echo 0",
+                "command_pass": "1",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "sudo_command": "sudo sed -i '' 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config"
+        }
+    },
+    {
+        "description": "better-anonymity: DialogType in com.apple.CrashReporter is none",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.CrashReporter 'DialogType' 2>/dev/null",
+                "command_pass": "none",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.CrashReporter DialogType -string none"
+        }
+    },
+    {
+        "description": "better-anonymity: NSStatusItem Visible Siri in com.apple.systemuiserver is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.apple.systemuiserver 'NSStatusItem Visible Siri' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.apple.systemuiserver 'NSStatusItem Visible Siri' -int 0"
+        }
+    },
+    {
+        "description": "better-anonymity: checkInterval in com.google.Keystone.Agent is 0",
+        "confidence": "recommended",
+        "tests": [
+            {
+                "type": "exact match",
+                "command": "defaults read com.google.Keystone.Agent 'checkInterval' 2>/dev/null",
+                "command_pass": "0",
+                "case_sensitive": "false"
+            }
+        ],
+        "fix": {
+            "command": "defaults write com.google.Keystone.Agent checkInterval -int 0"
+        }
     }
 ]

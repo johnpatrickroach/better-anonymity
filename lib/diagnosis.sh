@@ -32,73 +32,141 @@ diagnosis_run() {
     local sec_total=0
     local sec_passed=0
     
-    # Firewall (20 pts)
+    # Firewall (15 pts)
     # Check for "enabled" OR "on" (macOS versions differ)
-    ((sec_total+=20))
+    ((sec_total+=15))
     if "$SOCKETFILTERFW_CMD" --getglobalstate 2>/dev/null | grep -E -q "enabled|on"; then
-        ((sec_passed+=20))
+        ((sec_passed+=15))
     else
         warn "  [FAIL] Firewall is DISABLED."
     fi
 
-    # FileVault (20 pts)
-    ((sec_total+=20))
+    # FileVault (15 pts)
+    ((sec_total+=15))
     if fdesetup status | grep -q "FileVault is On"; then
-        ((sec_passed+=20))
+        ((sec_passed+=15))
     else
         warn "  [FAIL] FileVault is DISABLED."
     fi
 
-    # SIP (20 pts)
-    ((sec_total+=20))
+    # SIP (15 pts)
+    ((sec_total+=15))
     if csrutil status | grep -q "enabled"; then
-        ((sec_passed+=20))
+        ((sec_passed+=15))
     else
         warn "  [FAIL] SIP is DISABLED."
     fi
 
-    # Gatekeeper (20 pts)
-    ((sec_total+=20))
+    # Gatekeeper (15 pts)
+    ((sec_total+=15))
     if spctl --status | grep -q "assessments enabled"; then
-         ((sec_passed+=20))
+         ((sec_passed+=15))
     else
          warn "  [FAIL] Gatekeeper is DISABLED."
     fi
     
-    # Stealth Mode (10 pts)
-    # Stealth Mode (10 pts)
-    ((sec_total+=10))
+    # Stealth Mode (5 pts)
+    ((sec_total+=5))
     if "$SOCKETFILTERFW_CMD" --getstealthmode 2>/dev/null | grep -E -q "enabled|on"; then
-        ((sec_passed+=10))
+        ((sec_passed+=5))
     else
         warn "  [FAIL] Stealth Mode is DISABLED."
     fi
 
-    # SSH Hardening (10 pts)
-    # Check if Remote Login is Off OR if Config is hardened (e.g. PermitRootLogin no)
-    # Requires sudo on newer macOS
+    # Automatic Updates (10 pts)
     ((sec_total+=10))
-    local remote_login_status
-    remote_login_status=$(sudo systemsetup -getremotelogin 2>/dev/null)
-    
-    if echo "$remote_login_status" | grep -i -q "Off"; then
+    if [ "$(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled 2>/dev/null)" == "1" ] && \
+       [ "$(defaults read /Library/Preferences/com.apple.commerce AutoUpdate 2>/dev/null)" == "1" ]; then
         ((sec_passed+=10))
     else
-        # If On, check strictly for BOTH PermitRootLogin no AND PasswordAuthentication no
-        local ssh_score=0
-        if grep -q "^PermitRootLogin no" /etc/ssh/sshd_config 2>/dev/null; then
+        warn "  [FAIL] Automatic Updates are disabled (If intentional for privacy, ignore this)."
+    fi
+
+    # Screen Saver & Login (10 pts)
+    ((sec_total+=10))
+    local screen_score=0
+    # AutoLogin off
+    if ! defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser &>/dev/null; then
+        ((screen_score+=5))
+    else
+        warn "  [FAIL] Automatic Login is enabled."
+    fi
+    # Screensaver idle time <= 1200
+    local idle_time
+    idle_time=$(defaults -currentHost read com.apple.screensaver idleTime 2>/dev/null || echo "0")
+    if [ "$idle_time" -gt 0 ] && [ "$idle_time" -le 1200 ]; then
+        ((screen_score+=5))
+    else
+        warn "  [FAIL] Screen Saver does not trigger within 20 minutes."
+    fi
+    ((sec_passed+=screen_score))
+
+    # Secure Sleep (10 pts)
+    ((sec_total+=10))
+    local sleep_score=0
+    local pmset_out
+    pmset_out=$(pmset -g custom 2>/dev/null || pmset -g)
+    if echo "$pmset_out" | grep -E -q "hibernatemode[[:space:]]+25"; then
+         ((sleep_score+=5))
+    else
+         warn "  [FAIL] Hibernation Mode is not set to 25 (Secure Sleep)."
+    fi
+    if echo "$pmset_out" | grep -E -q "destroyfvkeyonstandby[[:space:]]+1"; then
+         ((sleep_score+=5))
+    else
+         warn "  [FAIL] FileVault key is not destroyed on standby."
+    fi
+    ((sec_passed+=sleep_score))
+
+    # Secure Terminal (5 pts)
+    ((sec_total+=5))
+    if [ "$(defaults read com.apple.Terminal SecureKeyboardEntry 2>/dev/null)" == "1" ]; then
+        ((sec_passed+=5))
+    else
+        warn "  [FAIL] Terminal Secure Keyboard Entry is disabled."
+    fi
+
+    # SSH Hardening & Keys (10 pts)
+    ((sec_total+=10))
+    local ssh_score=0
+    local remote_login_status
+    remote_login_status=$(sudo systemsetup -getremotelogin 2>/dev/null || echo "Off")
+    
+    if echo "$remote_login_status" | grep -i -q "Off"; then
+        ((ssh_score+=5))
+    else
+        if grep -q "^PermitRootLogin no" /etc/ssh/sshd_config 2>/dev/null && grep -q "^PasswordAuthentication no" /etc/ssh/sshd_config 2>/dev/null; then
              ((ssh_score+=5))
-        fi
-        if grep -q "^PasswordAuthentication no" /etc/ssh/sshd_config 2>/dev/null; then
-             ((ssh_score+=5))
-        fi
-        
-        ((sec_passed+=ssh_score))
-        
-        if [ "$ssh_score" -lt 10 ]; then
-             warn "  [FAIL] Remote Login is ON but not fully hardened (Score: $ssh_score/10). Needs 'PermitRootLogin no' AND 'PasswordAuthentication no'."
+        else
+             warn "  [FAIL] Remote Login is ON but not fully hardened."
         fi
     fi
+    
+    # Check keys for passphrase
+    local ssh_dir="$HOME/.ssh"
+    local keys_found=0
+    local keys_unprotected=0
+    if [ -d "$ssh_dir" ]; then
+        for key in "$ssh_dir"/id_*; do
+            if [[ "$key" == *.pub ]]; then continue; fi
+            if [ -f "$key" ]; then
+                ((keys_found++))
+                if ssh-keygen -y -P "" -f "$key" &>/dev/null; then
+                    ((keys_unprotected++))
+                fi
+            fi
+        done
+    fi
+    
+    if [ "$keys_found" -eq 0 ]; then
+        ((ssh_score+=5))
+    elif [ "$keys_unprotected" -eq 0 ]; then
+        ((ssh_score+=5))
+    else
+        warn "  [FAIL] SSH keys found without a passphrase."
+    fi
+    
+    ((sec_passed+=ssh_score))
     
     if [ $sec_total -gt 0 ]; then
         security_score=$(( (sec_passed * 100) / sec_total ))
@@ -238,6 +306,16 @@ diagnosis_run() {
         ((anon_passed+=15)) # Good but not self-hosted
     else
         warn "  [FAIL] DNS appears to be ISP default or unrecognised ($dns)."
+    fi
+    
+    # IPv6 Status (10 pts)
+    ((anon_total+=10))
+    local ipv6_status
+    ipv6_status=$(networksetup -getinfo "$net_service" 2>/dev/null | grep "^IPv6:" || echo "")
+    if echo "$ipv6_status" | grep -i -q "Off"; then
+        ((anon_passed+=10))
+    else
+        warn "  [FAIL] IPv6 is enabled on $net_service (Potential Leak)."
     fi
     
     # I2P Installed (20 pts)

@@ -51,6 +51,8 @@ This document provides a comprehensive list of all commands and subcommands avai
 | :--- | :--- | :--- |
 | `wifi` | `audit` | Audits current Wi-Fi security (SSID, Encryption). |
 | | `spoof-mac [new_mac]` | Spoofs MAC address. Auto-generates if argument is empty. |
+| | `daemon-on` | Enables automatic MAC spoofing at boot (LaunchDaemon). |
+| | `daemon-off` | Disables automatic MAC spoofing at boot. |
 
 ## macOS Hardening
 
@@ -84,6 +86,7 @@ This document provides a comprehensive list of all commands and subcommands avai
 | `dnscrypt` | Installs DNSCrypt-Proxy. |
 | `unbound` | Installs Unbound DNS Resolver. |
 | `pingbar` | Installs PingBar menu bar tool. |
+| `linkliar` | Installs LinkLiar MAC Spoofing GUI. |
 | `firefox-extensions` | Installs privacy extensions (e.g. uBlock Origin). |
 
 ## Services & Utilities

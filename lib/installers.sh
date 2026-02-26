@@ -224,6 +224,10 @@ install_signal() {
     install_app_with_docs "Signal Desktop" "signal" "Signal.app" "docs/MESSENGERS.md"
 }
 
+install_linkliar() {
+    install_app_with_docs "LinkLiar" "linkliar" "LinkLiar.app" "docs/WIFI.md"
+}
+
 install_keepassxc() {
     install_app_with_docs "KeePassXC" "keepassxc" "KeePassXC.app" "docs/PASSWORDS.md"
 }

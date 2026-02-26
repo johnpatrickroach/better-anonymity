@@ -12,6 +12,7 @@ fail() { echo -e "${RED}[FAIL]${NC} $1"; ((FAILED++)); }
 # Mocks
 info() { echo "INFO: $*"; }
 warn() { echo "WARN: $*"; }
+success() { echo "SUCCESS: $*"; }
 
 # Mock sudo: Fail by default (simulating non-root with no password)
 sudo() {
@@ -84,4 +85,75 @@ else
     echo "$OUTPUT"
 fi
 
+end_suite
+
+start_suite "SSH Key Audit"
+
+# Test 1: No SSH directory
+export HOME="/tmp/nonexistent_home_$$"
+OUTPUT=$(ssh_audit_keys)
+if echo "$OUTPUT" | grep -q "No SSH directory found"; then
+    pass "Audit -> Handled missing .ssh directory"
+else
+    fail "Audit -> Failed to handle missing .ssh directory. Output:"
+    echo "$OUTPUT"
+fi
+
+# Test 2: With keys
+export HOME=$(mktemp -d)
+mkdir -p "$HOME/.ssh"
+touch "$HOME/.ssh/id_rsa"
+touch "$HOME/.ssh/id_ed25519"
+touch "$HOME/.ssh/id_rsa.pub" # Should be skipped
+
+# Mock ssh-keygen
+ssh-keygen() {
+    # -y -P "" -f <key>
+    # If the key is id_rsa, let's pretend it HAS NO passphrase (succeeds)
+    # If the key is id_ed25519, let's pretend it HAS a passphrase (fails)
+    if [[ "$*" == *id_rsa* ]]; then
+        return 0 # No passphrase
+    else
+        return 1 # Has passphrase
+    fi
+}
+
+OUTPUT=$(ssh_audit_keys)
+
+if echo "$OUTPUT" | grep -q '\[RISK\] Key uses RSA'; then
+    pass "Audit -> Detected RSA key risk"
+else
+    fail "Audit -> Failed to detect RSA key. Output:"
+    echo "$OUTPUT"
+fi
+
+if echo "$OUTPUT" | grep -q '\[PASS\] Key uses strong encryption.*id_ed25519'; then
+    pass "Audit -> Detected strong encryption"
+else
+    fail "Audit -> Failed to detect strong encryption. Output:"
+    echo "$OUTPUT"
+fi
+
+if echo "$OUTPUT" | grep -q '\[RISK\] Key (id_rsa) does NOT have a passphrase'; then
+    pass "Audit -> Detected missing passphrase"
+else
+    fail "Audit -> Failed to detect missing passphrase. Output:"
+    echo "$OUTPUT"
+fi
+
+if echo "$OUTPUT" | grep -q '\[PASS\] Key (id_ed25519) requires a passphrase'; then
+    pass "Audit -> Detected existing passphrase"
+else
+    fail "Audit -> Failed to detect existing passphrase. Output:"
+    echo "$OUTPUT"
+fi
+
+if echo "$OUTPUT" | grep -q '1/2 keys are protected by a passphrase'; then
+    pass "Audit -> Correct summary counts"
+else
+    fail "Audit -> Incorrect summary counts. Output:"
+    echo "$OUTPUT"
+fi
+
+rm -rf "$HOME"
 end_suite

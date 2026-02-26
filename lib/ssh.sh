@@ -46,6 +46,58 @@ ssh_check_sshd_status() {
     else
         echo -e "Remote Login: ${GREEN}Off${NC} $detail"
     fi
+    
+    echo ""
+    ssh_audit_keys
+}
+
+# ssh_audit_keys
+# Audits private keys in ~/.ssh/ for strong encryption and passphrases
+ssh_audit_keys() {
+    info "Auditing SSH Private Keys..."
+    local ssh_dir="$HOME/.ssh"
+    if [ ! -d "$ssh_dir" ]; then
+        info "No SSH directory found (~/.ssh)."
+        return 0
+    fi
+
+    local keys_found=0
+    local keys_passed=0
+    
+    for key in "$ssh_dir"/id_*; do
+        # Skip public keys
+        if [[ "$key" == *.pub ]]; then continue; fi
+        if [ ! -f "$key" ]; then continue; fi
+        
+        ((keys_found++))
+        local key_name
+        key_name=$(basename "$key")
+        info "Checking key: $key_name"
+        
+        # Check Encryption Type (Pareto: use strong encryption)
+        if [[ "$key_name" == *"rsa"* ]]; then
+             warn "  [RISK] Key uses RSA. Consider generating an ED25519 key (ssh-keygen -t ed25519)."
+        elif [[ "$key_name" == *"dsa"* ]] || [[ "$key_name" == *"ecdsa"* ]]; then
+             warn "  [RISK] Key uses legacy/weak encryption. Consider ED25519."
+        else
+             success "  [PASS] Key uses strong encryption."
+        fi
+        
+        # Check Passphrase (Pareto: SSH keys require a password)
+        # ssh-keygen -y -P "" -f <key> will succeed ONLY if there is no passphrase
+        if ssh-keygen -y -P "" -f "$key" &>/dev/null; then
+             warn "  [RISK] Key ($key_name) does NOT have a passphrase!"
+        else
+             success "  [PASS] Key ($key_name) requires a passphrase."
+             ((keys_passed++))
+        fi
+    done
+    
+    if [ "$keys_found" -eq 0 ]; then
+        info "No standard private keys found (id_*)."
+    else
+        info "$keys_passed/$keys_found keys are protected by a passphrase."
+    fi
 }
 
 # ssh_harden_sshd
