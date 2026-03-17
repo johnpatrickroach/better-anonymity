@@ -1094,6 +1094,9 @@ assert_contains "$OUTPUT" "Refer to docs/MESSENGERS.md" "Should show docs link"
 
 # Test 19: Metadata Cleanup
 # -------------------------
+# We will use PWD since we run from root
+source "$(dirname "$0")/../lib/cleanup.sh"
+
 # Mock destructive commands to prevent actual deletion during test
 defaults() { echo "DEFAULTS_CALL: $*"; return 0; }
 rm() { 
@@ -1114,19 +1117,19 @@ chmod() { echo "CHMOD_CALL: $*"; return 0; }
 getconf() { echo "/tmp/mock_cache"; return 0; }
 ask_confirmation() { return 0; } # Auto-yes
 
-# Mock cleanup sub-functions to verify orchestration without running logic
-cleanup_trash() { echo "CALL: cleanup_trash"; }
-cleanup_dev_tools() { echo "CALL: cleanup_dev_tools"; }
-cleanup_ios_data() { echo "CALL: cleanup_ios_data"; }
-cleanup_receipts() { echo "CALL: cleanup_receipts"; }
-cleanup_memory() { echo "CALL: cleanup_memory"; }
-cleanup_browsers() { echo "CALL: cleanup_browsers"; }
-cleanup_quarantine() { echo "CALL: cleanup_quarantine"; }
-
-# We will use PWD since we run from root
-source "$(dirname "$0")/../lib/cleanup.sh"
-
-OUTPUT=$(cleanup_metadata)
+OUTPUT=$(
+    # Mock cleanup sub-functions to verify orchestration without running logic
+    cleanup_trash() { echo "CALL: cleanup_trash"; }
+    cleanup_dev_tools() { echo "CALL: cleanup_dev_tools"; }
+    cleanup_ios_data() { echo "CALL: cleanup_ios_data"; }
+    cleanup_receipts() { echo "CALL: cleanup_receipts"; }
+    cleanup_memory() { echo "CALL: cleanup_memory"; }
+    cleanup_browsers() { echo "CALL: cleanup_browsers"; }
+    cleanup_quarantine() { echo "CALL: cleanup_quarantine"; }
+    sudo() { echo "SUDO_CALL: $*"; return 0; }
+    
+    cleanup_metadata
+)
 assert_contains "$OUTPUT" "Cleaning QuickLook Cache" "Should clean QL"
 # assert_contains "$OUTPUT" "QL_CALL: -r disablecache" "Should disable QL cache" # Deprecated
 assert_contains "$OUTPUT" "QL_CALL: -r cache" "Should reset QL cache"
@@ -1141,6 +1144,9 @@ xcrun() { echo "XCRUN_CALL: $*"; }
 docker() { echo "DOCKER_CALL: $*"; }
 npm() { echo "NPM_CALL: $*"; }
 tccutil() { echo "TCCUTIL_CALL: $*"; }
+yarn() { echo "YARN_CALL: $*"; }
+brew() { echo "BREW_CALL: $*"; }
+gem() { echo "GEM_CALL: $*"; }
 
 OUTPUT=$(cleanup_dev_tools)
 assert_contains "$OUTPUT" "DOCKER_CALL: system prune" "Should prune docker"
@@ -1163,7 +1169,6 @@ assert_contains "$OUTPUT" "TCCUTIL_CALL: reset All" "Should reset TCC"
 
 rm -rf "$TEST_ROOT_UNBOUND"
 unset -f dscl unbound-anchor unbound-control-setup unbound-checkconf chown chmod brew networksetup
-
 # Test 20: Password Vault
 # -----------------------
 # Mock GPG output
@@ -1436,9 +1441,9 @@ assert_contains "$OUTPUT" "Checking SSH Server" "Should check status"
 assert_contains "$OUTPUT" "Remote Login: On (Confirmed via systemsetup)" "Should report status"
 
 # Run full hardening flow test to catch injected CIS logic (using generic mocks above)
-OUTPUT=$(hardening_configure_privacy 2>&1)
+OUTPUT=$(hardening_disable_analytics 2>&1)
 assert_contains "$OUTPUT" "Disabling Apple Intelligence Features" "Should disable generation features"
-assert_contains "$OUTPUT" "defaults write com.apple.applicationaccess allowWritingTools -bool false" "Should block Writing Tools"
+assert_contains "$OUTPUT" "DEFAULTS_CALL: write com.apple.applicationaccess allowWritingTools -bool false" "Should block Writing Tools"
 
 OUTPUT=$(hardening_disable_services 2>&1)
 assert_contains "$OUTPUT" "EXEC: launchctl disable system/org.apache.httpd" "Should call launchctl disable for httpd"
@@ -1446,13 +1451,13 @@ assert_contains "$OUTPUT" "EXEC: nfsd disable" "Should call nfsd disable"
 assert_contains "$OUTPUT" "EXEC: AssetCacheManagerUtil deactivate" "Should deactivate content caching"
 
 OUTPUT=$(hardening_secure_screen 2>&1)
-assert_contains "$OUTPUT" "defaults write /Library/Preferences/com.apple.loginwindow RetriesUntilHint -int 0" "Should configure password hints"
+assert_contains "$OUTPUT" "DEFAULTS_CALL: write /Library/Preferences/com.apple.loginwindow RetriesUntilHint -int 0" "Should configure password hints"
 
 # Temporarily mock execute_sudo to catch the 'sh -c echo' command for sudo timeout
 execute_sudo() {
     echo "SUDO_EXEC: $*"
 }
-OUTPUT=$(hardening_secure_terminals 2>&1)
+OUTPUT=$(hardening_secure_sudoers 2>&1)
 assert_contains "$OUTPUT" "SUDO_EXEC: Set Sudo Timeout sh -c echo 'Defaults timestamp_timeout=0' > /etc/sudoers.d/ba_timeout && chmod 0440 /etc/sudoers.d/ba_timeout" "Should configure sudo to 0"
 
 # Restore original execute_sudo
@@ -4032,7 +4037,7 @@ curl() {
     fi
 }
 
-OUTPUT_FETCH=$(tor_fetch_bridges)
+OUTPUT_FETCH=$(tor_fetch_bridges 2>&1)
 assert_contains "$OUTPUT_FETCH" "obfs4 103.149.168.186:8443" "Should extract first bridge IP"
 assert_contains "$OUTPUT_FETCH" "cert=ebVLQlo1wEnp/HYtJ+nSuikwe+dSt632ka33wJAiUeVK0IeYs5M6w5DwoPX8gYLsJfADSA" "Should decode HTML entities (+)"
 assert_contains "$OUTPUT_FETCH" "obfs4 151.80.56.127:7001" "Should extract second bridge IP"
@@ -4047,8 +4052,8 @@ fi
 # Test Configure Bridges (Path Check)
 # -----------------------------------
 # Run configure in default mode
-OUTPUT_CONF=$(tor_configure_bridges "default")
-assert_contains "$OUTPUT_CONF" "Bridge configuration applied"
+OUTPUT_CONF=$(tor_configure_bridges "default" 2>&1)
+assert_contains "$OUTPUT_CONF" "Bridge configuration applied" "Should apply bridge configuration"
 # Check torrc for correct path (should prefer BREW_PREFIX over 'which')
 if grep -q "exec $BREW_PREFIX/bin/obfs4proxy" "$BREW_PREFIX/etc/tor/torrc"; then
     pass "Correctly used BREW_PREFIX for obfs4proxy path"
