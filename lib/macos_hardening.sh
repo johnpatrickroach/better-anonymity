@@ -17,7 +17,9 @@ hardening_update_system() {
 hardening_enable_firewall() {
     info "Enabling Firewall..."
     execute_sudo "Enable socketfilterfw" "$SOCKETFILTERFW_CMD" --setglobalstate on
-    execute_sudo "Enable logging" "$SOCKETFILTERFW_CMD" --setloggingmode on
+    if "$SOCKETFILTERFW_CMD" -h 2>&1 | grep -q "\-\-setloggingmode"; then
+        execute_sudo "Enable logging" "$SOCKETFILTERFW_CMD" --setloggingmode on
+    fi
     # Capture output to check for errors/status
     local output
     output=$(execute_sudo "Enable stealth mode" "$SOCKETFILTERFW_CMD" --setstealthmode on 2>&1)
@@ -55,53 +57,53 @@ hardening_enable_firewall() {
 
 hardening_disable_analytics() {
     info "Disabling Analytics and Crash Reports..."
-    execute_sudo "Unload DIAG info" launchctl unload -w /System/Library/LaunchDaemons/com.apple.SubmitDiagInfo.plist 2>/dev/null || true
-    execute_sudo "Disable AutoSubmit" defaults write /Library/Preferences/com.apple.loginwindow AutoSubmit -bool false
-    defaults write com.apple.assistant.support "Siri Data Sharing Opt-In Status" -int 2
+    set_launchctl "Unload DIAG info" "unload" -w /System/Library/LaunchDaemons/com.apple.SubmitDiagInfo.plist 2>/dev/null || true sudo
+    set_default "Disable AutoSubmit" "/Library/Preferences/com.apple.loginwindow" ""AutoSubmit"" "-bool" "false" sudo
+    set_default "Set setting "Siri Data Sharing Opt-In Status"" "com.apple.assistant.support" "Siri Data Sharing Opt-In Status" "-int" "2"
     defaults write com.apple.CrashReporter DialogType none
     
     # Aggressive Siri Disable (Privacy.sexy)
     info "Disabling Siri Services..."
-    defaults write com.apple.assistant.support 'Assistant Enabled' -bool false
-    defaults write com.apple.assistant.backedup 'Use device speaker for TTS' -int 3
-    execute_sudo "Disable Siri Agent" launchctl disable "system/com.apple.Siri.agent" 2>/dev/null || true
-    execute_sudo "Disable Assistantd" launchctl disable "system/com.apple.assistantd" 2>/dev/null || true
+    set_default "Set setting 'Assistant Enabled'" "com.apple.assistant.support" 'Assistant Enabled' "-bool" "false"
+    set_default "Set setting 'Use device speaker for TTS'" "com.apple.assistant.backedup" 'Use device speaker for TTS' "-int" "3"
+    set_launchctl "Disable Siri Agent" "disable" "system/com.apple.Siri.agent" 2>/dev/null || true sudo
+    set_launchctl "Disable Assistantd" "disable" "system/com.apple.assistantd" 2>/dev/null || true sudo
     # User agents (might need to run as user without sudo, or just warn)
     launchctl disable "user/$UID/com.apple.Siri.agent" 2>/dev/null || true
     launchctl disable "user/$UID/com.apple.assistantd" 2>/dev/null || true
     
-    defaults write com.apple.SetupAssistant 'DidSeeSiriSetup' -bool True
+    set_default "Set setting 'DidSeeSiriSetup'" "com.apple.SetupAssistant" "'DidSeeSiriSetup'" "-bool" "True"
     defaults write com.apple.systemuiserver 'NSStatusItem Visible Siri' 0
-    defaults write com.apple.Siri 'StatusMenuVisible' -bool false
-    defaults write com.apple.Siri 'UserHasDeclinedEnable' -bool true
+    set_default "Set setting 'StatusMenuVisible'" "com.apple.Siri" "'StatusMenuVisible'" "-bool" "false"
+    set_default "Set setting 'UserHasDeclinedEnable'" "com.apple.Siri" "'UserHasDeclinedEnable'" "-bool" "true"
 
     info "Disabling Apple Intelligence Features..."
     # Disable Writing Tools, Mail Summarization, and Notes Summarization (CIS benchmark)
-    defaults write com.apple.applicationaccess allowWritingTools -bool false
-    defaults write com.apple.applicationaccess allowMailSummary -bool false
-    defaults write com.apple.applicationaccess allowNotesTranscription -bool false
-    defaults write com.apple.applicationaccess allowNotesTranscriptionSummary -bool false
+    set_default "Set setting allowWritingTools" "com.apple.applicationaccess" "allowWritingTools" "-bool" "false"
+    set_default "Set setting allowMailSummary" "com.apple.applicationaccess" "allowMailSummary" "-bool" "false"
+    set_default "Set setting allowNotesTranscription" "com.apple.applicationaccess" "allowNotesTranscription" "-bool" "false"
+    set_default "Set setting allowNotesTranscriptionSummary" "com.apple.applicationaccess" "allowNotesTranscriptionSummary" "-bool" "false"
 
     # Ad Tracking (Privacy.sexy)
     info "Disabling Ad Tracking..."
     if [ "$(defaults read com.apple.AdLib allowIdentifierForAdvertising 2>/dev/null)" != "0" ]; then
-        defaults write com.apple.AdLib allowIdentifierForAdvertising -bool false
+        set_default "Set setting allowIdentifierForAdvertising" "com.apple.AdLib" "allowIdentifierForAdvertising" "-bool" "false"
     fi
      if [ "$(defaults read com.apple.AdLib allowApplePersonalizedAdvertising 2>/dev/null)" != "0" ]; then
-        defaults write com.apple.AdLib allowApplePersonalizedAdvertising -bool false
+        set_default "Set setting allowApplePersonalizedAdvertising" "com.apple.AdLib" "allowApplePersonalizedAdvertising" "-bool" "false"
     fi
      if [ "$(defaults read com.apple.AdLib forceLimitAdTracking 2>/dev/null)" != "1" ]; then
-        defaults write com.apple.AdLib forceLimitAdTracking -bool true
+        set_default "Set setting forceLimitAdTracking" "com.apple.AdLib" "forceLimitAdTracking" "-bool" "true"
     fi
 
     # Firefox Telemetry
     if [ -d "/Applications/Firefox.app" ]; then
         info "Disabling Firefox Telemetry..."
          if [ "$(defaults read /Library/Preferences/org.mozilla.firefox EnterprisePoliciesEnabled 2>/dev/null)" != "1" ]; then
-            execute_sudo "Enable Firefox Policies" defaults write /Library/Preferences/org.mozilla.firefox EnterprisePoliciesEnabled -bool TRUE
+            set_default "Enable Firefox Policies" "/Library/Preferences/org.mozilla.firefox" ""EnterprisePoliciesEnabled"" "-bool" "TRUE" sudo
         fi
          if [ "$(defaults read /Library/Preferences/org.mozilla.firefox DisableTelemetry 2>/dev/null)" != "1" ]; then
-            execute_sudo "Disable Firefox Telemetry" defaults write /Library/Preferences/org.mozilla.firefox DisableTelemetry -bool TRUE
+            set_default "Disable Firefox Telemetry" "/Library/Preferences/org.mozilla.firefox" ""DisableTelemetry"" "-bool" "TRUE" sudo
         fi
     fi
     
@@ -130,22 +132,22 @@ hardening_disable_app_telemetry() {
     
     # Microsoft Office / AutoUpdate
     if [ "$(defaults read com.microsoft.autoupdate2 HowToCheck 2>/dev/null)" != "Manual" ]; then
-        defaults write com.microsoft.autoupdate2 HowToCheck -string "Manual" 2>/dev/null || true
+        set_default "Set setting HowToCheck" "com.microsoft.autoupdate2" "HowToCheck" "-string" ""Manual" 2>/dev/null || true"
     fi
     if [ "$(defaults read com.microsoft.office.telemetry SendAllTelemetryEnabled 2>/dev/null)" != "0" ]; then
-        defaults write com.microsoft.office.telemetry SendAllTelemetryEnabled -bool false 2>/dev/null || true
+        set_default "Set setting SendAllTelemetryEnabled" "com.microsoft.office.telemetry" "SendAllTelemetryEnabled" "-bool" "false 2>/dev/null || true"
     fi
     # Stricter Office
     # Stricter Office
     if [ "$(defaults read com.microsoft.office.telemetry ZeroDiagnosticData 2>/dev/null)" != "1" ]; then
-        defaults write com.microsoft.office.telemetry ZeroDiagnosticData -bool true 2>/dev/null || true
+        set_default "Set setting ZeroDiagnosticData" "com.microsoft.office.telemetry" "ZeroDiagnosticData" "-bool" "true 2>/dev/null || true"
     fi
     if [ "$(defaults read com.microsoft.office.telemetry UserOptIn 2>/dev/null)" != "0" ]; then
-        defaults write com.microsoft.office.telemetry UserOptIn -bool false 2>/dev/null || true
+        set_default "Set setting UserOptIn" "com.microsoft.office.telemetry" "UserOptIn" "-bool" "false 2>/dev/null || true"
     fi
     # Privacy.sexy exact key match
     if [ "$(defaults read com.microsoft.office DiagnosticDataTypePreference 2>/dev/null)" != "ZeroDiagnosticData" ]; then
-        defaults write com.microsoft.office DiagnosticDataTypePreference -string "ZeroDiagnosticData" 2>/dev/null || true
+        set_default "Set setting DiagnosticDataTypePreference" "com.microsoft.office" "DiagnosticDataTypePreference" "-string" ""ZeroDiagnosticData" 2>/dev/null || true"
     fi
 
 
@@ -162,14 +164,14 @@ hardening_disable_app_telemetry() {
                 if [ ! -f "$profile" ]; then touch "$profile"; fi
                 
                 # DOTNET
-                if ! grep -q "^\s*export DOTNET_CLI_TELEMETRY_OPTOUT=" "$profile"; then
-                    echo "export DOTNET_CLI_TELEMETRY_OPTOUT=1" >> "$profile"
+                if ! grep -q "^\s*export DOTNET_CLI_TELEMETRY_OPTOUT=" "$profile" 2>/dev/null && ! sudo grep -q "^\s*export DOTNET_CLI_TELEMETRY_OPTOUT=" "$profile" 2>/dev/null; then
+                    echo "export DOTNET_CLI_TELEMETRY_OPTOUT=1" | sudo tee -a "$profile" >/dev/null
                     info "Added DOTNET_CLI_TELEMETRY_OPTOUT to $profile"
                 fi
                 
                 # POWERSHELL
-                if ! grep -q "^\s*export POWERSHELL_TELEMETRY_OPTOUT=" "$profile"; then
-                     echo "export POWERSHELL_TELEMETRY_OPTOUT=1" >> "$profile"
+                if ! grep -q "^\s*export POWERSHELL_TELEMETRY_OPTOUT=" "$profile" 2>/dev/null && ! sudo grep -q "^\s*export POWERSHELL_TELEMETRY_OPTOUT=" "$profile" 2>/dev/null; then
+                     echo "export POWERSHELL_TELEMETRY_OPTOUT=1" | sudo tee -a "$profile" >/dev/null
                      info "Added POWERSHELL_TELEMETRY_OPTOUT to $profile"
                 fi
             fi
@@ -236,14 +238,14 @@ except Exception as e:
     fi
     
     # 2. Disable 'Look up' & Suggestions at the system level (Global key)
-    defaults write com.apple.lookup.shared LookupEnabled -bool false 2>/dev/null || true
+    set_default "Set setting LookupEnabled" "com.apple.lookup.shared" "LookupEnabled" "-bool" "false 2>/dev/null || true"
     
     killall mds > /dev/null 2>&1 || true
     execute_sudo "Re-enable indexing" mdutil -i on / > /dev/null
     
     # Remote Apple Events
     info "Disabling Remote Apple Events..."
-    execute_sudo "Disable Remote Events" systemsetup -setremoteappleevents off 2>/dev/null || true
+    set_systemsetup "Disable Remote Events" "-setremoteappleevents" "off 2>/dev/null || true"
 
     # Remote Services
     hardening_disable_services
@@ -259,7 +261,7 @@ hardening_disable_services() {
     if systemsetup -getremotelogin 2>/dev/null | grep -i "On"; then
         warn "Remote Login (SSH) is currently ENABLED."
         if ask_confirmation "Disable Remote Login (SSH) to reduce attack surface?"; then
-             execute_sudo "Disable Remote Login" systemsetup -setremotelogin off
+             set_systemsetup "Disable Remote Login" "-setremotelogin" "off"
         else
              info "Keeping Remote Login enabled."
         fi
@@ -269,8 +271,8 @@ hardening_disable_services() {
     
     # 2. Insecure Services (TFTP, Telnet)
     # Telnet/TFTP are rarely used but if present should be off
-    execute_sudo "Disable TFTP" launchctl disable 'system/com.apple.tftpd' 2>/dev/null || true
-    execute_sudo "Disable Telnet" launchctl disable 'system/com.apple.telnetd' 2>/dev/null || true
+    set_launchctl "Disable TFTP" "disable" 'system/com.apple.tftpd' 2>/dev/null || true sudo
+    set_launchctl "Disable Telnet" "disable" 'system/com.apple.telnetd' 2>/dev/null || true sudo
     
     # 3. Remote Management (ARD / Screen Sharing)
     # This is different from "Remote Login" (SSH)
@@ -296,8 +298,8 @@ hardening_disable_services() {
     
     # 5. Guest Sharing (SMB/AFP)
     info "Disabling Guest File Sharing..."
-    execute_sudo "Disable SMB Guest" defaults write /Library/Preferences/SystemConfiguration/com.apple.smb.server AllowGuestAccess -bool NO
-    execute_sudo "Disable AFP Guest" defaults write /Library/Preferences/com.apple.AppleFileServer guestAccess -bool NO
+    set_default "Disable SMB Guest" "/Library/Preferences/SystemConfiguration/com.apple.smb.server" ""AllowGuestAccess"" "-bool" "NO" sudo
+    set_default "Disable AFP Guest" "/Library/Preferences/com.apple.AppleFileServer" ""guestAccess"" "-bool" "NO" sudo
     
     if command -v sysadminctl >/dev/null; then
          execute_sudo "Disable SMB Guest (sysadminctl)" sysadminctl -smbGuestAccess off 2>/dev/null || true
@@ -306,20 +308,20 @@ hardening_disable_services() {
     
     # 6. AirPlay Receiver
     info "Disabling AirPlay Receiver..."
-    execute_sudo "Disable AirPlay Receiver" defaults write /Library/Preferences/com.apple.controlcenter.plist AirplayRecieverEnabled -bool false 2>/dev/null || true
+    set_default "Disable AirPlay Receiver" "/Library/Preferences/com.apple.controlcenter.plist" ""AirplayRecieverEnabled"" "-bool" "false" sudo
     
     # 7. Internet Sharing & Media Sharing
     info "Disabling Internet and Media Sharing..."
-    defaults write com.apple.nat NAT -dict Enabled -int 0 2>/dev/null || true
-    execute_sudo "Disable Media Sharing" launchctl unload -w /System/Library/LaunchDaemons/com.apple.mediaremoted.plist 2>/dev/null || true
+    set_default "Set setting NAT" "com.apple.nat" "NAT" "-dict" "Enabled -int 0 2>/dev/null || true"
+    set_launchctl "Disable Media Sharing" "unload" -w /System/Library/LaunchDaemons/com.apple.mediaremoted.plist 2>/dev/null || true sudo
     
     # 8. Wake on LAN
     info "Disabling Wake on Network Access..."
-    execute_sudo "Disable Wake on LAN" systemsetup -setwakeonnetworkaccess off 2>/dev/null || true
+    set_systemsetup "Disable Wake on LAN" "-setwakeonnetworkaccess" "off 2>/dev/null || true"
     
     # 9. HTTP and NFS Servers
     info "Disabling HTTP and NFS Servers..."
-    execute_sudo "Disable HTTP Server" launchctl disable 'system/org.apache.httpd' 2>/dev/null || true
+    set_launchctl "Disable HTTP Server" "disable" 'system/org.apache.httpd' 2>/dev/null || true sudo
     execute_sudo "Disable NFS Server" nfsd disable 2>/dev/null || true
 
     # 10. Content Caching
@@ -335,33 +337,33 @@ hardening_manage_updates() {
         
         info "Enabling Secure Updates..."
         # System Updates
-        execute_sudo "Enable Auto Check" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true
-        execute_sudo "Enable Auto Download" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool true
-        execute_sudo "Enable Release Install" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool true
-        execute_sudo "Enable Config Data" defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool true
-        execute_sudo "Enable Critical Update" defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool true
+        set_default "Enable Auto Check" "/Library/Preferences/com.apple.SoftwareUpdate" ""AutomaticCheckEnabled"" "-bool" "true" sudo
+        set_default "Enable Auto Download" "/Library/Preferences/com.apple.SoftwareUpdate" ""AutomaticDownload"" "-bool" "true" sudo
+        set_default "Enable Release Install" "/Library/Preferences/com.apple.SoftwareUpdate" ""AutomaticallyInstallMacOSUpdates"" "-bool" "true" sudo
+        set_default "Enable Config Data" "/Library/Preferences/com.apple.SoftwareUpdate" ""ConfigDataInstall"" "-bool" "true" sudo
+        set_default "Enable Critical Update" "/Library/Preferences/com.apple.SoftwareUpdate" ""CriticalUpdateInstall"" "-bool" "true" sudo
         
         # App Store
-        execute_sudo "Enable App AutoUpdate" defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool true
+        set_default "Enable App AutoUpdate" "/Library/Preferences/com.apple.commerce" ""AutoUpdate"" "-bool" "true" sudo
     else
         if ask_confirmation "ATTENTION: Disable ALL Automatic Updates? (Privacy Over Security)"; then
             info "Disabling Automatic Updates (Aggressive)..."
             # System Updates
-            execute_sudo "Disable Auto Check" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false
-            execute_sudo "Disable Auto Download" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
-            execute_sudo "Disable Release Install" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
-            execute_sudo "Disable Config Data" defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool false
-            execute_sudo "Disable Critical Update" defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
+            set_default "Disable Auto Check" "/Library/Preferences/com.apple.SoftwareUpdate" ""AutomaticCheckEnabled"" "-bool" "false" sudo
+            set_default "Disable Auto Download" "/Library/Preferences/com.apple.SoftwareUpdate" ""AutomaticDownload"" "-bool" "false" sudo
+            set_default "Disable Release Install" "/Library/Preferences/com.apple.SoftwareUpdate" ""AutomaticallyInstallMacOSUpdates"" "-bool" "false" sudo
+            set_default "Disable Config Data" "/Library/Preferences/com.apple.SoftwareUpdate" ""ConfigDataInstall"" "-bool" "false" sudo
+            set_default "Disable Critical Update" "/Library/Preferences/com.apple.SoftwareUpdate" ""CriticalUpdateInstall"" "-bool" "false" sudo
             
             # App Store
-            execute_sudo "Disable App AutoUpdate" defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool false
-            execute_sudo "Disable App AutoUpdate (High Sierra)" defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallAppUpdates -bool false
+            set_default "Disable App AutoUpdate" "/Library/Preferences/com.apple.commerce" ""AutoUpdate"" "-bool" "false" sudo
+            set_default "Disable App AutoUpdate (High Sierra)" "/Library/Preferences/com.apple.SoftwareUpdate" ""AutomaticallyInstallAppUpdates"" "-bool" "false" sudo
             
             # Beta Updates
-            execute_sudo "Disable Beta Updates" defaults write /Library/Preferences/com.apple.SoftwareUpdate AllowPreReleaseInstallation -bool false
+            set_default "Disable Beta Updates" "/Library/Preferences/com.apple.SoftwareUpdate" ""AllowPreReleaseInstallation"" "-bool" "false" sudo
 
             # Gatekeeper Auto-Rearm (Prevent it from re-enabling itself)
-            execute_sudo "Disable Gatekeeper Auto-Rearm" defaults write /Library/Preferences/com.apple.security GKAutoRearm -bool true
+            set_default "Disable Gatekeeper Auto-Rearm" "/Library/Preferences/com.apple.security" ""GKAutoRearm"" "-bool" "true" sudo
         else
             info "Skipping Update Management."
         fi
@@ -370,16 +372,16 @@ hardening_manage_updates() {
 
 hardening_privacy_tweaks() {
     # Disable Recent Apps in Dock
-    defaults write com.apple.dock show-recents -bool false
+    set_default "Set setting show-recents" "com.apple.dock" "show-recents" "-bool" "false"
     
     # Disable iCloud as default save location
-    defaults write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
+    set_default "Set setting NSDocumentSaveNewDocumentsToCloud" "NSGlobalDomain" "NSDocumentSaveNewDocumentsToCloud" "-bool" "false"
     
     # Disable AirDrop (optional)
     if ask_confirmation_with_info "Disable AirDrop?" \
         "Disabling AirDrop reduces local attack surface and casual file sharing." \
         "You can still move files via cables or encrypted messengers."; then
-        defaults write com.apple.NetworkBrowser DisableAirDrop -bool true
+        set_default "Set setting DisableAirDrop" "com.apple.NetworkBrowser" "DisableAirDrop" "-bool" "true"
     fi
 
     # Disable Metadata Indexing (Aggressive)
@@ -390,10 +392,10 @@ hardening_privacy_tweaks() {
     fi
     
     # Spell Correction (sending data to Apple)
-    defaults write NSGlobalDomain WebAutomaticSpellingCorrectionEnabled -bool false
+    set_default "Set setting WebAutomaticSpellingCorrectionEnabled" "NSGlobalDomain" "WebAutomaticSpellingCorrectionEnabled" "-bool" "false"
     
     # Screenshots (Metadata)
-    defaults write com.apple.screencapture include-date -bool false
+    set_default "Set setting include-date" "com.apple.screencapture" "include-date" "-bool" "false"
     killall SystemUIServer 2>/dev/null || true
     
     # Bluetooth configuration
@@ -401,7 +403,7 @@ hardening_privacy_tweaks() {
     if ask_confirmation_with_info "Disable Bluetooth (Aggressive Privacy)?" \
         "Disabling Bluetooth removes a significant wireless attack surface and tracking vector." \
         "WARNING: This will disable all wireless keyboards, mice, trackpads, and headphones!"; then
-        execute_sudo "Disable Bluetooth" defaults write /Library/Preferences/com.apple.Bluetooth ControllerPowerState -int 0 2>/dev/null || true
+        set_default "Disable Bluetooth" "/Library/Preferences/com.apple.Bluetooth" ""ControllerPowerState"" "-int" "0" sudo
         execute_sudo "Kill BluetoothDaemon" killall -HUP bluetoothd 2>/dev/null || true
     fi
     
@@ -418,7 +420,7 @@ hardening_enable_library_validation() {
         "Enabling (Recommended) prevents unsigned code injection (Better Security)." \
         "Disabling (Privacy Over Security) allows any library to load (Reduced Security, Privacy.sexy default)."; then
          # User chose YES -> Enable/Enforce Security
-         execute_sudo "Enable Library Validation" defaults write /Library/Preferences/com.apple.security.libraryvalidation.plist DisableLibraryValidation -bool false 2>/dev/null || true
+         set_default "Enable Library Validation" "/Library/Preferences/com.apple.security.libraryvalidation.plist" ""DisableLibraryValidation"" "-bool" "false" sudo
    else
          # User chose NO -> They want to "disable" it? Or just do nothing?
          # The prompt wording "Enable ... or Disable?" makes "Yes" = Enable.
@@ -426,7 +428,7 @@ hardening_enable_library_validation() {
          
          if ask_confirmation "ATTENTION: Disable Library Validation (Unsafe)? (Privacy Over Security)"; then
               warn "Disabling Library Validation..."
-              execute_sudo "Disable Library Validation" defaults write /Library/Preferences/com.apple.security.libraryvalidation.plist DisableLibraryValidation -bool true 2>/dev/null || true
+              set_default "Disable Library Validation" "/Library/Preferences/com.apple.security.libraryvalidation.plist" ""DisableLibraryValidation"" "-bool" "true" sudo
          else
               info "Keeping Library Validation enabled (Safe)."
          fi
@@ -442,13 +444,13 @@ hardening_enable_quarantine() {
        "Disabling (Privacy Over Security) allows any app to run (Reduced Security, Privacy.sexy default)."; then
        # YES = Enforce
        execute_sudo "Enable Gatekeeper" spctl --master-enable 2>/dev/null || true
-       execute_sudo "Enable Gatekeeper (Policy)" defaults write /var/db/SystemPolicy-prefs enabled -string yes 2>/dev/null || true
+       set_default "Enable Gatekeeper (Policy)" "/var/db/SystemPolicy-prefs" ""enabled"" "-string" "yes" sudo
     else
         # NO -> Check for disable
         if ask_confirmation "ATTENTION: Disable Gatekeeper (Unsafe)? (Privacy Over Security)"; then
             warn "Disabling Gatekeeper..."
             execute_sudo "Disable Gatekeeper" spctl --master-disable
-            execute_sudo "Disable Gatekeeper (Policy)" defaults write /var/db/SystemPolicy-prefs enabled -string no 2>/dev/null || true
+            set_default "Disable Gatekeeper (Policy)" "/var/db/SystemPolicy-prefs" ""enabled"" "-string" "no" sudo
         fi
     fi
 
@@ -459,19 +461,19 @@ hardening_enable_quarantine() {
         # YES = Enforce
         info "Enforcing File Quarantine..."
         defaults delete com.apple.LaunchServices LSQuarantine 2>/dev/null || true
-        defaults write com.apple.LaunchServices LSQuarantine -bool true 2>/dev/null || true
+        set_default "Set setting LSQuarantine" "com.apple.LaunchServices" "LSQuarantine" "-bool" "true 2>/dev/null || true"
     else
          if ask_confirmation "ATTENTION: Disable File Quarantine (Unsafe)? (Privacy Over Security)"; then
              warn "Disabling File Quarantine..."
-             defaults write com.apple.LaunchServices LSQuarantine -bool false 2>/dev/null || true
+             set_default "Set setting LSQuarantine" "com.apple.LaunchServices" "LSQuarantine" "-bool" "false 2>/dev/null || true"
          fi
     fi
 }
 
 hardening_secure_screen() {
     info "Securing Screen Saver and Lock..."
-    defaults write com.apple.screensaver askForPassword -int 1
-    defaults write com.apple.screensaver askForPasswordDelay -int 0
+    set_default "Set setting askForPassword" "com.apple.screensaver" "askForPassword" "-int" "1"
+    set_default "Set setting askForPasswordDelay" "com.apple.screensaver" "askForPasswordDelay" "-int" "0"
     
     info "Enforcing 20-minute screen saver..."
     defaults -currentHost write com.apple.screensaver idleTime -int 1200
@@ -483,21 +485,21 @@ hardening_secure_screen() {
     execute_sudo "Lock SysPrefs" security authorizationdb write system.preferences authenticate-admin 2>/dev/null || true
     
     info "Enforcing 0 retries until password hint (disabling hints)..."
-    execute_sudo "Disable Password Hints" defaults write /Library/Preferences/com.apple.loginwindow RetriesUntilHint -int 0
+    set_default "Disable Password Hints" "/Library/Preferences/com.apple.loginwindow" ""RetriesUntilHint"" "-int" "0" sudo
 }
 
 hardening_secure_terminals() {
     info "Securing Terminal Applications (Secure Keyboard Entry)..."
-    defaults write com.apple.Terminal SecureKeyboardEntry -bool true
-    defaults write com.googlecode.iterm2 '"Secure Input"' -bool true 2>/dev/null || true
+    set_default "Set setting SecureKeyboardEntry" "com.apple.Terminal" "SecureKeyboardEntry" "-bool" "true"
+    set_default "Set setting '"Secure Input"'" "com.googlecode.iterm2" '"Secure Input"' "-bool" "true 2>/dev/null || true"
 }
 
 hardening_harden_finder() {
     info "Hardening Finder..."
-    defaults write NSGlobalDomain AppleShowAllExtensions -bool true
-    defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
-    defaults write com.apple.finder AppleShowAllFiles -bool true
-    defaults write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
+    set_default "Set setting AppleShowAllExtensions" "NSGlobalDomain" "AppleShowAllExtensions" "-bool" "true"
+    set_default "Set setting FXEnableExtensionChangeWarning" "com.apple.finder" "FXEnableExtensionChangeWarning" "-bool" "false"
+    set_default "Set setting AppleShowAllFiles" "com.apple.finder" "AppleShowAllFiles" "-bool" "true"
+    set_default "Set setting NSDocumentSaveNewDocumentsToCloud" "NSGlobalDomain" "NSDocumentSaveNewDocumentsToCloud" "-bool" "false"
     chflags nohidden ~/Library 2>/dev/null || true
 }
 
@@ -539,7 +541,7 @@ hardening_ensure_filevault() {
 hardening_remove_guest() {
     info "Removing Guest User..."
     if ask_confirmation "Permanently remove Guest User accounts?"; then
-         execute_sudo "Disable Guest Login" defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool false
+         set_default "Disable Guest Login" "/Library/Preferences/com.apple.loginwindow" ""GuestEnabled"" "-bool" "false" sudo
          
          # Aggressive removal
          if id "guest" &>/dev/null; then
@@ -707,10 +709,10 @@ hardening_secure_homebrew() {
                 if [ ! -f "$profile" ]; then touch "$profile"; fi
                 
                 # Source the centralized file if not already present
-                if ! grep -q "source.*$brew_env_file" "$profile" && ! grep -q "\. .*$brew_env_file" "$profile"; then
-                    echo "" >> "$profile"
-                    echo "# Better Anonymity Hardening" >> "$profile"
-                    echo "[ -f \"$brew_env_file\" ] && source \"$brew_env_file\"" >> "$profile"
+                if ! grep -q "source.*$brew_env_file" "$profile" 2>/dev/null && ! grep -q "\. .*$brew_env_file" "$profile" 2>/dev/null && ! sudo grep -q "source.*$brew_env_file" "$profile" 2>/dev/null && ! sudo grep -q "\. .*$brew_env_file" "$profile" 2>/dev/null; then
+                    echo "" | sudo tee -a "$profile" >/dev/null
+                    echo "# Better Anonymity Hardening" | sudo tee -a "$profile" >/dev/null
+                    echo "[ -f \"$brew_env_file\" ] && source \"$brew_env_file\"" | sudo tee -a "$profile" >/dev/null
                     info "Added source command for secure env to $profile"
                 else
                     info "Profile $profile already sources secure env."
@@ -738,7 +740,7 @@ hardening_disable_bonjour() {
     
     # Write preference unconditionally (creates file if missing)
     # defaults write expects a domain or path without extension
-    execute_sudo "Disable Multicast" defaults write "${plist%.plist}" NoMulticastAdvertisements -bool YES
+    set_default "Disable Multicast" ""${plist%.plist}"" "NoMulticastAdvertisements" "-bool" "YES" sudo
     
     # Reload mDNSResponder to apply changes
     execute_sudo "Reload mDNSResponder" killall -HUP mDNSResponder 2>/dev/null || true
@@ -804,7 +806,7 @@ hardening_disable_captive_portal() {
     if ask_confirmation_with_info "Disable Captive Portal detection?" \
         "Disabling Captive Portal detection may prevent captive Wi-Fi login pages from appearing automatically." \
         "Only do this if you understand the trade-offs for public Wi-Fi usage."; then
-        execute_sudo "Disable Captive Portal" defaults write /Library/Preferences/SystemConfiguration/com.apple.captive.control.plist Active -bool false
+        set_default "Disable Captive Portal" "/Library/Preferences/SystemConfiguration/com.apple.captive.control.plist" ""Active"" "-bool" "false" sudo
     fi
 }
 
@@ -922,6 +924,9 @@ hardening_restore() {
 }
 
 hardening_run_all() {
+    # Ensure sudo is active and kept alive for the duration of the hardening process
+    start_sudo_keepalive || return 1
+
     if ask_confirmation "Create a backup of system settings before hardening?"; then
         hardening_backup
     fi

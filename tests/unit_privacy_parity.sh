@@ -18,6 +18,18 @@ execute_sudo() {
     echo "EXEC_SUDO: $*"
 }
 
+sudo() {
+    if [ "$1" == "tee" ]; then
+        shift
+        tee "$@"
+    elif [ "$1" == "grep" ]; then
+        shift
+        grep "$@"
+    else
+        echo "SUDO: $*"
+    fi
+}
+
 # Mock destructive commands
 rm() { echo "RM_CALL: $*"; }
 sqlite3() { echo "SQLITE_CALL: $*"; }
@@ -45,6 +57,26 @@ killall() { echo "KILLALL_CALL: $*"; return 0; }
 # Mock defaults for hardening checks
 defaults() {
     echo "DEFAULTS_CALL: $*"
+}
+
+set_default() {
+    local domain="$2"
+    local key="$3"
+    local type="$4"
+    local expected="$5"
+    defaults write "$domain" "$key" "$type" "$expected"
+}
+
+set_systemsetup() {
+    local flag="$2"
+    local expected="$3"
+    systemsetup "$flag" "$expected"
+}
+
+set_launchctl() {
+    local action="$2"
+    local service="$3"
+    launchctl "$action" "$service"
 }
 
 start_suite "Privacy Parity Features"

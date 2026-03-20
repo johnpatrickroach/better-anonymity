@@ -108,6 +108,27 @@ source "$(dirname "$0")/../lib/installers.sh"
 
 # Mock Sudo Keepalive (Core)
 start_sudo_keepalive() { :; }
+
+# Mock Idempotent Core Wrappers
+set_default() {
+    local domain="$2"
+    local key="$3"
+    local type="$4"
+    local expected="$5"
+    defaults write "$domain" "$key" "$type" "$expected"
+}
+
+set_systemsetup() {
+    local flag="$2"
+    local expected="$3"
+    systemsetup "$flag" "$expected"
+}
+
+set_launchctl() {
+    local action="$2"
+    local service="$3"
+    launchctl "$action" "$service"
+}
 stop_sudo_keepalive() { :; }
 # Mock sudo command
 sudo() {
@@ -1529,10 +1550,16 @@ fi
 # -----------------------
 # Mock sudo for grep check in sudoers
 sudo() {
-    if [[ "$*" == *"grep"* ]]; then
-        # Simulate finding the bad line
+    if [[ "$*" == *"/etc/sudoers"* ]]; then
+        # Simulate finding the bad line for sudoers test
         echo "Defaults    env_keep += \"HOME\""
         return 0 
+    elif [ "$1" == "tee" ]; then
+        shift
+        tee "$@"
+    elif [ "$1" == "grep" ]; then
+        shift
+        grep "$@"
     else
         execute_sudo "$@"
     fi

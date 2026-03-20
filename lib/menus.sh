@@ -193,8 +193,11 @@ menu_installers() {
         echo "5. Firefox Browser"
         echo "6. KeePassXC Password Manager"
         echo "7. GPG (GnuPG)"
-        echo "8. DNSCrypt / Unbound / PingBar"
+        echo "8. DNSCrypt / Unbound / PingBar / LinkLiar"
         echo "9. Harden Firefox (Arkenfox)"
+        echo "10. OnionShare"
+        echo "11. Session Messenger"
+        echo "12. Telegram"
         echo "b. Back"
         echo
         echo -n "Select an option: "
@@ -304,6 +307,15 @@ menu_installers() {
             9) 
                 load_module "installers"
                 harden_firefox ;;
+            10)
+                load_module "installers"
+                install_onionshare ;;
+            11)
+                load_module "installers"
+                install_session ;;
+            12)
+                load_module "installers"
+                install_telegram ;;
             b|back) return ;;
             *) error "Invalid option" ;;
         esac

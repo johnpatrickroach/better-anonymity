@@ -602,3 +602,118 @@ manage_service() {
     echo "$output"
     return $exit_code
 }
+
+# --- Idempotent Hardening Wrappers ---
+
+# Usage: set_default "Description" "domain" "key" "type" "expected_value" [sudo]
+set_default() {
+    local desc="$1"
+    local domain="$2"
+    local key="$3"
+    local type="$4" # -bool, -int, -string, -dict, etc.
+    local expected="$5"
+    local use_sudo="$6"
+
+    # Normalize boolean expected values for reading
+    local read_expected="$expected"
+    if [ "$type" == "-bool" ]; then
+        if [ "$expected" = "true" ] || [ "$expected" = "TRUE" ] || [ "$expected" = "yes" ] || [ "$expected" = "YES" ]; then
+            read_expected="1"
+        elif [ "$expected" = "false" ] || [ "$expected" = "FALSE" ] || [ "$expected" = "no" ] || [ "$expected" = "NO" ]; then
+            read_expected="0"
+        fi
+    fi
+
+    # Read current value
+    local current
+    if [ "$use_sudo" == "sudo" ]; then
+        current=$(sudo defaults read "$domain" "$key" 2>/dev/null)
+    else
+        current=$(defaults read "$domain" "$key" 2>/dev/null)
+    fi
+
+    # Check against expected
+    if [ "$type" == "-dict" ]; then
+        # Dicts and arrays are harder to check completely, so we do a simple string match or bypass
+        if [[ "$current" == *"$expected"* ]]; then
+            return 0
+        fi
+    else
+        if [ "$current" == "$read_expected" ]; then
+            return 0
+        fi
+    fi
+
+    if [ "$use_sudo" == "sudo" ]; then
+        execute_sudo "$desc" defaults write "$domain" "$key" "$type" "$expected"
+    else
+        info "$desc"
+        defaults write "$domain" "$key" "$type" "$expected"
+    fi
+}
+
+# Usage: set_systemsetup "Description" "-flag" "expected_value"
+set_systemsetup() {
+    local desc="$1"
+    local flag="$2" # e.g. -setwakeonnetworkaccess
+    local expected="$3" # e.g. off
+    
+    local get_flag="${flag/-set/-get}"
+    local current
+    current=$(sudo systemsetup "$get_flag" 2>/dev/null | awk -F': ' '{print $2}')
+    
+    # Normalize case for comparison
+    local norm_curr
+    norm_curr=$(echo "$current" | tr '[:upper:]' '[:lower:]')
+    local norm_exp
+    norm_exp=$(echo "$expected" | tr '[:upper:]' '[:lower:]')
+    
+    if [ "$norm_curr" == "$norm_exp" ] || [ "$current" == "$expected" ]; then
+        return 0
+    fi
+    
+    execute_sudo "$desc" systemsetup "$flag" "$expected"
+}
+
+# Usage: set_launchctl "Description" "disable|unload|unload -w" "service_path_or_name" "sudo"
+set_launchctl() {
+    local desc="$1"
+    local action="$2"
+    local service="$3"
+    local use_sudo="$4"
+    
+    local service_name
+    service_name=$(basename "$service" .plist)
+    
+    # Very rudimentary check: check if it's currently loaded/enabled
+    local is_loaded=0
+    if [ "$use_sudo" == "sudo" ]; then
+        if sudo launchctl list | grep -q "$service_name"; then is_loaded=1; fi
+    else
+        if launchctl list | grep -q "$service_name"; then is_loaded=1; fi
+    fi
+    
+    local is_disabled=0
+    if [ "$use_sudo" == "sudo" ]; then
+        if sudo launchctl print-disabled system | grep -q "\"$service_name\" => true" 2>/dev/null; then is_disabled=1; fi
+    else
+        if launchctl print-disabled gui/$UID | grep -q "\"$service_name\" => true" 2>/dev/null; then is_disabled=1; fi
+    fi
+    
+    # Logic based on action
+    if [[ "$action" == *"unload"* || "$action" == "disable" ]]; then
+        if [ $is_loaded -eq 0 ] && [ $is_disabled -eq 1 ]; then
+            return 0 # Already offline and disabled
+        fi
+        if [ $is_loaded -eq 0 ] && [[ "$action" == "unload" ]]; then
+            return 0 # Already unloaded
+        fi
+    fi
+
+    if [ "$use_sudo" == "sudo" ]; then
+        execute_sudo "$desc" launchctl $action "$service"
+    else
+        info "$desc"
+        launchctl $action "$service"
+    fi
+}
