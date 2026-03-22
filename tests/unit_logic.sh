@@ -1136,6 +1136,23 @@ chflags() { echo "CHFLAGS_CALL: $*"; return 0; }
 xattr() { echo "XATTR_CALL: $*"; return 0; }
 chmod() { echo "CHMOD_CALL: $*"; return 0; }
 getconf() { echo "/tmp/mock_cache"; return 0; }
+bash() {
+    if [[ "$1" == *"updater.sh"* ]]; then
+        echo "MOCK: Executing updater.sh with args: $*"
+        touch "$PROF_PATH/user.js" 
+        echo '// arkenfox user.js' >> "$PROF_PATH/user.js"
+        if [ -f "$PROF_PATH/user-overrides.js" ]; then
+             cat "$PROF_PATH/user-overrides.js" >> "$PROF_PATH/user.js"
+        fi
+        return 0
+    elif [ "$1" == "-c" ]; then
+        eval "$2"
+    elif [ -f "$1" ]; then
+        source "$1"
+    else
+        echo "MOCK: bash $*"
+    fi
+}
 ask_confirmation() { return 0; } # Auto-yes
 
 OUTPUT=$(
@@ -1147,7 +1164,18 @@ OUTPUT=$(
     cleanup_memory() { echo "CALL: cleanup_memory"; }
     cleanup_browsers() { echo "CALL: cleanup_browsers"; }
     cleanup_quarantine() { echo "CALL: cleanup_quarantine"; }
-    sudo() { echo "SUDO_CALL: $*"; return 0; }
+    sudo() { 
+        if [ "$1" == "bash" ]; then
+            shift
+            echo "--- SCRIPT CONTENT ---"
+            cat "$1"
+            echo "----------------------"
+            source "$1"
+        else
+            echo "SUDO_CALL: $*"
+        fi
+        return 0 
+    }
     
     cleanup_metadata
 )
@@ -3092,7 +3120,7 @@ PROF_PATH=$(create_mock_profile "test.default-release")
 OUTPUT=$(verify_firefox 2>&1)
 assert_contains "$OUTPUT" "Checking profile: test.default-release" "Should find profile"
 assert_contains "$OUTPUT" "user.js does NOT exist" "Should fail user.js check"
-assert_contains "$OUTPUT" "privacy.resistFingerprinting is NOT enabled" "Should fail prefs check"
+assert_contains "$OUTPUT" "privacy.resistFingerprinting was not built into user.js" "Should fail prefs check"
 
 # Scenario 3: Profile Exists, Files Present but Invalid
 touch "$PROF_PATH/user.js"
@@ -3100,26 +3128,26 @@ touch "$PROF_PATH/prefs.js"
 OUTPUT=$(verify_firefox 2>&1)
 assert_contains "$OUTPUT" "user.js exists" "Should find user.js"
 assert_contains "$OUTPUT" "user.js does NOT appear to be based on Arkenfox" "Should fail arkenfox content"
-assert_contains "$OUTPUT" "privacy.resistFingerprinting is NOT enabled" "Should fail prefs setting"
+assert_contains "$OUTPUT" "privacy.resistFingerprinting was not built into user.js" "Should fail prefs setting"
 
 # Scenario 4: Profile Exists, Files Valid
 echo "// Arkenfox user.js" > "$PROF_PATH/user.js"
-echo 'user_pref("privacy.resistFingerprinting", true);' > "$PROF_PATH/prefs.js"
+echo 'user_pref("privacy.resistFingerprinting", true);' >> "$PROF_PATH/user.js"
 OUTPUT=$(verify_firefox 2>&1)
 assert_contains "$OUTPUT" "Checking profile: test.default-release" "Should verify profile"
 assert_contains "$OUTPUT" "user.js contains Arkenfox signatures" "Should verify arkenfox"
-assert_contains "$OUTPUT" "privacy.resistFingerprinting is ENABLED" "Should verify prefs"
+assert_contains "$OUTPUT" "privacy.resistFingerprinting is provisioned in user.js" "Should verify user.js"
 
 # Scenario 5: Valid with Whitespace
-echo 'user_pref("privacy.resistFingerprinting",  true);' > "$PROF_PATH/prefs.js"
+echo 'user_pref("privacy.resistFingerprinting",  true);' >> "$PROF_PATH/user.js"
 OUTPUT=$(verify_firefox 2>&1)
-assert_contains "$OUTPUT" "privacy.resistFingerprinting is ENABLED" "Should verify prefs with whitespace"
+assert_contains "$OUTPUT" "privacy.resistFingerprinting is provisioned in user.js" "Should verify overrides with whitespace"
 
 # Scenario 6: Invalid Prefs (Restart hint check)
-echo 'user_pref("privacy.resistFingerprinting", false);' > "$PROF_PATH/prefs.js"
+echo 'user_pref("privacy.resistFingerprinting", false);' > "$PROF_PATH/user.js"
 OUTPUT=$(verify_firefox 2>&1)
-assert_contains "$OUTPUT" "privacy.resistFingerprinting is NOT enabled" "Should detect disabled"
-assert_contains "$OUTPUT" "RESTART Firefox" "Should suggest restart"
+assert_contains "$OUTPUT" "privacy.resistFingerprinting was not built into user.js" "Should detect disabled"
+assert_contains "$OUTPUT" "ensure Firefox was fully closed" "Should suggest closing firefox"
 
 
 # Test 37: Arkenfox Installation Flow
@@ -3170,17 +3198,7 @@ export HOME
 
 PROF_PATH="$TEST_HOME/Library/Application Support/Firefox/Profiles/test.default-release"
 
-# Mock bash to ensure user.js is created in the correct location
-bash() {
-    if [[ "$1" == *"updater.sh"* ]]; then
-        echo "MOCK: Executing updater.sh with args: $*"
-        touch "$PROF_PATH/user.js" 
-        echo '// arkenfox user.js' >> "$PROF_PATH/user.js"
-        return 0
-    fi
-    # Use 'command bash' if we wanted real bash, but here we just echo default
-    echo "MOCK: bash $*"
-}
+
 
 # Mock curl to avoid network and just touch file
 curl() {

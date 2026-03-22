@@ -417,6 +417,8 @@ lifecycle_restore_state() {
         sed_in_place '/HOMEBREW_NO_INSECURE_REDIRECT=1/d' "$HOME/.zshrc"
         sed_in_place '/DOTNET_CLI_TELEMETRY_OPTOUT=1/d' "$HOME/.zshrc"
         sed_in_place '/POWERSHELL_TELEMETRY_OPTOUT=1/d' "$HOME/.zshrc"
+        sed_in_place '/\.homebrew_secure_env/d' "$HOME/.zshrc"
+        sed_in_place '/\.cli_aliases/d' "$HOME/.zshrc"
         # Also remove completion block if present (harder to regex, usually manually added by user per README)
     fi
 }
@@ -700,9 +702,34 @@ exec \"$SOURCE_BIN\" \"\$@\""
     execute_sudo "Install Wrapper" mv "$tmp_wrapper" "$BIN_PATH/better-anonymity"
     execute_sudo "Set Permissions" chmod 755 "$BIN_PATH/better-anonymity"
 
-    # Create aliases (symlinks to the wrapper are fine, as the wrapper knows the path)
     execute_sudo "Link better-anon" ln -sf "$BIN_PATH/better-anonymity" "$BIN_PATH/better-anon"
     execute_sudo "Link b-a" ln -sf "$BIN_PATH/better-anonymity" "$BIN_PATH/b-a"
+    
+    # 2. Setup Shell Aliases (torify, stay-connected, etc.)
+    info "Installing shell aliases..."
+    local alias_file="$HOME/.better-anonymity/.cli_aliases"
+    mkdir -p "$HOME/.better-anonymity"
+    {
+        echo "# Better Anonymity - CLI Aliases"
+        echo "alias torify='export ALL_PROXY=socks5h://127.0.0.1:9050'"
+        echo "alias untorify='unset ALL_PROXY'"
+        echo "alias tor-run='env ALL_PROXY=socks5h://127.0.0.1:9050'"
+        echo "alias stay-connected='better-anonymity captive monitor'"
+        echo "alias i2pify='export http_proxy=http://127.0.0.1:4444 https_proxy=http://127.0.0.1:4445'"
+    } > "$alias_file"
+
+    local profiles=("$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc")
+    for profile in "${profiles[@]}"; do
+        if [ -f "$profile" ] || { [ "$SHELL" = "/bin/zsh" ] && [ "$profile" = "$HOME/.zshrc" ]; } || { [ "$SHELL" = "/bin/bash" ] && [ "$profile" = "$HOME/.bash_profile" ]; }; then
+            if [ ! -f "$profile" ]; then touch "$profile"; fi
+            if ! grep -q "source.*\.cli_aliases" "$profile" 2>/dev/null; then
+                echo "" >> "$profile"
+                echo "# Better Anonymity Aliases" >> "$profile"
+                echo "[ -f \"$alias_file\" ] && source \"$alias_file\"" >> "$profile"
+                info "Added aliases to $profile"
+            fi
+        fi
+    done
     
     if command -v better-anonymity &>/dev/null; then
         success "CLI installed successfully!"

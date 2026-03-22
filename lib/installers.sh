@@ -593,6 +593,10 @@ harden_firefox() {
         echo "user_pref(\"devtools.policy.disabled\", true);"
         echo "// CIS 1.1.18.4: Prevent scripts from closing windows"
         echo "user_pref(\"dom.allow_scripts_to_close_windows\", false);"
+        echo ""
+        echo "// Core Privacy Feature: Resist Fingerprinting (Arkenfox Optional Component)"
+        echo "user_pref(\"privacy.resistFingerprinting\", true);"
+        echo "user_pref(\"privacy.resistFingerprinting.letterboxing\", true);"
     } > "$overrides_file"
 
     # 4. Run Updater to generate user.js
@@ -719,15 +723,14 @@ verify_firefox() {
          warn "[FAIL] user.js does NOT appear to be based on Arkenfox."
     fi
     
-    # Check 3: Active Preference (prefs.js)
-    # privacy.resistFingerprinting is a hallmark of hardening.
-    # Note: prefs.js is written by Firefox, usually user_pref("key", value);
-    # Using grep -E to allow for variable whitespace
-    if grep -E -q "user_pref\(\"privacy.resistFingerprinting\",[[:space:]]*true\);" "$profile_path/prefs.js" 2>/dev/null; then
-         info "[PASS] privacy.resistFingerprinting is ENABLED in prefs.js."
+    # Check 3: Active Preference in user.js
+    # privacy.resistFingerprinting is explicitly set in our overrides.
+    # We check user.js because prefs.js isn't updated until Firefox restarts.
+    if grep -E -q "user_pref\(\"privacy.resistFingerprinting\",[[:space:]]*true\);" "$profile_path/user.js" 2>/dev/null; then
+         info "[PASS] privacy.resistFingerprinting is provisioned in user.js."
     else
-         warn "[FAIL] privacy.resistFingerprinting is NOT enabled in prefs.js."
-         warn "If you just ran the hardening script, please RESTART Firefox for changes to apply."
+         warn "[FAIL] privacy.resistFingerprinting was not built into user.js."
+         warn "Please ensure Firefox was fully closed during installation."
     fi
 }
 

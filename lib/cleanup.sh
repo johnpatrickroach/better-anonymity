@@ -10,8 +10,24 @@ cleanup_metadata() {
         return 0
     fi
 
-    info "Converting sudo authentication for cleanup..."
-    sudo -v
+    info "Initializing background sudo session for cleanup..."
+    start_sudo_keepalive || return 1
+    
+    # Hijack execute_sudo to collect privileged tasks
+    local orig_execute_sudo
+    orig_execute_sudo=$(declare -f execute_sudo)
+    local deferred_sudo_script
+    deferred_sudo_script=$(mktemp)
+    echo "#!/bin/bash" > "$deferred_sudo_script"
+    
+    execute_sudo() {
+        local desc="$1"
+        shift
+        info "Queueing privileged task: $desc"
+        printf "%q " "$@" >> "$deferred_sudo_script"
+        echo "" >> "$deferred_sudo_script"
+    }
+
 
     # 1. QuickLook Cache
     info "Cleaning QuickLook Cache..."
@@ -22,8 +38,7 @@ cleanup_metadata() {
     user_cache_dir=$(getconf DARWIN_USER_CACHE_DIR)
     
     # Try aggressive remove, but suppress errors (SIP/Permissions)
-    execute_sudo "Remove QL Thumbnails" rm -rf "$user_cache_dir/com.apple.QuickLook.thumbnailcache" 2>/dev/null || true
-    
+    execute_sudo "Remove QL Thumbnails" bash -c "rm -rf \"$user_cache_dir/com.apple.QuickLook.thumbnailcache\" 2>/dev/null || true"
     # Official reset
     qlmanage -r cache
     
@@ -36,10 +51,12 @@ cleanup_metadata() {
     
     # 3. Bluetooth / CUPS (Sudo required)
     info "Clearing Bluetooth and CUPS metadata..."
-    if [ -f /Library/Preferences/com.apple.Bluetooth.plist ]; then
-        execute_sudo "Clear Bluetooth Cache" defaults delete /Library/Preferences/com.apple.Bluetooth.plist DeviceCache 2>/dev/null || true
-    fi
-    execute_sudo "Clear CUPS jobs" rm -rf /var/spool/cups/c0* /var/spool/cups/tmp/* /var/spool/cups/cache/job.cache* 2>/dev/null || true
+    execute_sudo "Clear Bluetooth & CUPS Cache" bash -c '
+        if [ -f /Library/Preferences/com.apple.Bluetooth.plist ]; then
+            defaults delete /Library/Preferences/com.apple.Bluetooth.plist DeviceCache 2>/dev/null || true
+        fi
+        rm -rf /var/spool/cups/c0* /var/spool/cups/tmp/* /var/spool/cups/cache/job.cache* 2>/dev/null || true
+    ' || true
 
     # 4. Language/Spelling/Suggestions (Delete and Lock)
     info "Cleaning and Locking Language/Spelling data..."
@@ -64,14 +81,13 @@ cleanup_metadata() {
     info "Clearing Siri Analytics..."
     rm -rf ~/Library/Assistant/SiriAnalytics.db 2>/dev/null || true
 
-    # 8. Wi-Fi NVRAM (Sudo)
-    info "Clearing preferred Wi-Fi from NVRAM..."
-    execute_sudo "Clear NVRAM Wi-Fi" nvram -d 36C28AB5-6566-4C50-9EBD-CBB920F83843:preferred-networks 2>/dev/null || true
-
-    # 9. DNS Cache
-    info "Flushing DNS Cache..."
-    execute_sudo "Flush DNS Cache" dscacheutil -flushcache
-    execute_sudo "Restart mDNSResponder" killall -HUP mDNSResponder 2>/dev/null || true
+    # 8. Wi-Fi NVRAM & DNS Cache (Sudo)
+    info "Clearing Wi-Fi NVRAM and Flushing DNS Cache..."
+    execute_sudo "Clear NVRAM & DNS Cache" bash -c '
+        nvram -d 36C28AB5-6566-4C50-9EBD-CBB920F83843:preferred-networks 2>/dev/null || true
+        dscacheutil -flushcache 2>/dev/null || true
+        killall -HUP mDNSResponder 2>/dev/null || true
+    ' || true
 
     # 10. System Logs & Audits
     if ask_confirmation "Clear System & App Logs (Aggressive)?"; then
@@ -108,11 +124,22 @@ cleanup_metadata() {
         cleanup_browsers
     fi
     
+    # Execute all queued sudo tasks in ONE batch before Quarantine
+    if [ "$(wc -l < "$deferred_sudo_script" | tr -d ' ')" -gt 1 ]; then
+        info "Executing all queued privileged tasks (requires password once)..."
+        eval "$orig_execute_sudo"
+        execute_sudo "Batch Privileged Tasks" bash "$deferred_sudo_script"
+    else
+        eval "$orig_execute_sudo"
+    fi
+    rm -f "$deferred_sudo_script"
+    
     # 17. Quarantine (Aggressive)
     if ask_confirmation "Clear Quarantine History (Downloaded files logs)?"; then
         cleanup_quarantine
     fi
 
+    stop_sudo_keepalive
     info "Metadata cleanup completed."
 }
 
@@ -141,27 +168,30 @@ cleanup_trash() {
 
 cleanup_receipts() {
     info "Clearing Installation Receipts..."
-    execute_sudo "Remove Receipts" rm -rf /private/var/db/receipts/* 2>/dev/null
-    execute_sudo "Remove InstallHistory" rm -f /Library/Receipts/InstallHistory.plist 2>/dev/null
+    execute_sudo "Remove Receipts & History" bash -c '
+        rm -rf /private/var/db/receipts/* 2>/dev/null
+        rm -f /Library/Receipts/InstallHistory.plist 2>/dev/null
+    ' || true
 }
 
 cleanup_logs() {
     info "Clearing Logs (System, User, Mail, Diagnostics)..."
     
-    # 1. System Logs (ASL, Audit, Install)
-    execute_sudo "Clear ASL" rm -rf /private/var/log/asl/* 2>/dev/null
-    execute_sudo "Clear Audit" rm -rf /private/var/audit/* 2>/dev/null
-    execute_sudo "Clear Install Logs" rm -rf /private/var/log/install.log /Library/Logs/install.log 2>/dev/null
+    # 1. System & Diagnostic Logs
+    execute_sudo "Clear System & Diagnostic Logs" bash -c '
+        rm -rf /private/var/log/asl/* 2>/dev/null
+        rm -rf /private/var/audit/* 2>/dev/null
+        rm -rf /private/var/log/install.log /Library/Logs/install.log 2>/dev/null
+        rm -rf /Library/Logs/* 2>/dev/null
+        rm -rf /private/var/db/diagnostics/* 2>/dev/null
+        rm -rf /private/var/db/uuidtext/* 2>/dev/null
+        rm -f /private/var/log/daily.out /private/var/log/weekly.out /private/var/log/monthly.out 2>/dev/null
+    ' || true
     
-    # 2. General Logs
-    execute_sudo "Clear System Logs" rm -rf /Library/Logs/* 2>/dev/null
+    # 2. General User Logs
     rm -rf "$HOME/Library/Logs/"* 2>/dev/null
     
-    # 3. Diagnostic Logs (Privacy.sexy)
-    execute_sudo "Clear Diagnostics" rm -rf /private/var/db/diagnostics/* 2>/dev/null
-    execute_sudo "Clear UUIDText" rm -rf /private/var/db/uuidtext/* 2>/dev/null
-    
-    # 4. Shell History (Privacy.sexy)
+    # 3. Shell History (Privacy.sexy)
     if [ -f "$HOME/.bash_history" ]; then
          info "Clearing Bash History..."
          rm -f "$HOME/.bash_history" 2>/dev/null
@@ -177,11 +207,6 @@ cleanup_logs() {
         info "Clearing Mail Logs..."
         rm -rf "$mail_logs/"* 2>/dev/null
     fi
-     
-    # 5. Maintenance
-    execute_sudo "Clear Daily Out" rm -f /private/var/log/daily.out 2>/dev/null
-    execute_sudo "Clear Weekly Out" rm -f /private/var/log/weekly.out 2>/dev/null
-    execute_sudo "Clear Monthly Out" rm -f /private/var/log/monthly.out 2>/dev/null
 }
 
 cleanup_dev_tools() {
@@ -278,8 +303,10 @@ cleanup_system_cache() {
     info "Clearing System Caches (Aggressive - Privacy.sexy)..."
     # /System/Library/Caches is usually protected by SIP, so we try but ignore errors
     # /Library/Caches is writable by root
-    execute_sudo "Clear /Library/Caches" rm -rf /Library/Caches/* 2>/dev/null || true
-    execute_sudo "Clear /System/Library/Caches" rm -rf /System/Library/Caches/* 2>/dev/null || true
+    execute_sudo "Clear System Caches" bash -c '
+        rm -rf /Library/Caches/* 2>/dev/null || true
+        rm -rf /System/Library/Caches/* 2>/dev/null || true
+    ' || true
     
     # Also User Caches (Aggressive)
     rm -rf "$HOME/Library/Caches/"* 2>/dev/null
@@ -352,60 +379,64 @@ close_app() {
     local pgrep_cmd="${PGREP_CMD:-pgrep}"
     local killall_cmd="${KILLALL_CMD:-killall}"
 
-    # Use -x for exact match to avoid partial matches (e.g. "Safari" matching "Safari Preview")
+    # Use -x for exact match to avoid partial matches
     if $pgrep_cmd -x "$proc_name" >/dev/null; then
-        info "Closing $nice_name to safely clean data..."
-        # Try standard kill (SIGTERM) first which allows cleanup
-        $killall_cmd "$proc_name" 2>/dev/null
-        
-        # Wait up to 5 seconds
-        for i in {1..5}; do
-            if ! $pgrep_cmd -x "$proc_name" >/dev/null; then
-                return 0
-            fi
-            sleep 1
-        done
-        
-        # Force kill (SIGKILL) if stuck
-        warn "$nice_name still running. Force quitting..."
-        $killall_cmd -9 "$proc_name" 2>/dev/null || true
+        if ask_confirmation "$nice_name is currently running. Close it to safely clean data?"; then
+            info "Closing $nice_name to safely clean data..."
+            # Try standard kill (SIGTERM) first which allows cleanup
+            $killall_cmd "$proc_name" 2>/dev/null
+            
+            # Wait up to 5 seconds
+            for i in {1..5}; do
+                if ! $pgrep_cmd -x "$proc_name" >/dev/null; then return 0; fi
+                sleep 1
+            done
+            
+            # Force kill (SIGKILL) if stuck
+            warn "$nice_name still running. Force quitting..."
+            $killall_cmd -9 "$proc_name" 2>/dev/null || true
+        else
+            warn "Skipping cleanup for $nice_name (Application must be closed)."
+            return 1
+        fi
     fi
+    return 0
 }
 
 cleanup_browsers() {
     info "Cleaning Browser Data..."
     
     # --- Chrome ---
-    close_app "Google Chrome"
-    
-    # 1. Cache (Global)
-    rm -rf "$HOME/Library/Caches/Google/Chrome/"* 2>/dev/null
-    
-    # 2. Profiles (History, Cookies, Session)
-    local chrome_root="$HOME/Library/Application Support/Google/Chrome"
-    if [ -d "$chrome_root" ]; then
-        # Iterate Default and Profile directories
-        for profile in "$chrome_root"/Default "$chrome_root"/Profile*; do
-            if [ -d "$profile" ]; then
-                info "Cleaning Chrome Profile: $(basename "$profile")..."
-                rm -rf "$profile/History"* 2>/dev/null
-                rm -rf "$profile/Visited Links" 2>/dev/null
-                rm -rf "$profile/Last Session" 2>/dev/null
-                rm -rf "$profile/Last Tabs" 2>/dev/null
-                rm -rf "$profile/Top Sites"* 2>/dev/null
-                rm -rf "$profile/Application Cache" 2>/dev/null
-                rm -rf "$profile/GPUCache" 2>/dev/null
-                # Optional: Cookies? User asked for History & Cache. 
-                # Keeping cookies might be preferred for convenience, but "Cleanup" usually implies tracking data.
-                # Let's clean Cookies too if we are being thorough, or stick to History?
-                # The prompt says "Browser History & Cache".
-                # rm -f "$profile/Cookies" 2>/dev/null
-            fi
-        done
+    if close_app "Google Chrome"; then
+        # 1. Cache (Global)
+        rm -rf "$HOME/Library/Caches/Google/Chrome/"* 2>/dev/null
+        
+        # 2. Profiles (History, Cookies, Session)
+        local chrome_root="$HOME/Library/Application Support/Google/Chrome"
+        if [ -d "$chrome_root" ]; then
+            # Iterate Default and Profile directories
+            for profile in "$chrome_root"/Default "$chrome_root"/Profile*; do
+                if [ -d "$profile" ]; then
+                    info "Cleaning Chrome Profile: $(basename "$profile")..."
+                    rm -rf "$profile/History"* 2>/dev/null
+                    rm -rf "$profile/Visited Links" 2>/dev/null
+                    rm -rf "$profile/Last Session" 2>/dev/null
+                    rm -rf "$profile/Last Tabs" 2>/dev/null
+                    rm -rf "$profile/Top Sites"* 2>/dev/null
+                    rm -rf "$profile/Application Cache" 2>/dev/null
+                    rm -rf "$profile/GPUCache" 2>/dev/null
+                    # Optional: Cookies? User asked for History & Cache. 
+                    # Keeping cookies might be preferred for convenience, but "Cleanup" usually implies tracking data.
+                    # Let's clean Cookies too if we are being thorough, or stick to History?
+                    # The prompt says "Browser History & Cache".
+                    # rm -f "$profile/Cookies" 2>/dev/null
+                fi
+            done
+        fi
     fi
     
     # --- Safari ---
-    close_app "Safari"
+    if close_app "Safari"; then
     
     info "Cleaning Safari Data..."
     rm -f "$HOME/Library/Safari/History.db"* 2>/dev/null
@@ -426,9 +457,10 @@ cleanup_browsers() {
     rm -f "$HOME/Library/Safari/PerSitePreferences.db" 2>/dev/null
     rm -f "$HOME/Library/Safari/PerSiteZoomPreferences.plist" 2>/dev/null
     rm -f "$HOME/Library/Safari/UserNotificationPreferences.plist" 2>/dev/null
+    fi
     
     # --- Firefox ---
-    close_app "firefox" "Firefox"
+    if close_app "firefox" "Firefox"; then
     
     local firefox_dir="$HOME/Library/Application Support/Firefox/Profiles"
     if [ -d "$firefox_dir" ]; then
@@ -467,6 +499,7 @@ cleanup_browsers() {
                  warn "sqlite3 not found. Skipping Firefox History (places.sqlite) to preserve bookmarks."
             fi
         done
+    fi
     fi
     
     info "Browser cleanup finished."
