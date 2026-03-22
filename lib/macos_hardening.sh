@@ -57,7 +57,7 @@ hardening_enable_firewall() {
 
 hardening_disable_analytics() {
     info "Disabling Analytics and Crash Reports..."
-    set_launchctl "Unload DIAG info" "unload" -w /System/Library/LaunchDaemons/com.apple.SubmitDiagInfo.plist 2>/dev/null || true sudo
+    set_launchctl "Unload DIAG info" "unload" -w /System/Library/LaunchDaemons/com.apple.SubmitDiagInfo.plist sudo
     set_default "Disable AutoSubmit" "/Library/Preferences/com.apple.loginwindow" ""AutoSubmit"" "-bool" "false" sudo
     set_default "Set setting "Siri Data Sharing Opt-In Status"" "com.apple.assistant.support" "Siri Data Sharing Opt-In Status" "-int" "2"
     defaults write com.apple.CrashReporter DialogType none
@@ -66,11 +66,11 @@ hardening_disable_analytics() {
     info "Disabling Siri Services..."
     set_default "Set setting 'Assistant Enabled'" "com.apple.assistant.support" 'Assistant Enabled' "-bool" "false"
     set_default "Set setting 'Use device speaker for TTS'" "com.apple.assistant.backedup" 'Use device speaker for TTS' "-int" "3"
-    set_launchctl "Disable Siri Agent" "disable" "system/com.apple.Siri.agent" 2>/dev/null || true sudo
-    set_launchctl "Disable Assistantd" "disable" "system/com.apple.assistantd" 2>/dev/null || true sudo
+    set_launchctl "Disable Siri Agent" "disable" "system/com.apple.Siri.agent" sudo
+    set_launchctl "Disable Assistantd" "disable" "system/com.apple.assistantd" sudo
     # User agents (might need to run as user without sudo, or just warn)
-    launchctl disable "user/$UID/com.apple.Siri.agent" 2>/dev/null || true
-    launchctl disable "user/$UID/com.apple.assistantd" 2>/dev/null || true
+    launchctl disable "user/$UID/com.apple.Siri.agent"
+    launchctl disable "user/$UID/com.apple.assistantd"
     
     set_default "Set setting 'DidSeeSiriSetup'" "com.apple.SetupAssistant" "'DidSeeSiriSetup'" "-bool" "True"
     defaults write com.apple.systemuiserver 'NSStatusItem Visible Siri' 0
@@ -118,36 +118,36 @@ hardening_disable_app_telemetry() {
     
     # Google (Aggressive)
     if [ "$(defaults read com.google.Keystone.Agent checkInterval 2>/dev/null)" != "0" ]; then
-        defaults write com.google.Keystone.Agent checkInterval 0 2>/dev/null || true
+        defaults write com.google.Keystone.Agent checkInterval 0
     fi
     # Delete Google Software Update agent if aggressive (Privacy.sexy does this)
     if [ -d "$HOME/Library/Google/GoogleSoftwareUpdate" ]; then
          info "Disabling and Removing Google Software Update..."
          # Try to be nice first? No, privacy.sexy nukes it.
          if [ -x "$HOME/Library/Google/GoogleSoftwareUpdate/GoogleSoftwareUpdate.bundle/Contents/Resources/ksinstall" ]; then
-             "$HOME/Library/Google/GoogleSoftwareUpdate/GoogleSoftwareUpdate.bundle/Contents/Resources/ksinstall" --nuke 2>/dev/null || true
+             "$HOME/Library/Google/GoogleSoftwareUpdate/GoogleSoftwareUpdate.bundle/Contents/Resources/ksinstall" --nuke
          fi
-         rm -rf "$HOME/Library/Google/GoogleSoftwareUpdate" 2>/dev/null || true
+         rm -rf "$HOME/Library/Google/GoogleSoftwareUpdate"
     fi
     
     # Microsoft Office / AutoUpdate
     if [ "$(defaults read com.microsoft.autoupdate2 HowToCheck 2>/dev/null)" != "Manual" ]; then
-        set_default "Set setting HowToCheck" "com.microsoft.autoupdate2" "HowToCheck" "-string" ""Manual" 2>/dev/null || true"
+        set_default "Set setting HowToCheck" "com.microsoft.autoupdate2" "HowToCheck" "-string" ""Manual""
     fi
     if [ "$(defaults read com.microsoft.office.telemetry SendAllTelemetryEnabled 2>/dev/null)" != "0" ]; then
-        set_default "Set setting SendAllTelemetryEnabled" "com.microsoft.office.telemetry" "SendAllTelemetryEnabled" "-bool" "false 2>/dev/null || true"
+        set_default "Set setting SendAllTelemetryEnabled" "com.microsoft.office.telemetry" "SendAllTelemetryEnabled" "-bool" "false"
     fi
     # Stricter Office
     # Stricter Office
     if [ "$(defaults read com.microsoft.office.telemetry ZeroDiagnosticData 2>/dev/null)" != "1" ]; then
-        set_default "Set setting ZeroDiagnosticData" "com.microsoft.office.telemetry" "ZeroDiagnosticData" "-bool" "true 2>/dev/null || true"
+        set_default "Set setting ZeroDiagnosticData" "com.microsoft.office.telemetry" "ZeroDiagnosticData" "-bool" "true"
     fi
     if [ "$(defaults read com.microsoft.office.telemetry UserOptIn 2>/dev/null)" != "0" ]; then
-        set_default "Set setting UserOptIn" "com.microsoft.office.telemetry" "UserOptIn" "-bool" "false 2>/dev/null || true"
+        set_default "Set setting UserOptIn" "com.microsoft.office.telemetry" "UserOptIn" "-bool" "false"
     fi
     # Privacy.sexy exact key match
     if [ "$(defaults read com.microsoft.office DiagnosticDataTypePreference 2>/dev/null)" != "ZeroDiagnosticData" ]; then
-        set_default "Set setting DiagnosticDataTypePreference" "com.microsoft.office" "DiagnosticDataTypePreference" "-string" ""ZeroDiagnosticData" 2>/dev/null || true"
+        set_default "Set setting DiagnosticDataTypePreference" "com.microsoft.office" "DiagnosticDataTypePreference" "-string" ""ZeroDiagnosticData""
     fi
 
 
@@ -185,12 +185,12 @@ hardening_disable_parallels() {
     # Parallels Desktop Ads & Updates
     if [ -d "/Applications/Parallels Desktop.app" ]; then
         info "Disabling Parallels Desktop Ads/Updates..."
-        defaults write com.parallels.Parallels\ Desktop ApplicationPreferences.CheckForUpdates -bool false 2>/dev/null || true
-        defaults write com.parallels.Parallels\ Desktop "ApplicationPreferences.ShowPromo" -bool false 2>/dev/null || true
-        defaults write com.parallels.Parallels\ Desktop "ApplicationPreferences.ShowTutorial" -bool false 2>/dev/null || true
+        defaults write com.parallels.Parallels\ Desktop ApplicationPreferences.CheckForUpdates -bool false
+        defaults write com.parallels.Parallels\ Desktop "ApplicationPreferences.ShowPromo" -bool false
+        defaults write com.parallels.Parallels\ Desktop "ApplicationPreferences.ShowTutorial" -bool false
         # Privacy.sexy exact keys
-        defaults write "com.parallels.Parallels Desktop" "ProductPromo.ForcePromoOff" -bool yes 2>/dev/null || true
-        defaults write "com.parallels.Parallels Desktop" "WelcomeScreenPromo.PromoOff" -bool yes 2>/dev/null || true
+        defaults write "com.parallels.Parallels Desktop" "ProductPromo.ForcePromoOff" -bool yes
+        defaults write "com.parallels.Parallels Desktop" "WelcomeScreenPromo.PromoOff" -bool yes
     fi
 }
 
@@ -238,14 +238,14 @@ except Exception as e:
     fi
     
     # 2. Disable 'Look up' & Suggestions at the system level (Global key)
-    set_default "Set setting LookupEnabled" "com.apple.lookup.shared" "LookupEnabled" "-bool" "false 2>/dev/null || true"
+    set_default "Set setting LookupEnabled" "com.apple.lookup.shared" "LookupEnabled" "-bool" "false"
     
     killall mds > /dev/null 2>&1 || true
     execute_sudo "Re-enable indexing" mdutil -i on / > /dev/null
     
     # Remote Apple Events
     info "Disabling Remote Apple Events..."
-    set_systemsetup "Disable Remote Events" "-setremoteappleevents" "off 2>/dev/null || true"
+    set_systemsetup "Disable Remote Events" "-setremoteappleevents" "off"
 
     # Remote Services
     hardening_disable_services
@@ -271,29 +271,29 @@ hardening_disable_services() {
     
     # 2. Insecure Services (TFTP, Telnet)
     # Telnet/TFTP are rarely used but if present should be off
-    set_launchctl "Disable TFTP" "disable" 'system/com.apple.tftpd' 2>/dev/null || true sudo
-    set_launchctl "Disable Telnet" "disable" 'system/com.apple.telnetd' 2>/dev/null || true sudo
+    set_launchctl "Disable TFTP" "disable" 'system/com.apple.tftpd' sudo
+    set_launchctl "Disable Telnet" "disable" 'system/com.apple.telnetd' sudo
     
     # 3. Remote Management (ARD / Screen Sharing)
     # This is different from "Remote Login" (SSH)
     local ard_agent="/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart"
     if [ -x "$ard_agent" ]; then
-        execute_sudo "Disable Remote Management (ARD)" "$ard_agent" -deactivate -stop 2>/dev/null || true
+        execute_sudo "Disable Remote Management (ARD)" "$ard_agent" -deactivate -stop
     fi
     # Aggressive Removal (Privacy.sexy)
-    execute_sudo "Remove ARD Settings" rm -rf /var/db/RemoteManagement 2>/dev/null || true
-    execute_sudo "Remove ARD PList" rm -f /Library/Preferences/com.apple.RemoteDesktop.plist 2>/dev/null || true
-    rm -f ~/Library/Preferences/com.apple.RemoteDesktop.plist 2>/dev/null || true
-    execute_sudo "Remove ARD App Support" rm -rf /Library/Application\ Support/Apple/Remote\ Desktop/ 2>/dev/null || true
-    rm -rf ~/Library/Application\ Support/Remote\ Desktop/ 2>/dev/null || true
-    rm -rf ~/Library/Containers/com.apple.RemoteDesktop 2>/dev/null || true
+    execute_sudo "Remove ARD Settings" rm -rf /var/db/RemoteManagement
+    execute_sudo "Remove ARD PList" rm -f /Library/Preferences/com.apple.RemoteDesktop.plist
+    rm -f ~/Library/Preferences/com.apple.RemoteDesktop.plist
+    execute_sudo "Remove ARD App Support" rm -rf /Library/Application\ Support/Apple/Remote\ Desktop/
+    rm -rf ~/Library/Application\ Support/Remote\ Desktop/
+    rm -rf ~/Library/Containers/com.apple.RemoteDesktop
     
     # 4. Printer Sharing
     if command -v cupsctl >/dev/null; then
         info "Disabling Printer Sharing..."
-        cupsctl --no-share-printers 2>/dev/null || true
-        cupsctl --no-remote-any 2>/dev/null || true
-        cupsctl --no-remote-admin 2>/dev/null || true
+        cupsctl --no-share-printers
+        cupsctl --no-remote-any
+        cupsctl --no-remote-admin
     fi
     
     # 5. Guest Sharing (SMB/AFP)
@@ -302,8 +302,8 @@ hardening_disable_services() {
     set_default "Disable AFP Guest" "/Library/Preferences/com.apple.AppleFileServer" ""guestAccess"" "-bool" "NO" sudo
     
     if command -v sysadminctl >/dev/null; then
-         execute_sudo "Disable SMB Guest (sysadminctl)" sysadminctl -smbGuestAccess off 2>/dev/null || true
-         execute_sudo "Disable AFP Guest (sysadminctl)" sysadminctl -afpGuestAccess off 2>/dev/null || true
+         execute_sudo "Disable SMB Guest (sysadminctl)" sysadminctl -smbGuestAccess off
+         execute_sudo "Disable AFP Guest (sysadminctl)" sysadminctl -afpGuestAccess off
     fi
     
     # 6. AirPlay Receiver
@@ -312,21 +312,21 @@ hardening_disable_services() {
     
     # 7. Internet Sharing & Media Sharing
     info "Disabling Internet and Media Sharing..."
-    set_default "Set setting NAT" "com.apple.nat" "NAT" "-dict" "Enabled -int 0 2>/dev/null || true"
-    set_launchctl "Disable Media Sharing" "unload" -w /System/Library/LaunchDaemons/com.apple.mediaremoted.plist 2>/dev/null || true sudo
+    set_default "Set setting NAT" "com.apple.nat" "NAT" "-dict" "Enabled -int 0"
+    set_launchctl "Disable Media Sharing" "unload" -w /System/Library/LaunchDaemons/com.apple.mediaremoted.plist sudo
     
     # 8. Wake on LAN
     info "Disabling Wake on Network Access..."
-    set_systemsetup "Disable Wake on LAN" "-setwakeonnetworkaccess" "off 2>/dev/null || true"
+    set_systemsetup "Disable Wake on LAN" "-setwakeonnetworkaccess" "off"
     
     # 9. HTTP and NFS Servers
     info "Disabling HTTP and NFS Servers..."
-    set_launchctl "Disable HTTP Server" "disable" 'system/org.apache.httpd' 2>/dev/null || true sudo
-    execute_sudo "Disable NFS Server" nfsd disable 2>/dev/null || true
+    set_launchctl "Disable HTTP Server" "disable" 'system/org.apache.httpd' sudo
+    execute_sudo "Disable NFS Server" nfsd disable
 
     # 10. Content Caching
     info "Disabling Content Caching..."
-    execute_sudo "Disable Content Caching" AssetCacheManagerUtil deactivate 2>/dev/null || true
+    execute_sudo "Disable Content Caching" AssetCacheManagerUtil deactivate
 }
 
 hardening_manage_updates() {
@@ -396,7 +396,7 @@ hardening_privacy_tweaks() {
     
     # Screenshots (Metadata)
     set_default "Set setting include-date" "com.apple.screencapture" "include-date" "-bool" "false"
-    killall SystemUIServer 2>/dev/null || true
+    killall SystemUIServer
     
     # Bluetooth configuration
     info "Reviewing Bluetooth Configuration..."
@@ -404,7 +404,7 @@ hardening_privacy_tweaks() {
         "Disabling Bluetooth removes a significant wireless attack surface and tracking vector." \
         "WARNING: This will disable all wireless keyboards, mice, trackpads, and headphones!"; then
         set_default "Disable Bluetooth" "/Library/Preferences/com.apple.Bluetooth" ""ControllerPowerState"" "-int" "0" sudo
-        execute_sudo "Kill BluetoothDaemon" killall -HUP bluetoothd 2>/dev/null || true
+        execute_sudo "Kill BluetoothDaemon" killall -HUP bluetoothd
     fi
     
     # Gatekeeper & Quarantine Logs
@@ -443,7 +443,7 @@ hardening_enable_quarantine() {
        "Enforcing (Recommended) blocks untrusted apps (Better Security)." \
        "Disabling (Privacy Over Security) allows any app to run (Reduced Security, Privacy.sexy default)."; then
        # YES = Enforce
-       execute_sudo "Enable Gatekeeper" spctl --master-enable 2>/dev/null || true
+       execute_sudo "Enable Gatekeeper" spctl --master-enable
        set_default "Enable Gatekeeper (Policy)" "/var/db/SystemPolicy-prefs" ""enabled"" "-string" "yes" sudo
     else
         # NO -> Check for disable
@@ -460,12 +460,12 @@ hardening_enable_quarantine() {
        "Disabling (Privacy Over Security) removes provenance metadata (Reduced Security, Privacy.sexy default)."; then
         # YES = Enforce
         info "Enforcing File Quarantine..."
-        defaults delete com.apple.LaunchServices LSQuarantine 2>/dev/null || true
-        set_default "Set setting LSQuarantine" "com.apple.LaunchServices" "LSQuarantine" "-bool" "true 2>/dev/null || true"
+        defaults delete com.apple.LaunchServices LSQuarantine
+        set_default "Set setting LSQuarantine" "com.apple.LaunchServices" "LSQuarantine" "-bool" "true"
     else
          if ask_confirmation "ATTENTION: Disable File Quarantine (Unsafe)? (Privacy Over Security)"; then
              warn "Disabling File Quarantine..."
-             set_default "Set setting LSQuarantine" "com.apple.LaunchServices" "LSQuarantine" "-bool" "false 2>/dev/null || true"
+             set_default "Set setting LSQuarantine" "com.apple.LaunchServices" "LSQuarantine" "-bool" "false"
          fi
     fi
 }
@@ -479,10 +479,10 @@ hardening_secure_screen() {
     defaults -currentHost write com.apple.screensaver idleTime -int 1200
     
     info "Disabling Automatic Login..."
-    execute_sudo "Disable Auto Login" defaults delete /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null || true
+    execute_sudo "Disable Auto Login" defaults delete /Library/Preferences/com.apple.loginwindow autoLoginUser
     
     info "Requiring Admin Password for System Preferences..."
-    execute_sudo "Lock SysPrefs" security authorizationdb write system.preferences authenticate-admin 2>/dev/null || true
+    execute_sudo "Lock SysPrefs" security authorizationdb write system.preferences authenticate-admin
     
     info "Enforcing 0 retries until password hint (disabling hints)..."
     set_default "Disable Password Hints" "/Library/Preferences/com.apple.loginwindow" ""RetriesUntilHint"" "-int" "0" sudo
@@ -491,7 +491,7 @@ hardening_secure_screen() {
 hardening_secure_terminals() {
     info "Securing Terminal Applications (Secure Keyboard Entry)..."
     set_default "Set setting SecureKeyboardEntry" "com.apple.Terminal" "SecureKeyboardEntry" "-bool" "true"
-    set_default "Set setting '"Secure Input"'" "com.googlecode.iterm2" '"Secure Input"' "-bool" "true 2>/dev/null || true"
+    set_default "Set setting '"Secure Input"'" "com.googlecode.iterm2" '"Secure Input"' "-bool" "true"
 }
 
 hardening_harden_finder() {
@@ -500,7 +500,7 @@ hardening_harden_finder() {
     set_default "Set setting FXEnableExtensionChangeWarning" "com.apple.finder" "FXEnableExtensionChangeWarning" "-bool" "false"
     set_default "Set setting AppleShowAllFiles" "com.apple.finder" "AppleShowAllFiles" "-bool" "true"
     set_default "Set setting NSDocumentSaveNewDocumentsToCloud" "NSGlobalDomain" "NSDocumentSaveNewDocumentsToCloud" "-bool" "false"
-    chflags nohidden ~/Library 2>/dev/null || true
+    chflags nohidden ~/Library
 }
 
 hardening_anonymize_hostname() {
@@ -545,11 +545,11 @@ hardening_remove_guest() {
          
          # Aggressive removal
          if id "guest" &>/dev/null; then
-            execute_sudo "Remove Guest User" sysadminctl -deleteUser guest 2>/dev/null || true
+            execute_sudo "Remove Guest User" sysadminctl -deleteUser guest
          fi
          
          if dscl . -read /Users/Guest &>/dev/null; then
-            execute_sudo "Remove Guest User (dscl)" dscl . -delete /Users/Guest 2>/dev/null || true
+            execute_sudo "Remove Guest User (dscl)" dscl . -delete /Users/Guest
          fi
     fi
 }
@@ -743,7 +743,7 @@ hardening_disable_bonjour() {
     set_default "Disable Multicast" ""${plist%.plist}"" "NoMulticastAdvertisements" "-bool" "YES" sudo
     
     # Reload mDNSResponder to apply changes
-    execute_sudo "Reload mDNSResponder" killall -HUP mDNSResponder 2>/dev/null || true
+    execute_sudo "Reload mDNSResponder" killall -HUP mDNSResponder
 }
 
 hardening_secure_sudoers() {
