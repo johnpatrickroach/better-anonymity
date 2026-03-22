@@ -111,10 +111,15 @@ diagnosis_run() {
     else
          warn "  [FAIL] Hibernation Mode is not set to 25 (Secure Sleep)."
     fi
-    if echo "$pmset_out" | grep -E -q "destroyfvkeyonstandby[[:space:]]+1"; then
-         ((sleep_score+=5))
+    if echo "$pmset_out" | grep -E -q "destroyfvkeyonstandby"; then
+        if echo "$pmset_out" | grep -E -q "destroyfvkeyonstandby[[:space:]]+1"; then
+             ((sleep_score+=5))
+        else
+             warn "  [FAIL] FileVault key is not destroyed on standby."
+        fi
     else
-         warn "  [FAIL] FileVault key is not destroyed on standby."
+        # Hardware manages keys natively via Secure Enclave (T2 / Apple Silicon)
+        ((sleep_score+=5))
     fi
     ((sec_passed+=sleep_score))
 
