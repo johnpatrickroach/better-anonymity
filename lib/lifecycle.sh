@@ -651,6 +651,20 @@ lifecycle_daily() {
 lifecycle_update() {
     info "Checking for 'better-anonymity' updates..."
     
+    # Check for Homebrew installation
+    if [[ "$SCRIPT_PATH" == *"/Cellar/"* ]] || [[ "$SCRIPT_PATH" == *"/opt/homebrew/"* ]]; then
+        info "Better Anonymity was installed via Homebrew."
+        info "To update, please run: brew upgrade better-anonymity"
+        return 0
+    fi
+
+    # Check for Pip installation
+    if [[ "$SCRIPT_PATH" == *"/site-packages/"* ]] || [ -d "$ROOT_DIR/lib/better-anonymity" ]; then
+        info "Better Anonymity was installed via Pip (Python)."
+        info "To update, please run: pip install --upgrade better-anonymity"
+        return 0
+    fi
+    
     # Check if we are in a git repo
     if [ -d "$ROOT_DIR/.git" ]; then
         cd "$ROOT_DIR" || return 1
@@ -758,6 +772,20 @@ exec \"$SOURCE_BIN\" \"\$@\""
 lifecycle_check_update() {
     header "Checking for Updates..."
     
+    # Check for Homebrew installation
+    if [[ "$SCRIPT_PATH" == *"/Cellar/"* ]] || [[ "$SCRIPT_PATH" == *"/opt/homebrew/"* ]]; then
+        info "Better Anonymity was installed via Homebrew."
+        info "To check for updates, please run: brew outdated better-anonymity"
+        return 0
+    fi
+
+    # Check for Pip installation
+    if [[ "$SCRIPT_PATH" == *"/site-packages/"* ]] || [ -d "$ROOT_DIR/lib/better-anonymity" ]; then
+        info "Better Anonymity was installed via Pip (Python)."
+        info "To check for updates, run: pip list -o | grep better-anonymity"
+        return 0
+    fi
+
     # Check if we are in a git repo
     if [ -d "$ROOT_DIR/.git" ]; then
         cd "$ROOT_DIR" || return 1
@@ -803,6 +831,21 @@ lifecycle_uninstall() {
         "Use this if you want to undo configuration changes made by better-anonymity."; then
         lifecycle_restore_state
         success "System state restoration attempted."
+    fi
+
+    if ask_confirmation_with_info "Remove shell aliases?" \
+        "Removes the Better Anonymity initialization block from ~/.zshrc and ~/.bashrc." \
+        "This removes convenience aliases like stay-connected and torify."; then
+        local profiles=("$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile")
+        for profile in "${profiles[@]}"; do
+            if [ -f "$profile" ] && grep -q "better-anonymity/.cli_aliases" "$profile"; then
+                info "Scrubbing aliases from $(basename "$profile")..."
+                # Delete the exact 4-line block appended by the installer
+                sed -i.bak '/# Added by better-anonymity/{N;N;N;d;}' "$profile"
+                rm -f "${profile}.bak"
+            fi
+        done
+        success "Shell profiles cleaned. You may need to restart your terminal."
     fi
     
     local installed_log="$HOME/.better-anonymity/state/installed_tools.log"

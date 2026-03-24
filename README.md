@@ -54,7 +54,7 @@ Then choose your preferred installation method:
 Install using our custom tap:
 
 ```bash
-brew tap johnpatrickroach/homebrew-tap
+brew tap johnpatrickroach/better-anonymity
 brew install better-anonymity
 ```
 
@@ -84,6 +84,25 @@ This will create symlinks in `/usr/local/bin`, allowing you to run the tool from
 * `better-anonymity`
 * `better-anon`
 * `b-a`
+
+## Configuration
+
+By default, running `better-anonymity harden` will comprehensively execute every macOS privacy and security countermeasure built into the toolkit. 
+
+However, you can surgically customize exactly which actions execute by modifying the `config/settings.json` file natively included in the repository.
+
+```json
+{
+    "hardening": {
+        "enable_firewall": true,
+        "disable_analytics": false,
+        "anonymize_hostname": true,
+        "ensure_lockdown": false
+    }
+}
+```
+
+If you set any specific module to `false`, the hardening script will structurally bypass that component during execution without prompt. This is ideal for building tailored execution baselines that don't intrude on explicit network features you rely on.
 
 ## Quick Start (Recommended)
 
@@ -150,7 +169,7 @@ Keep your installation current:
 
 ```bash
 b-a check-update    # Check if updates are available
-b-a update          # Pull latest changes (git)
+b-a update          # Auto-upgrades via Brew, Pip, or Git natively
 b-a test            # Run unit tests
 ```
 
@@ -166,6 +185,7 @@ better-anonymity uninstall
 
 1. **Restore System State**: Revert Hostname, DNS, and Firewall to their original values (captured during setup).
 2. **Uninstall Tools**: Automatically remove tools installed by `better-anonymity` (e.g., Tor, Privoxy).
+3. **Scrub Environment**: Remove the `~/.better-anonymity` cache and dynamically wipe the convenience alias blocks from your `~/.zshrc`.
 
 *Note: Manual verification is recommended after uninstallation to ensure all desired changes are reverted.*
 

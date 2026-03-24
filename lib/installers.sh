@@ -556,8 +556,8 @@ harden_firefox() {
 
     # 2. Install Arkenfox Scripts
     info "Downloading Arkenfox scripts (updater.sh, prefsCleaner.sh)..."
-    local updater_url="https://raw.githubusercontent.com/arkenfox/user.js/master/updater.sh"
-    local cleaner_url="https://raw.githubusercontent.com/arkenfox/user.js/master/prefsCleaner.sh"
+    local updater_url="https://raw.githubusercontent.com/arkenfox/user.js/128.0/updater.sh"
+    local cleaner_url="https://raw.githubusercontent.com/arkenfox/user.js/128.0/prefsCleaner.sh"
     
     if ! curl -L -s -o "$profile_path/updater.sh" "$updater_url"; then
         die "Failed to download updater.sh"

@@ -1,0 +1,25 @@
+{
+    "hardening": {
+        "update_system": true,
+        "enable_firewall": true,
+        "disable_analytics": true,
+        "configure_privacy": true,
+        "secure_screen": true,
+        "harden_finder": true,
+        "anonymize_hostname": true,
+        "ensure_filevault": true,
+        "ensure_lockdown": false,
+        "secure_homebrew": true,
+        "disable_bonjour": true,
+        "secure_sudoers": true,
+        "set_umask": true,
+        "disable_captive_portal": true,
+        "manage_updates": true,
+        "enable_library_validation": true,
+        "enable_quarantine": true,
+        "remove_guest": true,
+        "secure_terminals": true,
+        "secure_sleep": true,
+        "disable_ipv6": true
+    }
+}

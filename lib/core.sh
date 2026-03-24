@@ -170,6 +170,34 @@ ask_confirmation_with_info() {
     ask_confirmation "Proceed?"
 }
 
+# JSON Configuration Parser
+config_get() {
+    local category="$1"
+    local key="$2"
+    local default="${3:-true}"
+    local config_file="$CONFIG_DIR/settings.json"
+    
+    if [ ! -f "$config_file" ]; then
+        echo "$default"
+        return
+    fi
+    
+    # Use native python3 to parse JSON safely without jq dependency
+    python3 -c "
+import sys, json
+try:
+    with open('$config_file', 'r') as f:
+        data = json.load(f)
+    val = data.get('$category', {}).get('$key')
+    if val is None:
+        print('$default'.lower())
+    else:
+        print(str(val).lower())
+except Exception:
+    print('$default'.lower())
+" 2>/dev/null || echo "$default"
+}
+
 # Ensure the script is run as root (auto-elevate)
 # Usage: ensure_root "$@"
 # WARNING: This re-executes the script. You MUST pass "$@" to forward arguments.

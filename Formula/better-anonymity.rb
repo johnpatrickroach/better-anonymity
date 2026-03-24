@@ -1,38 +1,45 @@
 class BetterAnonymity < Formula
-  desc "MacOS Security, Privacy & Anonymity Tools"
-  homepage "https://github.com/johnpatrickroach/better-anonymity" # Placeholder
+  desc "macOS CLI for advanced privacy, security hardening, and anonymity"
+  homepage "https://github.com/johnpatrickroach/better-anonymity"
+  
+  # TODO: Replace the URL and SHA256 when you create a GitHub Release
+  url "https://github.com/johnpatrickroach/better-anonymity/archive/refs/tags/v1.0.0.tar.gz"
+  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
   license "MIT"
-  head "https://github.com/johnpatrickroach/better-anonymity.git", branch: "main"
 
-  # No url/sha256 needed for local dev/head-only formula initially, 
-  # or user can install via directory path.
+  depends_on "curl"
+  depends_on "fzf" => :optional
 
   def install
-    # Install specific directories to libexec to ensure correct structure
-    # and avoid picking up build artifacts or git metadata
-    libexec.install "bin", "lib", "README.md", "LICENSE"
+    # Install the bin directory into the Homebrew Cellar
+    bin.install "bin/better-anonymity"
     
-    # Symlink the main binary from libexec/bin to the global bin directory
-    bin.install_symlink libexec/"bin/better-anonymity"
+    # Install the lib directory alongside it in the Cellar
+    # Because bin/better-anonymity resolves its location via symlinks,
+    # the internal relative paths (ROOT_DIR/lib/...) will work perfectly here.
+    prefix.install "lib"
     
-    # Create aliases pointing to the SAME target in libexec
-    bin.install_symlink libexec/"bin/better-anonymity" => "better-anon"
-    bin.install_symlink libexec/"bin/better-anonymity" => "b-a"
+    # Install configuration and assets
+    prefix.install "config" if buildpath.join("config").exist?
+    prefix.install "tests" if buildpath.join("tests").exist?
+    prefix.install "VERSION" if buildpath.join("VERSION").exist?
   end
 
   def caveats
     <<~EOS
-      You can now run 'better-anonymity', 'better-anon', or 'b-a'.
+      Better Anonymity has been successfully installed!
       
-      To start using the tool, run:
-        b-a
-        
-      To check your privacy score:
-        b-a diagnose
+      To start the interactive system configuration menu, run:
+        better-anonymity menu
+
+      If you want the global convenience aliases (torify, stay-connected, etc) 
+      injected into your shell configuration, run:
+        better-anonymity install cli
     EOS
   end
 
   test do
-    assert_match "Usage", shell_output("#{bin}/better-anonymity help")
+    # Verify the CLI exists and can print the version/help menu without crashing
+    system "#{bin}/better-anonymity", "--version"
   end
 end

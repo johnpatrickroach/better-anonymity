@@ -114,14 +114,29 @@ The script applies the following hardening to Homebrew:
 
 **Persistence**: The script automatically appends these variables to your `~/.zshrc` file to ensure they remain active in future sessions.
 
+## Configuration
+
+The hardening sequence can be explicitly configured via JSON before execution. By modifying the `config/settings.json` file in your repository, you can enable or disable specific hardening components.
+
+```json
+{
+    "hardening": {
+        "enable_firewall": true,
+        "disable_analytics": false,
+        "anonymize_hostname": true
+    }
+}
+```
+If you set a module to `false`, the execution will skip it natively without throwing an error.
+
 ## Usage
 
-To run the hardening script:
+To run the hardening script, leverage the CLI wrapper:
 
 ```bash
-sudo ./scripts/macos_hardening.sh --all
+b-a harden
 ```
 
 ## Reverting
 
-Most settings are changed via `defaults write`. To revert, you generally need to delete the key or set it to its previous value. There is currently no automated "undo" script, so backup your data or check the script source for the specific keys modified.
+Before the hardening sequence runs, the CLI gives you the option to create a timestamped backup of your system state. You can revert changes natively using the uninstaller (`b-a uninstall`) or by explicitly invoking the restoration script.

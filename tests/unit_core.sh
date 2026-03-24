@@ -523,4 +523,36 @@ test_wifi_service_fallback() {
 }
 test_wifi_service_fallback
 
+# Test 13: config_get Logic
+# -------------------------
+test_config_get() {
+    # Isolate CONFIG_DIR
+    local TEST_CONFIG_DIR="/tmp/b_a_test_config_$$"
+    mkdir -p "$TEST_CONFIG_DIR"
+    export CONFIG_DIR="$TEST_CONFIG_DIR"
+    
+    local settings_file="$CONFIG_DIR/settings.json"
+    
+    # 1. Missing File
+    assert_equals "true" "$(config_get hardening enable_firewall true)" "config_get: Missing file should return true default"
+    assert_equals "false" "$(config_get hardening enable_firewall false)" "config_get: Missing file should return false default"
+    
+    # 2. Valid File, Missing Key
+    echo '{"hardening": {"other_key": true}}' > "$settings_file"
+    assert_equals "false" "$(config_get hardening missing_key false)" "config_get: Missing key should return default"
+    
+    # 3. Valid File, Valid Key
+    echo '{"hardening": {"enable_firewall": true, "disable_ipv6": false, "string_val": "HELLO"}}' > "$settings_file"
+    assert_equals "true" "$(config_get hardening enable_firewall false)" "config_get: Existing true should return true"
+    assert_equals "false" "$(config_get hardening disable_ipv6 true)" "config_get: Existing false should return false"
+    assert_equals "hello" "$(config_get hardening string_val false)" "config_get: Output should be strictly lowercased"
+    
+    # 4. Malformed JSON
+    echo '{bad syntax[' > "$settings_file"
+    assert_equals "fallback" "$(config_get hardening strict_key fallback)" "config_get: Malformed schema should return default safely"
+    
+    rm -rf "$TEST_CONFIG_DIR"
+}
+test_config_get
+
 end_suite

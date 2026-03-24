@@ -40,8 +40,24 @@ else
     done
     DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 fi
-ROOT_DIR="$(dirname "$DIR")"
-LIB_DIR="$ROOT_DIR/lib"
+
+# Resolve paths
+SCRIPT_PATH=$(realpath "$0")
+# If invoked through a symlink (like Homebrew), resolve to actual file
+while [ -h "$SCRIPT_PATH" ]; do
+  SCRIPT_PATH=$(readlink "$SCRIPT_PATH")
+done
+BIN_DIR=$(dirname "$SCRIPT_PATH")
+ROOT_DIR=$(dirname "$BIN_DIR")
+
+# Support python 'pip' deployments which map libs to 'lib/better-anonymity'
+if [ -d "$ROOT_DIR/lib/better-anonymity" ]; then
+    LIB_DIR="$ROOT_DIR/lib/better-anonymity"
+    CONFIG_DIR="$ROOT_DIR/config/better-anonymity"
+else
+    LIB_DIR="$ROOT_DIR/lib"
+    CONFIG_DIR="$ROOT_DIR/config"
+fi
 
 # Check if lib exists
 if [ ! -d "$LIB_DIR" ]; then

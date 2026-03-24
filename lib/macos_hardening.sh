@@ -931,27 +931,27 @@ hardening_run_all() {
         hardening_backup
     fi
 
-    hardening_update_system
-    hardening_enable_firewall
-    hardening_disable_analytics
-    hardening_configure_privacy
-    hardening_secure_screen
-    hardening_harden_finder
-    hardening_anonymize_hostname
-    hardening_ensure_filevault
-    hardening_ensure_lockdown
-    hardening_secure_homebrew
-    hardening_disable_bonjour
-    hardening_secure_sudoers
-    hardening_set_umask
-    hardening_disable_captive_portal
-    hardening_manage_updates
-    hardening_enable_library_validation
-    hardening_enable_quarantine
-    hardening_remove_guest
-    hardening_secure_terminals
-    hardening_secure_sleep
-    hardening_disable_ipv6
+    [ "$(config_get hardening update_system true)" == "true" ] && hardening_update_system
+    [ "$(config_get hardening enable_firewall true)" == "true" ] && hardening_enable_firewall
+    [ "$(config_get hardening disable_analytics true)" == "true" ] && hardening_disable_analytics
+    [ "$(config_get hardening configure_privacy true)" == "true" ] && hardening_configure_privacy
+    [ "$(config_get hardening secure_screen true)" == "true" ] && hardening_secure_screen
+    [ "$(config_get hardening harden_finder true)" == "true" ] && hardening_harden_finder
+    [ "$(config_get hardening anonymize_hostname true)" == "true" ] && hardening_anonymize_hostname
+    [ "$(config_get hardening ensure_filevault true)" == "true" ] && hardening_ensure_filevault
+    [ "$(config_get hardening ensure_lockdown false)" == "true" ] && hardening_ensure_lockdown
+    [ "$(config_get hardening secure_homebrew true)" == "true" ] && hardening_secure_homebrew
+    [ "$(config_get hardening disable_bonjour true)" == "true" ] && hardening_disable_bonjour
+    [ "$(config_get hardening secure_sudoers true)" == "true" ] && hardening_secure_sudoers
+    [ "$(config_get hardening set_umask true)" == "true" ] && hardening_set_umask
+    [ "$(config_get hardening disable_captive_portal true)" == "true" ] && hardening_disable_captive_portal
+    [ "$(config_get hardening manage_updates true)" == "true" ] && hardening_manage_updates
+    [ "$(config_get hardening enable_library_validation true)" == "true" ] && hardening_enable_library_validation
+    [ "$(config_get hardening enable_quarantine true)" == "true" ] && hardening_enable_quarantine
+    [ "$(config_get hardening remove_guest true)" == "true" ] && hardening_remove_guest
+    [ "$(config_get hardening secure_terminals true)" == "true" ] && hardening_secure_terminals
+    [ "$(config_get hardening secure_sleep true)" == "true" ] && hardening_secure_sleep
+    [ "$(config_get hardening disable_ipv6 true)" == "true" ] && hardening_disable_ipv6
     # TCC reset is manual only
 }
 

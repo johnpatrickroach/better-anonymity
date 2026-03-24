@@ -1,0 +1,5 @@
+include bin/better-anonymity
+recursive-include lib *
+recursive-include config *
+include VERSION
+include README.md
