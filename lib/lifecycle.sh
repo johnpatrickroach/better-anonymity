@@ -199,10 +199,15 @@ restore_default() {
     
     if [ -n "$val" ]; then
         if [ "$val" == "__MISSING__" ]; then
+            # Delete the default if it was originally missing
             execute_sudo "Reset Default (Delete)" defaults delete "$domain" "$key" 2>/dev/null || true
         else
-            execute_sudo "Restore Default" defaults write "$domain" "$key" $type "$val"
+            # Restore the saved value; suppress any usage output from defaults
+            execute_sudo "Restore Default" defaults write "$domain" "$key" $type "$val" >/dev/null 2>&1 || warn "Failed to restore $domain $key"
         fi
+    else
+        # No saved state – nothing to restore
+        info "No saved state for $domain $key; skipping."
     fi
 }
 
@@ -682,43 +687,46 @@ lifecycle_update() {
 
 lifecycle_install_cli() {
     header "Installing Global CLI..."
-    local BIN_PATH="/usr/local/bin"
-    local SOURCE_BIN="$ROOT_DIR/bin/better-anonymity"
-    
-    # Check if /usr/local/bin exists
-    if [ ! -d "$BIN_PATH" ]; then
-        info "$BIN_PATH does not exist. Creating directory for global aliases..."
-        execute_sudo "Create bin/ folder" mkdir -p "$BIN_PATH"
+    local is_homebrew=0
+    local is_pip=0
+    if [[ "$SCRIPT_PATH" == *"/Cellar/"* ]] || [[ "$SCRIPT_PATH" == *"/opt/homebrew/"* ]]; then
+        is_homebrew=1
+    elif [[ "$SCRIPT_PATH" == *"/site-packages/"* ]] || { command -v pip3 &>/dev/null && pip3 show better-anonymity &>/dev/null; } || { command -v pip &>/dev/null && pip show better-anonymity &>/dev/null; }; then
+        is_pip=1
     fi
-    
-    info "Installing symlinks to $BIN_PATH..."
-    
-    # Create wrapper script (more robust than symlink for permissions/resolution)
-    # We use a wrapper that execs the absolute path to avoid symlink resolution issues
-    local WRAPPER_CONTENT="#!/bin/bash
+
+    if [ "$is_homebrew" -eq 1 ] || [ "$is_pip" -eq 1 ]; then
+        info "Package manager installation detected. Skipping manual /usr/local/bin wrappers."
+        # If user runs 'b-a install' from a package manager install, we only want to set up shell aliases
+    else
+        local BIN_PATH="/usr/local/bin"
+        local SOURCE_BIN="$ROOT_DIR/bin/better-anonymity"
+        
+        if [ ! -d "$BIN_PATH" ]; then
+            info "$BIN_PATH does not exist. Creating directory for global aliases..."
+            execute_sudo "Create bin/ folder" mkdir -p "$BIN_PATH"
+        fi
+        
+        info "Installing symlinks to $BIN_PATH..."
+        local WRAPPER_CONTENT="#!/bin/bash
 exec \"$SOURCE_BIN\" \"\$@\""
 
-    # Check if correct wrapper is already installed
-    if [ -f "$BIN_PATH/better-anonymity" ] && grep -qF "$SOURCE_BIN" "$BIN_PATH/better-anonymity"; then
-        success "better-anonymity is already installed (wrapper points to $SOURCE_BIN)."
-        return 0
+        if [ -f "$BIN_PATH/better-anonymity" ] && grep -qF "$SOURCE_BIN" "$BIN_PATH/better-anonymity"; then
+            info "better-anonymity is already installed (wrapper points to $SOURCE_BIN)."
+        else
+            info "Installing wrapper script to $BIN_PATH/better-anonymity..."
+            local tmp_wrapper
+            tmp_wrapper=$(mktemp /tmp/b-a-wrapper.XXXXXX)
+            echo "$WRAPPER_CONTENT" > "$tmp_wrapper"
+            chmod +x "$tmp_wrapper"
+            execute_sudo "Install Wrapper" mv "$tmp_wrapper" "$BIN_PATH/better-anonymity"
+            execute_sudo "Set Permissions" chmod 755 "$BIN_PATH/better-anonymity"
+        fi
+
+        # We always want the extra symlinks if manually installing
+        execute_sudo "Link better-anon" ln -sf "$BIN_PATH/better-anonymity" "$BIN_PATH/better-anon"
+        execute_sudo "Link b-a" ln -sf "$BIN_PATH/better-anonymity" "$BIN_PATH/b-a"
     fi
-
-    # Install main wrapper
-    info "Installing wrapper script to $BIN_PATH/better-anonymity..."
-    # Write to temp file first
-    local tmp_wrapper
-    tmp_wrapper=$(mktemp /tmp/b-a-wrapper.XXXXXX)
-    echo "$WRAPPER_CONTENT" > "$tmp_wrapper"
-    chmod +x "$tmp_wrapper"
-    
-    # Move to destination (sudo)
-    execute_sudo "Install Wrapper" mv "$tmp_wrapper" "$BIN_PATH/better-anonymity"
-    execute_sudo "Set Permissions" chmod 755 "$BIN_PATH/better-anonymity"
-
-    execute_sudo "Link better-anon" ln -sf "$BIN_PATH/better-anonymity" "$BIN_PATH/better-anon"
-    execute_sudo "Link b-a" ln -sf "$BIN_PATH/better-anonymity" "$BIN_PATH/b-a"
-    
     # 2. Setup Shell Aliases (torify, stay-connected, etc.)
     info "Installing shell aliases..."
     local alias_file="$HOME/.better-anonymity/.cli_aliases"
@@ -817,10 +825,33 @@ lifecycle_uninstall() {
     if ask_confirmation_with_info "Remove CLI shims?" \
         "This removes the global commands: better-anonymity, better-anon, and b-a." \
         "Installed tools (Tor, Privoxy, etc.) are not removed by this step."; then
-        execute_sudo "Remove better-anonymity" rm -f "$BIN_PATH/better-anonymity"
-        execute_sudo "Remove better-anon" rm -f "$BIN_PATH/better-anon"
-        execute_sudo "Remove b-a" rm -f "$BIN_PATH/b-a"
-        success "Symlinks removed."
+        
+        local is_homebrew=0
+        local is_pip=0
+        
+        if [[ "$SCRIPT_PATH" == *"/Cellar/"* ]] || [[ "$SCRIPT_PATH" == *"/opt/homebrew/"* ]]; then
+            is_homebrew=1
+        elif command -v pip3 &>/dev/null && pip3 show better-anonymity &>/dev/null; then
+            is_pip=1
+        elif command -v pip &>/dev/null && pip show better-anonymity &>/dev/null; then
+            is_pip=1
+        fi
+        
+        if [ "$is_homebrew" -eq 1 ]; then
+            info "Uninstalling Homebrew package..."
+            # Brew uninstall requires dropping privileges if running as root
+            execute_brew "Uninstall better-anonymity" uninstall better-anonymity || warn "Failed to uninstall via Homebrew."
+            success "Homebrew package removed."
+        elif [ "$is_pip" -eq 1 ]; then
+            info "Uninstalling pip package..."
+            pip3 uninstall -y better-anonymity 2>/dev/null || pip uninstall -y better-anonymity 2>/dev/null || warn "Failed to uninstall pip package. You may need to run 'pip uninstall better-anonymity' manually."
+            success "Pip package (CLI shims) removed."
+        else
+            execute_sudo "Remove better-anonymity" rm -f "$BIN_PATH/better-anonymity"
+            execute_sudo "Remove better-anon" rm -f "$BIN_PATH/better-anon"
+            execute_sudo "Remove b-a" rm -f "$BIN_PATH/b-a"
+            success "Symlinks removed."
+        fi
     fi
     
     warn "This command does NOT remove installed tools (Tor, Privoxy) or configuration files (~/.better-anonymity)."

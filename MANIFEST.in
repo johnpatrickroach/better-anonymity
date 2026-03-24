@@ -1,4 +1,4 @@
-include bin/better-anonymity
+recursive-include bin *
 recursive-include lib *
 recursive-include config *
 include VERSION

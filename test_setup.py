@@ -1,20 +1,15 @@
-# setup.py
-from setuptools import setup
-
-from setuptools.command.build_py import build_py
-import os
 import shutil
+import os
+from setuptools import setup
+from setuptools.command.build_py import build_py
 
 class CustomBuildPy(build_py):
     def run(self):
         super().run()
-        # The python package is built into self.build_lib
         pkg_dir = os.path.join(self.build_lib, 'better_anonymity')
-        # Copy the bash script assets into the built package
         for d in ['bin', 'lib', 'config']:
             dest = os.path.join(pkg_dir, d)
             if os.path.exists(d):
                 shutil.copytree(d, dest, dirs_exist_ok=True)
 
-if __name__ == "__main__":
-    setup(cmdclass={'build_py': CustomBuildPy})
+setup(cmdclass={'build_py': CustomBuildPy})
