@@ -3,7 +3,7 @@ class BetterAnonymity < Formula
   homepage "https://github.com/johnpatrickroach/better-anonymity"
   
   url "https://github.com/johnpatrickroach/better-anonymity/archive/refs/tags/v1.0.1.tar.gz"
-  sha256 "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5"
+  sha256 "2bd2b8d877193d314f5e06f7da591e1a63eda2cf35faa96aab7b9845222be9e4"
   license "MIT"
 
   depends_on "curl"
