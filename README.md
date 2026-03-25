@@ -40,18 +40,11 @@ These scripts modify system settings, network configurations, and application pr
 
 ## Installation
 
-First, clone the repository:
-
-```bash
-git clone https://github.com/johnpatrickroach/better-anonymity.git
-cd better-anonymity
-```
-
-Then choose your preferred installation method:
+Choose your preferred installation method:
 
 ### Option 1: Homebrew (Recommended)
 
-Install using our custom tap:
+Install directly using our custom Homebrew tap:
 
 ```bash
 brew tap johnpatrickroach/better-anonymity
@@ -60,30 +53,28 @@ brew install better-anonymity
 
 ### Option 2: Pip (Python)
 
-If you have Python 3 installed, you can install directly:
+You can install the highly accessible Python wrapper directly from PyPI. This will automatically install dependencies and place the CLI in your `$PATH`.
 
 ```bash
-pip install .
+pip install better-anonymity
 ```
 
-*Note: On newer macOS versions, you might encounter an "externally-managed-environment" error. If so, use `pipx install .` or `pip install . --break-system-packages` (if you are sure).*
+*Note: On newer macOS versions, you might encounter an "externally-managed-environment" error. If so, we recommend using `pipx install better-anonymity`.*
 
-This will verify dependencies and install the `better-anonymity` (and `b-a`) commands to your Python bin path.
-*Note: Ensure your Python bin directory is in your PATH.*
+### Option 3: Install from Source
 
-### Option 3: Manual Install
+If you prefer to run the raw Bash scripts or want to contribute to the codebase, clone the repository directly:
 
-If you don't use Homebrew or Pip, manually install the global aliases:
+```bash
+git clone https://github.com/johnpatrickroach/better-anonymity.git
+cd better-anonymity
+```
+
+Then, manually install the global aliases (`b-a`):
 
 ```bash
 ./bin/better-anonymity install
 ```
-
-This will create symlinks in `/usr/local/bin`, allowing you to run the tool from anywhere using any of the following aliases:
-
-* `better-anonymity`
-* `better-anon`
-* `b-a`
 
 ## Configuration
 
