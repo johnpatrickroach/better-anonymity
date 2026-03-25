@@ -2,9 +2,8 @@ class BetterAnonymity < Formula
   desc "macOS CLI for advanced privacy, security hardening, and anonymity"
   homepage "https://github.com/johnpatrickroach/better-anonymity"
   
-  # TODO: Replace the URL and SHA256 when you create a GitHub Release
-  url "https://github.com/johnpatrickroach/better-anonymity/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  url "https://github.com/johnpatrickroach/better-anonymity/archive/refs/tags/v1.0.1.tar.gz"
+  sha256 "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5"
   license "MIT"
 
   depends_on "curl"
