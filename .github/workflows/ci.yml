@@ -10,11 +10,16 @@ jobs:
   test:
     name: Run Tests
     runs-on: macos-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
+
+    - name: Configure Git Safe Directory
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Set up Homebrew
       run: brew update
