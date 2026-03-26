@@ -200,10 +200,10 @@ restore_default() {
     if [ -n "$val" ]; then
         if [ "$val" == "__MISSING__" ]; then
             # Delete the default if it was originally missing
-            execute_sudo "Reset Default (Delete)" defaults delete "$domain" "$key" 2>/dev/null || true
+            execute_sudo "Reset Default (Delete)" defaults delete "$domain" "$key" >/dev/null 2>&1 || true
         else
-            # Restore the saved value; suppress any usage output from defaults
-            execute_sudo "Restore Default" defaults write "$domain" "$key" $type "$val" >/dev/null 2>&1 || warn "Failed to restore $domain $key"
+            # Restore the saved value; let execute_sudo control output
+            execute_sudo "Restore Default" defaults write "$domain" "$key" $type "$val" || warn "Failed to restore $domain $key"
         fi
     else
         # No saved state – nothing to restore
