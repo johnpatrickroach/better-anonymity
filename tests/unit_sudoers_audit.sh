@@ -13,6 +13,16 @@ fail() { echo -e "${RED}[FAIL]${NC} $1"; ((FAILED++)); }
 info() { echo "INFO: $*"; }
 warn() { echo "WARN: $*"; }
 
+# Setup environment
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+export ROOT_DIR
+
+# Mock sudo keepalive BEFORE sourcing lib/core.sh to prevent password prompts
+start_sudo_keepalive() { :; }
+stop_sudo_keepalive() { :; }
+
+source "$ROOT_DIR/lib/core.sh"
+
 # Mock grep (sudo grap)
 # We test different grep outputs by exporting MOCK_GREP_OUTPUT
 sudo() {
@@ -27,7 +37,7 @@ start_suite "Sudoers Smart Audit"
 
 # Source library (mocking sudo before source isn't enough if sourced functions call sudo directly,
 # but our mock is defined before execution so it overrides)
-source "$(dirname "$0")/../lib/macos_hardening.sh"
+source "$ROOT_DIR/lib/macos_hardening.sh"
 
 
 # Test 1: Clean/Standard Output (Should PASS silent)

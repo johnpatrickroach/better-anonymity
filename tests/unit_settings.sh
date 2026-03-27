@@ -17,7 +17,7 @@ fail() {
 }
 
 # Mock ROOT_DIR
-ROOT_DIR="$(dirname "$0")/.."
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 export ROOT_DIR
 
 # Mock sudo keepalive BEFORE sourcing lib/core.sh to prevent password prompts

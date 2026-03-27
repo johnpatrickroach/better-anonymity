@@ -122,9 +122,7 @@ sudo() {
         "$@"
         return $?
     fi
-    # For other cases, try to run the command without actually using sudo
-    # This allows the command to run (if it doesn't need actual sudo), or fail safely
-    shift
+    # For other cases, just run the command without sudo
     "$@"
     return $?
 }

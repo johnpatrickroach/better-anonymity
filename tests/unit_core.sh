@@ -6,7 +6,7 @@
 source "$(dirname "$0")/test_framework.sh"
 
 # Setup environment
-ROOT_DIR="$(dirname "$0")/.."
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 export ROOT_DIR
 
 source "$(dirname "$0")/../lib/core.sh"
