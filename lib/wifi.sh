@@ -293,7 +293,7 @@ wifi_install_spoof_daemon() {
     execute_sudo "Setting permissions..." chmod 644 "$plist_path"
     
     # Unload first just in case
-    execute_sudo "Unloading old daemon (if exists)..." launchctl unload "$plist_path" 2>/dev/null || true
+    execute_sudo "Unloading old daemon (if exists)..." launchctl unload -w "$plist_path" 2>/dev/null || true
     
     if execute_sudo "Loading LaunchDaemon..." launchctl load "$plist_path"; then
         success "MAC Spoofing will now run automatically at boot."

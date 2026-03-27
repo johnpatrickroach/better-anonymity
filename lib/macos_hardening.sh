@@ -57,9 +57,15 @@ hardening_enable_firewall() {
 
 hardening_disable_analytics() {
     info "Disabling Analytics and Crash Reports..."
-    set_launchctl "Unload DIAG info" "unload" -w /System/Library/LaunchDaemons/com.apple.SubmitDiagInfo.plist sudo
-    set_default "Disable AutoSubmit" "/Library/Preferences/com.apple.loginwindow" ""AutoSubmit"" "-bool" "false" sudo
-    set_default "Set setting "Siri Data Sharing Opt-In Status"" "com.apple.assistant.support" "Siri Data Sharing Opt-In Status" "-int" "2"
+
+    if hardening_check_sip; then
+        warn "SIP is enabled; cannot unload com.apple.SubmitDiagInfo while SIP protects /System. Skipping DIAG service disable."
+    else
+        set_launchctl "Unload DIAG info" "bootout" "/System/Library/LaunchDaemons/com.apple.SubmitDiagInfo.plist" "sudo"
+    fi
+
+    set_default "Disable AutoSubmit" "/Library/Preferences/com.apple.loginwindow" "AutoSubmit" "-bool" "false" sudo
+    set_default "Set setting 'Siri Data Sharing Opt-In Status'" "com.apple.assistant.support" "Siri Data Sharing Opt-In Status" "-int" "2"
     defaults write com.apple.CrashReporter DialogType none
     
     # Aggressive Siri Disable (Privacy.sexy)
@@ -72,10 +78,10 @@ hardening_disable_analytics() {
     launchctl disable "user/$UID/com.apple.Siri.agent"
     launchctl disable "user/$UID/com.apple.assistantd"
     
-    set_default "Set setting 'DidSeeSiriSetup'" "com.apple.SetupAssistant" "'DidSeeSiriSetup'" "-bool" "True"
+    set_default "Set setting 'DidSeeSiriSetup'" "com.apple.SetupAssistant" "DidSeeSiriSetup" "-bool" "True"
     defaults write com.apple.systemuiserver 'NSStatusItem Visible Siri' 0
-    set_default "Set setting 'StatusMenuVisible'" "com.apple.Siri" "'StatusMenuVisible'" "-bool" "false"
-    set_default "Set setting 'UserHasDeclinedEnable'" "com.apple.Siri" "'UserHasDeclinedEnable'" "-bool" "true"
+    set_default "Set setting 'StatusMenuVisible'" "com.apple.Siri" "StatusMenuVisible" "-bool" "false"
+    set_default "Set setting 'UserHasDeclinedEnable'" "com.apple.Siri" "UserHasDeclinedEnable" "-bool" "true"
 
     info "Disabling Apple Intelligence Features..."
     # Disable Writing Tools, Mail Summarization, and Notes Summarization (CIS benchmark)
@@ -281,12 +287,21 @@ hardening_disable_services() {
         execute_sudo "Disable Remote Management (ARD)" "$ard_agent" -deactivate -stop
     fi
     # Aggressive Removal (Privacy.sexy)
-    execute_sudo "Remove ARD Settings" rm -rf /var/db/RemoteManagement
-    execute_sudo "Remove ARD PList" rm -f /Library/Preferences/com.apple.RemoteDesktop.plist
-    rm -f ~/Library/Preferences/com.apple.RemoteDesktop.plist
-    execute_sudo "Remove ARD App Support" rm -rf /Library/Application\ Support/Apple/Remote\ Desktop/
-    rm -rf ~/Library/Application\ Support/Remote\ Desktop/
-    rm -rf ~/Library/Containers/com.apple.RemoteDesktop
+    # Aggressive ARD Removal (skip if SIP enabled)
+    if ! hardening_check_sip; then
+        execute_sudo "Remove ARD Settings" rm -rf /var/db/RemoteManagement || true
+        execute_sudo "Remove ARD PList" rm -f /Library/Preferences/com.apple.RemoteDesktop.plist || true
+    else
+        info "Skipping SIP-protected ARD removal (/var/db, /Library/Preferences) - normal on stock macOS."
+    fi
+    rm -f "$HOME/Library/Preferences/com.apple.RemoteDesktop.plist" || true
+    if ! hardening_check_sip; then
+        execute_sudo "Remove ARD App Support" rm -rf "/Library/Application Support/Apple/Remote Desktop/" || true
+    else
+        info "Skipping SIP-protected ARD App Support removal - normal."
+    fi
+    rm -rf "$HOME/Library/Application Support/Remote Desktop/" || true
+    rm -rf "$HOME/Library/Containers/com.apple.RemoteDesktop" || true
     
     # 4. Printer Sharing
     if command -v cupsctl >/dev/null; then
@@ -302,8 +317,9 @@ hardening_disable_services() {
     set_default "Disable AFP Guest" "/Library/Preferences/com.apple.AppleFileServer" ""guestAccess"" "-bool" "NO" sudo
     
     if command -v sysadminctl >/dev/null; then
-         execute_sudo "Disable SMB Guest (sysadminctl)" sysadminctl -smbGuestAccess off
-         execute_sudo "Disable AFP Guest (sysadminctl)" sysadminctl -afpGuestAccess off
+         # execute_sudo "Disable SMB Guest (sysadminctl)" sysadminctl -smbGuestAccess off
+         # execute_sudo "Disable AFP Guest (sysadminctl)" sysadminctl -afpGuestAccess off
+         info "SMB/AFP Guest already disabled via defaults write above."
     fi
     
     # 6. AirPlay Receiver
@@ -312,8 +328,8 @@ hardening_disable_services() {
     
     # 7. Internet Sharing & Media Sharing
     info "Disabling Internet and Media Sharing..."
-    set_default "Set setting NAT" "com.apple.nat" "NAT" "-dict" "Enabled -int 0"
-    set_launchctl "Disable Media Sharing" "unload" -w /System/Library/LaunchDaemons/com.apple.mediaremoted.plist sudo
+    execute_sudo "Disable NAT (Internet Sharing)" defaults write com.apple.nat NAT -dict Enabled -int 0
+    execute_sudo "Disable Media Sharing (if loaded)" launchctl bootout system/com.apple.mediaremoted 2>/dev/null || true
     
     # 8. Wake on LAN
     info "Disabling Wake on Network Access..."
@@ -322,11 +338,11 @@ hardening_disable_services() {
     # 9. HTTP and NFS Servers
     info "Disabling HTTP and NFS Servers..."
     set_launchctl "Disable HTTP Server" "disable" 'system/org.apache.httpd' sudo
-    execute_sudo "Disable NFS Server" nfsd disable
+    execute_sudo "Disable NFS Server" nfsd disable || true
 
     # 10. Content Caching
     info "Disabling Content Caching..."
-    execute_sudo "Disable Content Caching" AssetCacheManagerUtil deactivate
+    execute_sudo "Disable Content Caching" AssetCacheManagerUtil deactivate || true
 }
 
 hardening_manage_updates() {

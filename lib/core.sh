@@ -739,9 +739,27 @@ set_launchctl() {
     fi
 
     if [ "$use_sudo" == "sudo" ]; then
-        execute_sudo "$desc" launchctl $action "$service"
+        if [ "$action" == "bootout" ]; then
+            execute_sudo "$desc" launchctl bootout system/$service_name
+        elif [[ "$action" == *" "* ]]; then
+            local cmd opts
+            cmd=$(echo "$action" | awk '{print $1}')
+            opts=$(echo "$action" | awk '{$1=""; print $0}' | sed 's/^ *//')
+            execute_sudo "$desc" launchctl $cmd "$service" $opts
+        else
+            execute_sudo "$desc" launchctl $action "$service"
+        fi
     else
         info "$desc"
-        launchctl $action "$service"
+        if [ "$action" == "bootout" ]; then
+            launchctl bootout system/$service_name
+        elif [[ "$action" == *" "* ]]; then
+            local cmd opts
+            cmd=$(echo "$action" | awk '{print $1}')
+            opts=$(echo "$action" | awk '{$1=""; print $0}' | sed 's/^ *//')
+            launchctl $cmd "$service" $opts
+        else
+            launchctl $action "$service"
+        fi
     fi
 }
