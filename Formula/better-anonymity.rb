@@ -2,8 +2,8 @@ class BetterAnonymity < Formula
   desc "macOS CLI for advanced privacy, security hardening, and anonymity"
   homepage "https://github.com/johnpatrickroach/better-anonymity"
   
-  url "https://github.com/johnpatrickroach/better-anonymity/archive/refs/tags/v1.0.3.tar.gz"
-  sha256 "305abdce0068ce14ac0b3109bc53102dae51b3127f9b7f86b3754319a26decca"
+  url "https://github.com/johnpatrickroach/better-anonymity/archive/refs/tags/v1.0.4.tar.gz"
+  sha256 "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5"
   license "MIT"
 
   depends_on "curl"
