@@ -51,14 +51,17 @@ This document provides a comprehensive list of all commands and subcommands avai
 | :--- | :--- | :--- |
 | `wifi` | `audit` | Audits current Wi-Fi security (SSID, Encryption). |
 | | `spoof-mac [new_mac]` | Spoofs MAC address. Auto-generates if argument is empty. |
-| | `daemon-on` | Enables automatic MAC spoofing at boot (LaunchDaemon). |
-| | `daemon-off` | Disables automatic MAC spoofing at boot. |
+| | `daemon-on` | Enables automatic MAC spoofing at boot, sleep wakes, and network changes (LaunchDaemon). |
+| | `daemon-off` | Disables automatic MAC spoofing. |
 
 ## macOS Hardening
 
 | Command | Description |
 | :--- | :--- |
 | `better-anonymity harden` | Runs the full CIS-compliant hardening suite (Firewall, FileVault, Apple Intelligence, Analytics, etc). |
+| `better-anonymity harden browser` | Injects an aggressive `user.js` asset into discovered LibreWolf/Firefox profiles to block telemetry and fingerprinting. |
+| `better-anonymity firewall blocklist` | Fetches threat-intelligence IP lists (FireHOL, EmergingThreats) and injects them into the macOS `pfctl` firewall. |
+| `better-anonymity firewall unblock` | Flushes the custom blocklist table from the packet filter firewall. |
 | `better-anonymity verify-security` | Audits current security settings against baseline. |
 | `better-anonymity misc-harden` | Applies miscellaneous tweaks (Finder, Sudoers, Guest Account). |
 | `better-anonymity ssh audit-sshd` | Checks SSH Server configuration goodness. |

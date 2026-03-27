@@ -94,6 +94,7 @@ usage() {
     echo ""
     echo "Security & Privacy:"
     echo "  harden            Run macOS hardening checks"
+    echo "  harden browser    Inject the offline aggressive better-anonymity user.js into active profiles"
     echo "  misc-harden       Run miscellaneous hardening (Finder, sudoers, etc.)"
     echo "  verify-security   Verify system security status"
     echo "  cleanup           Run system and browser cleanup"
@@ -107,6 +108,7 @@ usage() {
     echo "  ssh [cmd]         SSH tools (audit-sshd, harden-client)"
     echo "  network-open      Restore network defaults (disable proxy, resetting services)"
     echo "  network-anon      Enable anonymity mode (starts DNSCrypt, Privoxy, Tor, I2P; sets System/SOCKS proxies)"
+    echo "  firewall [cmd]    Manage hardware IP firewall (blocklist, unblock)"
     echo ""
     echo "Tools & Services:"
     echo "  install [tool]    Install tools (tor, i2p, privoxy, gpg, signal, linkliar, etc.)"
@@ -173,8 +175,13 @@ show_explanation() {
             echo "Allows navigation through all features via arrow keys."
             ;;
         harden)
-            echo "Runs the complete macOS hardening suite."
-            echo "Applying settings for Firewall, Privacy, Finder, and System preferences."
+            if [ "$subcmd" == "browser" ]; then
+                echo "Initiates targeted Browser Hardening payload."
+                echo "Searches for Firefox and LibreWolf profiles and injects a static 'user.js' to disable WebRTC, analytics, and fingerprinting."
+            else
+                echo "Runs the complete macOS hardening suite."
+                echo "Applying settings for Firewall, Privacy, Finder, and System preferences."
+            fi
             ;;
         dns)
             echo "Configures the system DNS servers."
@@ -253,6 +260,11 @@ show_explanation() {
             echo "Wi-Fi Privacy Tools."
             echo "Can audit current security, spoof the MAC address, or manage the boot daemon."
             ;;
+        firewall)
+            echo "Hardware IP Firewall Management."
+            echo "Commands: blocklist, unblock."
+            echo "Downloads massive Threat Intelligence IP lists and injects them natively into macOS pfctl."
+            ;;
         ssh)
             echo "SSH Hardening Tools."
             echo "Can audit sshd config or harden client/server configurations."
@@ -311,8 +323,13 @@ case "$COMMAND" in
         interactive_menu
         ;;
     harden)
-        load_module "macos_hardening"
-        hardening_run_all
+        if [[ "$1" == "browser" ]]; then
+            load_module "browser_hardening"
+            harden_browser_profiles
+        else
+            load_module "macos_hardening"
+            hardening_run_all
+        fi
         ;;
     dns)
         if [[ -z "$1" ]]; then
@@ -423,6 +440,14 @@ case "$COMMAND" in
     cleanup|cleanup-metadata)
          load_module "cleanup"
          cleanup_metadata
+         ;;
+    firewall)
+         load_module "firewall"
+         case "$1" in
+            blocklist) firewall_enable_blocklist ;;
+            unblock)   firewall_disable_blocklist ;;
+            *)         error "Usage: better-anonymity firewall [blocklist|unblock]" ;;
+         esac
          ;;
     vault)
          load_module "vault"

@@ -30,6 +30,19 @@ better-anonymity wifi spoof-mac
 
 *Note: This will temporarily disconnect you from the network.*
 
+**Automated Event-Driven Spoofing (Daemon)**:
+If you want to automate this process so that your MAC address is mathematically scrambled every single time your computer boots up, wakes from sleep, or connects to a new network environment, install the background LaunchDaemon:
+
+```bash
+better-anonymity wifi daemon-on
+```
+
+To safely remove the daemon and restore normal static MAC behavior:
+
+```bash
+better-anonymity wifi daemon-off
+```
+
 **LinkLiar GUI Tool**:
 For users who prefer a graphical interface or want persistent MAC address spoofing rules managed beautifully in the macOS menu bar, LinkLiar is excellent. You can install it via the CLI:
 

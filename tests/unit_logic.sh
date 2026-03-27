@@ -444,6 +444,35 @@ assert_contains "$OUTPUT" "EXEC: /usr/libexec/ApplicationFirewall/socketfilterfw
 assert_contains "$OUTPUT" "EXEC: /usr/libexec/ApplicationFirewall/socketfilterfw --setallowsigned off" "Should disable allow signed"
 assert_contains "$OUTPUT" "EXEC: pkill -HUP socketfilterfw" "Should reload firewall"
 
+# Test 6.5: PF Firewall Blocklist
+# -------------------------------
+source lib/firewall.sh
+
+# Mock dependencies
+execute_sudo() { echo "SUDO_EXEC: $*"; }
+save_state_var() { echo "STATE: $*"; }
+curl() { echo "192.168.1.1"; echo "8.8.8.8"; }
+
+OUTPUT=$(firewall_enable_blocklist)
+assert_contains "$OUTPUT" "1 unique threat IPs" "Should filter internal IPs"
+assert_contains "$OUTPUT" "SUDO_EXEC: Enable PF Firewall pfctl -e" "Should enable PF"
+assert_contains "$OUTPUT" "SUDO_EXEC: Load PF Ruleset pfctl -f /etc/pf.conf" "Should load PF rules"
+
+OUTPUT_DISABLE=$(firewall_disable_blocklist)
+assert_contains "$OUTPUT_DISABLE" "SUDO_EXEC: Flush PF Ruleset pfctl -f /etc/pf.conf" "Should flush PF rules"
+
+unset -f save_state_var curl
+# Restore global execute_sudo mock for subsequent tests
+execute_sudo() {
+    shift # Remove description
+    if declare -f "$1" > /dev/null; then
+        "$@"
+    else
+        echo "EXEC: $*"
+    fi
+}
+
+
 
 # Test 7: Homebrew Hardening
 # --------------------------
@@ -610,12 +639,77 @@ cd - > /dev/null || exit 1
 export ROOT_DIR="$OLD_ROOT_DIR"
 rm -rf "$TEST_ROOT"
 # Restore trap
+# Restore trap
 trap - EXIT
 
+# Test 10.5: Aggressive Browser Hardening
+# ---------------------------------------
+source lib/browser_hardening.sh
 
-# Test 10: PingBar Installation
-# -----------------------------
-# Mock swift, git, make, defaults
+# Mock get_firefox_profile
+get_firefox_profile() {
+    echo "/tmp/mock_ff_profile"
+    return 0
+}
+
+# Create mock profile directory
+mkdir -p /tmp/mock_ff_profile
+touch /tmp/mock_ff_profile/user.js
+touch /tmp/mock_ff_profile/prefs.js
+
+# Ensure asset can be found relative to test context
+export CONFIG_DIR="./config"
+
+# Mock date to predictable value for backups
+date() { echo "20240101120000"; }
+execute_sudo() { echo "SUDO: $*"; }
+header() { echo "HEADER: $*"; }
+save_state_var() { echo "STATE: $*"; }
+
+OUTPUT=$(harden_browser_profiles)
+
+assert_contains "$OUTPUT" "SUDO: Backup user.js cp /tmp/mock_ff_profile/user.js /tmp/mock_ff_profile/user.js.old.20240101120000" "Should backup user.js"
+assert_contains "$OUTPUT" "SUDO: Backup prefs.js cp /tmp/mock_ff_profile/prefs.js /tmp/mock_ff_profile/prefs.js.old.20240101120000" "Should backup prefs.js"
+assert_contains "$OUTPUT" "SUDO: Inject user.js cp ./config/browser/user.js /tmp/mock_ff_profile/user.js" "Should copy static user.js"
+
+# Cleanup
+unset -f date header save_state_var
+
+# Restore real get_firefox_profile
+get_firefox_profile() {
+    local FIREFOX_DIR="$HOME/Library/Application Support/Firefox/Profiles"
+    if [ ! -d "$FIREFOX_DIR" ]; then
+        return 1
+    fi
+    local profile_path=""
+    local dr_profile
+    dr_profile=$(find "$FIREFOX_DIR" -maxdepth 1 -name "*.default-release" | head -n 1)
+    if [ -n "$dr_profile" ]; then
+        profile_path="$dr_profile"
+    else
+        local d_profile
+        d_profile=$(find "$FIREFOX_DIR" -maxdepth 1 -name "*.default" -print | head -n 1)
+        if [ -n "$d_profile" ]; then
+            profile_path="$d_profile"
+        fi
+    fi
+    if [ -z "$profile_path" ]; then
+        return 1
+    fi
+    echo "$profile_path"
+    return 0
+}
+
+# Restore global execute_sudo mock for subsequent tests
+execute_sudo() {
+    shift # Remove description
+    if declare -f "$1" > /dev/null; then
+        "$@"
+    else
+        echo "EXEC: $*"
+    fi
+}
+
 # Mock swift, git, make, defaults, open, pgrep
 swift() { return 0; }
 git() { 
@@ -1480,6 +1574,11 @@ ssh-keygen() { echo "SSH_KEYGEN_CALL: $*"; }
 # touch "./config/ssh/sshd_config"
 
 source "$(dirname "$0")/../lib/ssh.sh"
+
+# Sourcing ssh.sh pulled in core.sh, which overwrote our test mocks.
+# Restore global ask_confirmation immediately!
+ask_confirmation() { return 0; }
+
 # Mock check_port locally (needed by ssh_check_sshd_status)
 check_port() { return 1; }
 
@@ -1595,9 +1694,8 @@ sudo() {
 # Mock launchctl for umask
 launchctl() { echo "LAUNCHCTL_CALL: $*"; }
 
-# Source lib again to ensure mocks apply (though already sourced by earlier tests, logic might bind early)
-# Actually, the function uses 'sudo' which is a function now.
-source "$(dirname "$0")/../lib/macos_hardening.sh"
+# The functions from macos_hardening.sh are already loaded. 
+# Re-sourcing it here breaks the execute_sudo and auto-confirm global mocks.
 
 # Override MDNS_PLIST to non-existent for test
 MDNS_PLIST="/tmp/non_existent_plist_$$"

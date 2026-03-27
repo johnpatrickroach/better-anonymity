@@ -318,6 +318,11 @@ lifecycle_restore_state() {
     local STATE_SSH
     STATE_SSH=$(get_state_var "STATE_SSH")
 
+    local STATE_PF_BLOCKLIST
+    STATE_PF_BLOCKLIST=$(get_state_var "STATE_PF_BLOCKLIST")
+
+    local STATE_BROWSER_HARDENING
+    STATE_BROWSER_HARDENING=$(get_state_var "STATE_BROWSER_HARDENING")
     
     info "Restoring System Settings..."
     
@@ -363,6 +368,14 @@ lifecycle_restore_state() {
              execute_sudo "Enable Firewall" "$SOCKETFILTERFW_CMD" --setglobalstate on
         else
              execute_sudo "Disable Firewall" "$SOCKETFILTERFW_CMD" --setglobalstate off
+        fi
+    fi
+    
+    if [ "$STATE_PF_BLOCKLIST" == "enabled" ]; then
+        info "Restoring Hardware PF Firewall (Disabling Blocklist)..."
+        load_module "firewall" 2>/dev/null || true
+        if type firewall_disable_blocklist &>/dev/null; then
+             firewall_disable_blocklist
         fi
     fi
     
@@ -425,6 +438,21 @@ lifecycle_restore_state() {
         sed_in_place '/\.homebrew_secure_env/d' "$HOME/.zshrc"
         sed_in_place '/\.cli_aliases/d' "$HOME/.zshrc"
         # Also remove completion block if present (harder to regex, usually manually added by user per README)
+    fi
+
+    # 8. Restore Browser Profiles
+    if [ "$STATE_BROWSER_HARDENING" == "enabled" ]; then
+        info "Restoring Firefox Profilies (Backups)..."
+        local FIREFOX_DIR="$HOME/Library/Application Support/Firefox/Profiles"
+        if [ -d "$FIREFOX_DIR" ]; then
+            # Find and restore all files ending with .old.TIMESTAMP
+            find "$FIREFOX_DIR" -type f -name "*.old.*" | while read -r backup_file; do
+                local original_file="${backup_file%.old.*}"
+                info "Restoring $(basename "$original_file") from backup..."
+                execute_sudo "Restore $original_file" cp "$backup_file" "$original_file"
+            done
+        fi
+        save_state_var "STATE_BROWSER_HARDENING" "__MISSING__"
     fi
 }
 

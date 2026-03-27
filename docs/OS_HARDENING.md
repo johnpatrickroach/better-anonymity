@@ -17,6 +17,18 @@ There are several types of firewalls available for macOS. The **Application Laye
 The script enables the firewall and **Stealth Mode**.
 > Computer hackers scan networks so they can attempt to identify computers to attack. You can prevent your computer from responding to some of these scans by using stealth mode. When stealth mode is enabled, your computer does not respond to ICMP ping requests, and does not answer to connection attempts from a closed TCP or UDP port.
 
+#### Hardware IP Blocklisting (`pfctl`)
+
+MacOS features a powerful underlying packet filter (`pfctl`) beneath the Application Layer Firewall. The Better-Anonymity CLI can utilize this to permanently drop traffic from known malicious actors, botnets, and tracking telemetry servers at the kernel level.
+
+Use the `firewall blocklist` command to download industry-standard Threat Intelligence IP lists (FireHOL, EmergingThreats) and inject them natively into the macOS pf tables:
+
+```bash
+better-anonymity firewall blocklist
+```
+
+This ensures your mac drops all packets to/from known hostile networks across all applications.
+
 #### Signed Software Handling
 
 To prevent built-in software as well as code-signed, downloaded software from being whitelisted automatically, the script sets `allowsigned` and `allowsignedapp` to `off`.

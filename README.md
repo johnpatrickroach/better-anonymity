@@ -32,9 +32,9 @@ These scripts modify system settings, network configurations, and application pr
 
 ## Features
 
-* **OS Hardening**: Disables telemetry, enables firewall, configures secure boot requirements.
-* **Network Privacy**: DNS configuration, Privoxy setup for local proxying, MAC Spoofing.
-* **Browser Hardening**: `user.js` for Firefox privacy.
+* **OS Hardening**: Disables telemetry, enables firewall with hardware-level IP blocklists (`pfctl`), configures secure boot requirements.
+* **Network Privacy**: DNS configuration, Privoxy setup for local proxying, Boot-persistent MAC Spoofing via event-driven LaunchDaemons.
+* **Browser Hardening**: Automated surgical `user.js` injection for Firefox/LibreWolf privacy.
 * **Anonymity**: Scripts to assist with Tor configuration and I2P installation.
 * **UX**: Automatic Sudo Keep-Alive to minimize password prompts during setup.
 

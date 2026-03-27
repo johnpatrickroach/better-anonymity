@@ -268,6 +268,13 @@ wifi_install_spoof_daemon() {
     </array>
     <key>RunAtLoad</key>
     <true/>
+    <key>WatchPaths</key>
+    <array>
+        <string>/Library/Preferences/SystemConfiguration/com.apple.wifi.message-tracer.plist</string>
+        <string>/Library/Preferences/SystemConfiguration/com.apple.airport.preferences.plist</string>
+    </array>
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
     <key>StandardErrorPath</key>
     <string>/var/log/better-anonymity-macspoof.log</string>
     <key>StandardOutPath</key>
