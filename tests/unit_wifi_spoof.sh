@@ -5,6 +5,14 @@
 
 source "$(dirname "$0")/test_framework.sh"
 
+# Setup environment
+ROOT_DIR="$(dirname "$0")/.."
+export ROOT_DIR
+
+# Mock sudo keepalive BEFORE sourcing lib/core.sh to prevent password prompts
+start_sudo_keepalive() { :; }
+stop_sudo_keepalive() { :; }
+
 # Pre-mock get_airport_bin to avoid error during source
 get_airport_bin() { echo ""; }
 

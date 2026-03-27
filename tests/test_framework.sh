@@ -104,3 +104,28 @@ fail() {
     echo -e "${RED}[FAIL]${NC} $1"
     ((FAILED++))
 }
+
+# ========================================
+# Global Test Mocks (No User Interaction)
+# ========================================
+
+# Prevent sudo from prompting for passwords
+sudo() {
+    # Mock sudo to prevent password prompts
+    # If called with -v (validate), just succeed
+    if [[ "$1" == "-v" ]]; then
+        return 0
+    fi
+    # If called with -n (non-interactive), run the command
+    if [[ "$1" == "-n" ]]; then
+        shift
+        "$@"
+        return $?
+    fi
+    # For other cases, try to run the command without actually using sudo
+    # This allows the command to run (if it doesn't need actual sudo), or fail safely
+    shift
+    "$@"
+    return $?
+}
+export -f sudo

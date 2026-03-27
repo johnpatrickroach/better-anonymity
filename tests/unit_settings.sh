@@ -18,6 +18,12 @@ fail() {
 
 # Mock ROOT_DIR
 ROOT_DIR="$(dirname "$0")/.."
+export ROOT_DIR
+
+# Mock sudo keepalive BEFORE sourcing lib/core.sh to prevent password prompts
+start_sudo_keepalive() { :; }
+stop_sudo_keepalive() { :; }
+
 source "$(dirname "$0")/../lib/core.sh"
 source "$(dirname "$0")/../lib/macos_hardening.sh"
 source "$(dirname "$0")/../lib/network.sh"

@@ -5,6 +5,14 @@
 # Source the test framework
 source "$(dirname "$0")/test_framework.sh"
 
+# Setup environment
+ROOT_DIR="$(dirname "$0")/.."
+export ROOT_DIR
+
+# Mock sudo keepalive BEFORE sourcing lib/core.sh to prevent password prompts
+start_sudo_keepalive() { :; }
+stop_sudo_keepalive() { :; }
+
 # Mock required libraries
 source "$(dirname "$0")/../lib/core.sh"
 # Source the file under test

@@ -50,18 +50,38 @@ done
 BIN_DIR=$(dirname "$SCRIPT_PATH")
 ROOT_DIR=$(dirname "$BIN_DIR")
 
-# Support python 'pip' deployments which map libs to 'lib/better-anonymity'
+# Export for use in subprocesses
+export ROOT_DIR
+
+# Determine installation type and set paths accordingly
+# 1. Pip installation: lib/better-anonymity structure
+# 2. Homebrew: symlink in /usr/local or /opt/homebrew
+# 3. Source: standard project structure
 if [ -d "$ROOT_DIR/lib/better-anonymity" ]; then
+    # Pip installation
     LIB_DIR="$ROOT_DIR/lib/better-anonymity"
     CONFIG_DIR="$ROOT_DIR/config/better-anonymity"
+    INSTALL_TYPE="pip"
 else
+    # Source or Homebrew installation (both use standard structure)
     LIB_DIR="$ROOT_DIR/lib"
     CONFIG_DIR="$ROOT_DIR/config"
+    # Detect if it's Homebrew by checking the path
+    if [[ "$SCRIPT_PATH" == *"/Cellar/"* ]] || [[ "$SCRIPT_PATH" == *"/opt/homebrew/"* ]]; then
+        INSTALL_TYPE="homebrew"
+    else
+        INSTALL_TYPE="source"
+    fi
 fi
+
+# Export for use in subprocesses
+export LIB_DIR CONFIG_DIR
 
 # Check if lib exists
 if [ ! -d "$LIB_DIR" ]; then
     echo "Error: Library directory not found at $LIB_DIR"
+    echo "Installation type: $INSTALL_TYPE"
+    echo "Script path: $SCRIPT_PATH"
     exit 1
 fi
 

@@ -4,6 +4,11 @@
 # Unit tests for core utilities
 
 source "$(dirname "$0")/test_framework.sh"
+
+# Setup environment
+ROOT_DIR="$(dirname "$0")/.."
+export ROOT_DIR
+
 source "$(dirname "$0")/../lib/core.sh"
 
 start_suite "Core Utilities"

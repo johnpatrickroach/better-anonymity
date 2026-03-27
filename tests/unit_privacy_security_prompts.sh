@@ -6,6 +6,12 @@ source "$(dirname "$0")/test_framework.sh"
 
 # Mock dependencies
 ROOT_DIR="$(dirname "$0")/.."
+export ROOT_DIR
+
+# Mock sudo keepalive BEFORE sourcing lib/core.sh to prevent password prompts
+start_sudo_keepalive() { :; }
+stop_sudo_keepalive() { :; }
+
 source "$ROOT_DIR/lib/core.sh"
 
 # Captured commands for verification

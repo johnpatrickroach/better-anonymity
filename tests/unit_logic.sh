@@ -446,12 +446,12 @@ assert_contains "$OUTPUT" "EXEC: pkill -HUP socketfilterfw" "Should reload firew
 
 # Test 6.5: PF Firewall Blocklist
 # -------------------------------
-source lib/firewall.sh
-
-# Mock dependencies
+# Mock dependencies before sourcing
 execute_sudo() { echo "SUDO_EXEC: $*"; }
 save_state_var() { echo "STATE: $*"; }
 curl() { echo "192.168.1.1"; echo "8.8.8.8"; }
+
+source "$ROOT_DIR/lib/firewall.sh" || fail "Could not source lib/firewall.sh"
 
 OUTPUT=$(firewall_enable_blocklist)
 assert_contains "$OUTPUT" "1 unique threat IPs" "Should filter internal IPs"
@@ -644,21 +644,11 @@ trap - EXIT
 
 # Test 10.5: Aggressive Browser Hardening
 # ---------------------------------------
-source lib/browser_hardening.sh
-
 # Mock get_firefox_profile
 get_firefox_profile() {
     echo "/tmp/mock_ff_profile"
     return 0
 }
-
-# Create mock profile directory
-mkdir -p /tmp/mock_ff_profile
-touch /tmp/mock_ff_profile/user.js
-touch /tmp/mock_ff_profile/prefs.js
-
-# Ensure asset can be found relative to test context
-export CONFIG_DIR="./config"
 
 # Mock date to predictable value for backups
 date() { echo "20240101120000"; }
@@ -666,11 +656,22 @@ execute_sudo() { echo "SUDO: $*"; }
 header() { echo "HEADER: $*"; }
 save_state_var() { echo "STATE: $*"; }
 
+# Set CONFIG_DIR to absolute path BEFORE sourcing browser_hardening.sh
+export CONFIG_DIR="$ROOT_DIR/config"
+export LIB_DIR="$ROOT_DIR/lib"
+
+source "$ROOT_DIR/lib/browser_hardening.sh" || fail "Could not source lib/browser_hardening.sh"
+
+# Create mock profile directory
+mkdir -p /tmp/mock_ff_profile
+touch /tmp/mock_ff_profile/user.js
+touch /tmp/mock_ff_profile/prefs.js
+
 OUTPUT=$(harden_browser_profiles)
 
 assert_contains "$OUTPUT" "SUDO: Backup user.js cp /tmp/mock_ff_profile/user.js /tmp/mock_ff_profile/user.js.old.20240101120000" "Should backup user.js"
 assert_contains "$OUTPUT" "SUDO: Backup prefs.js cp /tmp/mock_ff_profile/prefs.js /tmp/mock_ff_profile/prefs.js.old.20240101120000" "Should backup prefs.js"
-assert_contains "$OUTPUT" "SUDO: Inject user.js cp ./config/browser/user.js /tmp/mock_ff_profile/user.js" "Should copy static user.js"
+assert_contains "$OUTPUT" "SUDO: Inject user.js cp $ROOT_DIR/config/browser/user.js /tmp/mock_ff_profile/user.js" "Should copy static user.js"
 
 # Cleanup
 unset -f date header save_state_var
@@ -1862,19 +1863,17 @@ assert_contains "$OUTPUT" "brew called with: install torsocks" "Should track tor
 
 start_suite "Lifecycle Managers"
 
-# Mock show_banner
+# Mock show_banner before sourcing
 show_banner() { echo "BANNER: Better Anonymity"; }
-source "$(dirname "$0")/../lib/lifecycle.sh"
 
-# Test 27: Setup Wizard
-# ---------------------
+# Mock sudo keepalive BEFORE sourcing lifecycle.sh to prevent background hang
+start_sudo_keepalive() { echo "CALL: start_sudo_keepalive"; }
+stop_sudo_keepalive() { :; }
+
 # Mock interactive confirming
 ask_confirmation() {
     # We'll simulate 'yes' to all
     return 0 
-}
-header() {
-    echo "HEADER: $1"
 }
 
 # Mock system checks that might execute in hardening
@@ -1884,15 +1883,17 @@ fdesetup() { echo "FileVault is On"; }
 csrutil() { echo "enabled"; }
 spctl() { echo "assessments enabled"; }
 
-# Mock sudo keepalive to prevent background hang
-start_sudo_keepalive() { echo "CALL: start_sudo_keepalive"; }
-
 # Mock Checks
 check_installed() { return 0; }
 check_unbound_integrity() { return 0; }
 
 # Mock Modules
 load_module() { echo "LOAD_MODULE: $1"; }
+header() {
+    echo "HEADER: $1"
+}
+
+source "$(dirname "$0")/../lib/lifecycle.sh"
 
 # Mock Installers
 install_firefox() { echo "CALL: install_firefox"; }
@@ -2041,6 +2042,10 @@ start_suite "Firefox Extensions Logic"
 start_suite "System State Restore"
 
 (
+    # Mock sudo keepalive BEFORE sourcing
+    start_sudo_keepalive() { echo "CALL: start_sudo_keepalive"; }
+    stop_sudo_keepalive() { :; }
+    
     # Source lifecycle.sh to get state functions (without running main)
     # We rely on previous sourcing or re-source
     # shellcheck source=/dev/null
@@ -2668,6 +2673,11 @@ check_port() {
 # Sourcing lifecycle again to get the real function setup_advanced_dns_atomic
 # But we need to be careful about overwrites. 
 # We overrode it in Test 27. We need to restore it by sourcing lib again.
+
+# Mock sudo keepalive BEFORE sourcing to prevent prompts
+start_sudo_keepalive() { echo "CALL: start_sudo_keepalive"; }
+stop_sudo_keepalive() { :; }
+
 source "$(dirname "$0")/../lib/lifecycle.sh"
 
 # Mock dependencies
@@ -2724,6 +2734,11 @@ fi
 # Test 33: CLI Installation (Wrapper Script & Idempotency)
 # --------------------------------------------------------
 start_suite "CLI Installation"
+
+# Mock sudo keepalive BEFORE sourcing to prevent prompts
+start_sudo_keepalive() { echo "CALL: start_sudo_keepalive"; }
+stop_sudo_keepalive() { :; }
+
 source "$(dirname "$0")/../lib/lifecycle.sh"
 
 # Mock file operations

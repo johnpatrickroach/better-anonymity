@@ -8,6 +8,7 @@ set -e
 # Switch to the project root (one level up from tests/)
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PROJECT_ROOT="$(dirname "$DIR")"
+export ROOT_DIR="$PROJECT_ROOT"
 cd "$PROJECT_ROOT"
 
 # Run all test scripts in this directory

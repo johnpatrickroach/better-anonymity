@@ -5,6 +5,14 @@
 
 source "$(dirname "$0")/test_framework.sh"
 
+# Setup environment
+ROOT_DIR="$(dirname "$0")/.."
+export ROOT_DIR
+
+# Mock sudo keepalive BEFORE sourcing lib/core.sh to prevent password prompts
+start_sudo_keepalive() { :; }
+stop_sudo_keepalive() { :; }
+
 # Helper functions for reporting
 pass() { echo -e "${GREEN}[PASS]${NC} $1"; ((PASSED++)); }
 fail() { echo -e "${RED}[FAIL]${NC} $1"; ((FAILED++)); }
